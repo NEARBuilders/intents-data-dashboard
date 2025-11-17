@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "name": "Web4 Profile Template",
+  "description": "Customizable profile module for easy integration with module federation",
+  "url": "http://localhost:5170",
+  "icons": ["/favicon.ico"]
+}

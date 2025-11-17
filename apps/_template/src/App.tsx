@@ -1,15 +1,13 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
-import React from "react";
 import { routeTree } from "./routeTree.gen";
-
-export const queryClient = new QueryClient();
+import { orpc, queryClient } from "./utils/orpc";
 
 const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   defaultPreloadStaleTime: 0,
   context: {
+    orpc,
     queryClient,
   },
 });
@@ -20,10 +18,7 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// Provider component moved to bootstrap.tsx to avoid circular import
 export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  );
+  return <RouterProvider router={router} />;
 }

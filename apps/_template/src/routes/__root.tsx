@@ -1,7 +1,10 @@
 import { ThemeProvider } from "../lib/providers/theme";
 import { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
+import { Toaster } from "sonner";
 import React from "react";
+import type { orpc, queryClient } from "../utils/orpc";
 
 export const TanStackRouterDevtools =
   process.env.NODE_ENV === "production"
@@ -22,8 +25,8 @@ export const ReactQueryDevtools =
       );
 
 export const Route = createRootRouteWithContext<{
-  auth: { userId: string };
-  queryClient: QueryClient;
+  orpc: typeof orpc;
+  queryClient: typeof queryClient;
 }>()({
   component: RootComponent,
   notFoundComponent: () => <>Not found</>,
@@ -40,6 +43,7 @@ function RootComponent() {
           <TanStackRouterDevtools position="bottom-left" />
           <ReactQueryDevtools buttonPosition="bottom-left" />
         </React.Suspense>
+        <Toaster richColors position="top-right" />
       </ThemeProvider>
     </>
   );

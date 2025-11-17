@@ -1,64 +1,78 @@
 import React, { useEffect, useState } from "react";
-import {
-  setupWalletSelector,
-  WalletSelector,
-} from "@near-wallet-selector/core";
-import { setupModal } from "@near-wallet-selector/modal-ui";
-import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
+import { NearConnector, NearWalletBase } from "@hot-labs/near-connect";
 import { Profile as ProfileType } from "../lib/social";
-import { Profile } from "../components/Profile";
-import "@near-wallet-selector/modal-ui/styles.css";
 import { ProfileEditForm } from "./ProfileEditForm";
-import { getConnectedAccountId, saveProfileToNear } from "./near-service";
+import App from "../App";
 
-type DevWrapperProps = {
-  accountId: string;
-  profile: ProfileType | null;
-};
-
-export function DevWrapper({
-  accountId,
-  profile: initialProfile,
-}: DevWrapperProps) {
+export function DevWrapper() {
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState<ProfileType | null>(initialProfile);
-  const [selector, setSelector] = useState<WalletSelector | null>(null);
-  const [walletModal, setWalletModal] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileType | null>(null);
+  const [wallet, setWallet] = useState<NearWalletBase | null>(null);
   const [connectedId, setConnectedId] = useState<string | null>(null);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
 
   useEffect(() => {
-    // Initialize wallet selector
+    // Initialize NearConnector
     const initWallet = async () => {
-      const walletSelector = await setupWalletSelector({
-        network: "testnet",
-        modules: [setupMyNearWallet()],
-      });
+      try {
+        const connector = new NearConnector({
+          manifest: "/manifest.json",
+          network,
+          providers: { testnet: ["https://relmn.aurora.dev"] },
 
-      const modal = setupModal(walletSelector, {
-        contractId: "guest-book.testnet",
-      });
+          walletConnect: {
+            projectId: "1292473190ce7eb75c9de67e15aaad99", // Replace with your project ID
+            metadata: {
+              name: "Web4 Profile Template",
+              description: "Profile editing for Web4",
+              url: window.location.origin,
+              icons: ["/favicon.ico"],
+            },
+          },
+        });
 
-      setSelector(walletSelector);
-      setWalletModal(modal);
+        connector.on("wallet:signIn", async (t) => {
+          setWallet(await connector.wallet());
+          setConnectedId(t.accounts[0]?.accountId || null);
+        });
 
-      // Check if already connected
-      const accountId = await getConnectedAccountId(walletSelector);
-      setConnectedId(accountId);
+        connector.on("wallet:signOut", () => {
+          setWallet(null);
+          setConnectedId(null);
+        });
 
-      // Subscribe to account changes
-      walletSelector.store.observable.subscribe(async () => {
-        const accountId = await getConnectedAccountId(walletSelector);
-        setConnectedId(accountId);
-      });
+        // Check if already connected
+        const currentWallet = await connector.wallet();
+        const accounts = await currentWallet.getAccounts();
+        if (accounts[0]) {
+          setWallet(currentWallet);
+          setConnectedId(accounts[0].accountId);
+        }
+
+        // Store connector in a ref or state for use in handleConnect
+        (window as any).__connector = connector;
+      } catch (error) {
+        console.error("Failed to initialize wallet connector:", error);
+      }
     };
 
-    initWallet().catch(console.error);
-  }, []);
+    initWallet();
+  }, [network]);
 
-  const handleConnect = () => {
-    if (walletModal) {
-      walletModal.show();
+  const handleConnect = async () => {
+    if (connectedId) {
+      // Disconnect
+      const connector = (window as any).__connector;
+      if (connector) {
+        await connector.disconnect();
+      }
+    } else {
+      // Connect
+      const connector = (window as any).__connector;
+      if (connector) {
+        await connector.connect();
+      }
     }
   };
 
@@ -124,15 +138,49 @@ export function DevWrapper({
               <ProfileEditForm
                 profile={profile}
                 onSave={async (newProfile) => {
-                  if (!selector) {
-                    console.error("Wallet selector not initialized");
+                  if (!wallet) {
+                    console.error("Wallet not connected");
+                    return;
+                  }
+
+                  if (!connectedId) {
+                    alert("No wallet connected. Please connect your wallet first.");
                     return;
                   }
 
                   try {
-                    await saveProfileToNear(selector, accountId, newProfile);
+                    // Save profile to NEAR social contract
+                    const data = {
+                      [connectedId]: {
+                        profile: {
+                          name: newProfile.name,
+                          description: newProfile.description,
+                          image: newProfile.image,
+                          backgroundImage: newProfile.backgroundImage,
+                          linktree: newProfile.linktree,
+                        },
+                      },
+                    };
+
+                    await wallet.signAndSendTransaction({
+                      signerId: connectedId,
+                      receiverId: "social.near",
+                      actions: [
+                        {
+                          type: "FunctionCall",
+                          params: {
+                            methodName: "set",
+                            args: { data },
+                            gas: "300000000000000",
+                            deposit: "0",
+                          },
+                        },
+                      ],
+                    });
+
                     setProfile(newProfile);
                     setIsEditing(false);
+                    alert("Profile saved successfully!");
                   } catch (error) {
                     console.error("Failed to save profile:", error);
                     alert("Failed to save profile. Please try again.");
@@ -145,8 +193,8 @@ export function DevWrapper({
         </div>
       )}
 
-      {/* Profile Component */}
-      <Profile accountId={accountId} profile={profile} />
+      {/* App Component - Router handles the Profile rendering */}
+      <App />
     </div>
   );
 }

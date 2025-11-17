@@ -12,18 +12,29 @@ const basePlugins = [
     name: "profile",
     filename: "profile/remoteEntry.js",
     exposes: {
+      "./App": "./src/App.tsx",
       "./Profile": "./src/components/Profile.tsx",
     },
-    experiments: {
-      federationRuntime: "hoisted",
-    },
+    remotes: {},
     shared: {
-      react: { singleton: true, eager: true, requiredVersion: "^18.0.0" },
+      react: {
+        singleton: true,
+        eager: true,
+        requiredVersion: "^18.3.0"
+      },
       "react-dom": {
         singleton: true,
         eager: true,
-        requiredVersion: "^18.0.0",
+        requiredVersion: "^18.3.0",
       },
+      // Exclude dev tools from federation
+      "@tanstack/router-devtools": { import: false },
+      "@tanstack/react-query-devtools": { import: false },
+      // Exclude NEAR wallet packages from federation (provided by host)
+      "@hot-labs/near-connect": { import: false },
+      "@hot-labs/wibe3": { import: false },
+      "@walletconnect/sign-client": { import: false },
+      "near-api-js": { import: false },
     },
   }),
 ];

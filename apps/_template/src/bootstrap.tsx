@@ -1,56 +1,35 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import * as ReactDOMClient from "react-dom/client";
-import { Profile } from "./components/Profile";
+import App from "./App";
 import "./index.css";
-import { getProfile } from "./lib/social";
+import { queryClient } from "./utils/orpc";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
 const render = async () => {
   const root = document.getElementById("root");
-  const accountId = "efiz.near"; // You might want to make this configurable
 
-  try {
-    const profile = await getProfile(accountId);
+  if (root) {
+    const rootInstance = ReactDOMClient.createRoot(root);
 
-    if (root) {
-      const rootInstance = ReactDOMClient.createRoot(root);
+    const appComponent = isDevelopment ? (
+      // In development, wrap App with DevWrapper
+      await import(/* webpackChunkName: "dev-tools" */ "./dev/DevWrapper").then(
+        ({ DevWrapper }) => <DevWrapper />
+      )
+    ) : (
+      // In production, render App directly (router handles everything)
+      <App />
+    );
 
-      if (profile) {
-        if (isDevelopment) {
-          // Dynamically import development dependencies
-          const { DevWrapper } = await import(
-            /* webpackChunkName: "dev-tools" */ "./dev/DevWrapper"
-          );
-          rootInstance.render(
-            <React.StrictMode>
-              <DevWrapper profile={profile} accountId={accountId} />
-            </React.StrictMode>
-          );
-        } else {
-          rootInstance.render(
-            <React.StrictMode>
-              <Profile profile={profile} accountId={accountId} />
-            </React.StrictMode>
-          );
-        }
-      } else {
-        rootInstance.render(
-          <React.StrictMode>
-            <div>No profile found for {accountId}</div>
-          </React.StrictMode>
-        );
-      }
-    }
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-    if (root) {
-      ReactDOMClient.createRoot(root).render(
-        <React.StrictMode>
-          <div>Error loading profile. Please try again later.</div>
-        </React.StrictMode>
-      );
-    }
+    rootInstance.render(
+      <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+          {appComponent}
+        </QueryClientProvider>
+      </React.StrictMode>
+    );
   }
 };
 
