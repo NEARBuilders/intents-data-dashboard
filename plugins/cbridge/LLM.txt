@@ -181,7 +181,6 @@ import { contract } from "./contract";
 import { YourService } from "./service";
 
 export default createPlugin({
-  id: "@your-org/your-plugin",
   
   variables: z.object({
     baseUrl: z.string().url(),
@@ -634,7 +633,6 @@ export class MyService {
 
 // index.ts
 export default createPlugin({
-  id: "@org/plugin",
   variables: z.object({ apiUrl: z.string() }),
   secrets: z.object({ apiKey: z.string() }),
   contract,

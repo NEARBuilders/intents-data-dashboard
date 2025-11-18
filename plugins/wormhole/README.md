@@ -18,11 +18,6 @@ Template for building single-provider bridge data adapters for the NEAR Intents 
    - Implement decimal normalization for `effectiveRate` calculations
    - Add proper error handling for rate limits and timeouts
 
-4. **Update plugin ID** in `src/index.ts`:
-   ```typescript
-   id: "@your-org/your-provider-name"
-   ```
-
 ## Running Tests
 
 ```bash
