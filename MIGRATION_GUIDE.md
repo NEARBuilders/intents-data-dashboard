@@ -2,129 +2,209 @@
 
 ## Overview
 
-This guide documents the migration from the monolithic `getSnapshot` approach to the new multi-route + middleware architecture for data provider plugins.
+This guide documents the migration from the monolithic `getSnapshot` approach to the new multi-route + middleware architecture for data provider plugins. The pattern has been successfully implemented in `plugins/across` and should be applied to all remaining plugins.
 
-## Architecture Changes
+## Architecture: 4-Layer Pattern
 
-### Before: Monolithic getSnapshot
-- Single `getSnapshot` endpoint that handled asset transformation internally
-- Direct NEAR Intents → Provider format conversion in service methods
-- Tight coupling between data fetching and asset transformation
+### 1. Client Layer (`client.ts`)
+- **Purpose**: All HTTP communication with provider APIs
+- **Responsibilities**: Rate limiting, retries, timeouts, error handling
+- **Framework**: Uses `createHttpClient` from `@data-provider/plugin-utils`
+- **Returns**: Raw provider API response formats (no business logic)
 
-### After: Multi-Route + Middleware + Transform Helpers
-- Split into 5 endpoints: `getVolumes`, `getListedAssets`, `getRates`, `getLiquidity`, `getSnapshot`
-- Asset transformation handled by router layer using `transformAssetToProvider` and `transformAssetFromProvider` functions
-- Route transformation handled by oRPC middleware that builds routes from transformed assets
-- Provider-specific schemas defined per plugin with optional `address` field
-- Generic transform helpers (`transformRate`, `transformLiquidity`) for response transformation
-- Clean separation of concerns: Service (provider format) → Router (NEAR Intents format)
+### 2. Service Layer (`service.ts`)
+- **Purpose**: Business logic and API orchestration
+- **Responsibilities**: Data coordination, caching, calculations
+- **Framework**: Extends `BaseDataProviderService<ProviderAssetType>`
+- **Format**: Works exclusively in provider format (no NEAR Intents transformations)
+
+### 3. Router Layer (`index.ts`)
+- **Purpose**: Protocol adaptation between provider and NEAR Intents formats
+- **Responsibilities**: Format transformations, middleware setup, handler logic
+- **Uses**: oRPC middleware for automatic route transformation
+- **Returns**: NEAR Intents format to clients
+
+### 4. Middleware Layer (built-in)
+- **Purpose**: Automatic NEAR Intents ⇄ Provider route transformation
+- **Created by**: `createTransformRoutesMiddleware`
+- **Applied to**: `getRates`, `getLiquidity`, `getSnapshot`
+- **Provides**: `context.routes` in transformed provider format
+
+---
 
 ## Migration Steps
 
-### Phase 1: Core Infrastructure
+### Phase 1: Create Client Layer
 
-#### 1. Update Shared Contract
+**1. Create `src/client.ts`**
 ```typescript
-// packages/shared-contract/contract.ts - Add provider schemas
-export const ProviderAsset = z.object({
-  chainId: z.string(),
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number()
-});
+import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
 
-export const ProviderRoute = z.object({
-  source: ProviderAsset,
-  destination: ProviderAsset
-});
+export interface {Provider}VolumeResponse {{
+  volumes: Array<{{
+    window: string;
+    volumeUsd: number;
+    measuredAt: string;
+  }}>;
+}}
 
-// Add multi-route endpoints
-getVolumes: oc.route({ method: 'POST', path: '/volumes' })...
-getListedAssets: oc.route({ method: 'GET', path: '/assets' })...
-getRates: oc.route({ method: 'POST', path: '/rates' })...
-getLiquidity: oc.route({ method: 'POST', path: '/liquidity' })...
-getSnapshot: oc.route({ method: "POST", path: "/snapshot" })... // Composite
+export interface {Provider}Asset {{
+  chainId: number;
+  address: string;
+  symbol: string;
+  decimals: number;
+  priceUsd?: string;
+}}
+
+export class {Provider}ApiClient {{
+  private readonly http: HttpClient;
+
+  constructor(
+    private readonly baseUrl: string,
+    private readonly apiKey: string,
+    private readonly timeout: number = 30000
+  ) {{
+    this.http = createHttpClient({{
+      baseUrl,
+      headers: {{
+        'Authorization': apiKey ? `Bearer ${{apiKey}}` : undefined,
+        'Content-Type': 'application/json'
+      }}.rateLimiter,
+      rateLimiter: createRateLimiter(10),
+      timeout,
+      retries: 3
+    }});
+  }}
+
+  async fetchVolumes(windows: string[]): Promise<VolumeResponse> {{
+    return this.http.get<VolumeResponse>('/volumes', {{
+      params: {{ windows: windows.join(',') }}
+    }});
+  }}
+
+  async fetchTokens(): Promise<{Provider}Asset[]> {{
+    return this.http.get<{Provider}Asset[]>('/tokens');
+  }}
+
+  // Add provider-specific API methods...
+}}
 ```
 
-#### 2. Use oRPC Middleware
-The oRPC middleware handles route transformation automatically. Plugins provide a `transformRoute` function that converts NEAR Intents format to provider-specific format.
+**2. Move all HTTP logic from service to client**
+- No business logic in client
+- Only HTTP communication and request/response transformation
+- Use `createHttpClient` and `createRateLimiter`
 
-### Phase 2: Plugin Template Updates
+---
 
-#### 1. Define Provider Schemas
+### Phase 2: Create Contract Layer
+
+**Update `src/contract.ts`**
 ```typescript
-// plugins/_plugin_template/src/contract.ts
-export const ProviderAsset = z.object({
-  chainId: z.string(),
-  address: z.string().optional(),
+import {{ z }} from 'every-plugin/zod';
+
+// Provider-specific schemas - customize based on actual API
+export const {Provider}Asset = z.object({{
+  // Standard chainId (most providers)
+  chainId: z.number(),
+  address: z.string(),
   symbol: z.string(),
-  decimals: z.number()
-});
+  decimals: z.number(),
+  // Add provider-specific fields as needed
+  priceUsd: z.string().optional()
+}});
 
-export const ProviderRoute = z.object({
-  source: ProviderAsset,
-  destination: ProviderAsset
-});
+export const {Provider}Route = z.object({{
+  source: {Provider}Asset,
+  destination: {Provider}Asset
+}});
 
-export type ProviderAssetType = z.infer<typeof ProviderAsset>;
-export type ProviderRouteType = z.infer<typeof ProviderRoute>;
+export type {Provider}AssetType = z.infer<typeof {Provider}Asset>;
+export type {Provider}RouteType = z.infer<typeof {Provider}Route>;
+
+// Re-export shared contract
+export {{ contract }} from '@data-provider/shared-contract';
+export * from '@data-provider/shared-contract';
 ```
 
-#### 2. Update Service Class
+**Custom ChainId Formats:**
+- **Standard (Across, cBridge, deBridge, LiFi)**: `chainId: z.number()`
+- **Axelar**: `chainName: z.string()`
+- **CCTP**: `domainId: z.string()`
+
+---
+
+### Phase 3: Refactor Service Layer
+
+**The Big Change**: Service methods MUST be public and accept provider format.
+
+**✅ CORRECT Service Structure:**
 ```typescript
-// plugins/_plugin_template/src/service.ts
-import { DataProviderService as BaseDataProviderService } from "@data-provider/plugin-utils";
-import { ProviderApiClient } from "./client";
-import type {
+import {{ DataProviderService as BaseDataProviderService }} from "@data-provider/plugin-utils";
+import {{ {Provider}ApiClient }} from "./client";
+import type {{
   LiquidityDepthType,
-  ProviderAssetType,
+  {Provider}AssetType,
   RateType,
   RouteType,
   SnapshotType,
   TimeWindow,
   VolumeWindowType
-} from "./contract";
+}} from "./contract";
 
-export class DataProviderService extends BaseDataProviderService<ProviderAssetType> {
-  constructor(private readonly client: ProviderApiClient) {
+export class {Provider}Service extends BaseDataProviderService<{Provider}AssetType> {{
+  constructor(private readonly client: {Provider}ApiClient) {{
     super();
-  }
+  }}
 
-  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {
+  // ✅ PUBLIC method, accepts standard TimeWindow[]
+  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {{
     const response = await this.client.fetchVolumes(windows);
-    return response.volumes.map(volume => ({
-      window: volume.window as TimeWindow,
-      volumeUsd: volume.volumeUsd,
-      measuredAt: volume.measuredAt
-    }));
-  }
+    return response.volumes.map(v => ({{
+      window: v.window as TimeWindow,
+      volumeUsd: v.volumeUsd,
+      measuredAt: v.measuredAt
+    }}));
+  }}
 
-  // Service returns raw provider format - transformation happens in router
-  async getListedAssets(): Promise<ProviderAssetType[]> {
-    const response = await this.client.fetchAssets();
-    return response.assets.map(asset => ({
+  // ✅ PUBLIC method, returns ProviderAssetType[] (not NEAR Intents format)
+  async getListedAssets(): Promise<{Provider}AssetType[]> {{
+    const response = await this.client.fetchTokens();
+    return response.map(asset => ({{
       chainId: asset.chainId,
       address: asset.address,
       symbol: asset.symbol,
-      decimals: asset.decimals
-    }));
-  }
+      decimals: asset.decimals,
+      priceUsd: asset.priceUsd
+    }}));
+  }}
 
-  // TODO: Implement provider's quote API endpoint
-  async getRates(routes: RouteType<ProviderAssetType>[], notionals: string[]): Promise<RateType<ProviderAssetType>[]> {
-    return []; // Placeholder - implement based on provider's API
-  }
+  // ✅ PUBLIC method, accepts RouteType<ProviderAssetType>[] (provider format)
+  async getRates(
+    routes: RouteType<{Provider}AssetType>[],
+    notionals: string[]
+  ): Promise<RateType<{Provider}AssetType>[]> {{
+    // Business logic here - NO transformations to NEAR Intents format
+    // Return provider format assets in responses
+    return rates.map(rate => ({{
+      source: route.source,        // ProviderAssetType
+      destination: route.destination,  // ProviderAssetType
+      amountIn: rate.amountIn,
+      amountOut: rate.amountOut,
+      effectiveRate: rate.effectiveRate,
+      totalFeesUsd: rate.totalFeesUsd,
+      quotedAt: rate.quotedAt
+    }}));
+  }}
 
-  // TODO: Implement provider's liquidity API or simulate with quotes
-  async getLiquidityDepth(routes: RouteType<ProviderAssetType>[]): Promise<LiquidityDepthType<ProviderAssetType>[]> {
-    return []; // Placeholder - implement based on provider's API
-  }
+  // Similar for getLiquidityDepth...
 
-  async getSnapshot(params: {
-    routes: RouteType<ProviderAssetType>[];
+  // Coordinator method
+  async getSnapshot(params: {{
+    routes: RouteType<{Provider}AssetType>[];
     notionals?: string[];
     includeWindows?: TimeWindow[];
-  }): Promise<SnapshotType<ProviderAssetType>> {
+  }}): Promise<SnapshotType<{Provider}AssetType>> {{
     const [volumes, listedAssets, rates, liquidity] = await Promise.all([
       this.getVolumes(params.includeWindows || ["24h"]),
       this.getListedAssets(),
@@ -132,671 +212,432 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
       this.getLiquidityDepth(params.routes)
     ]);
 
-    return {
+    return {{
       volumes,
-      listedAssets: {
-        assets: listedAssets,
+      listedAssets: {{
+        assets: listedAssets,  // ProviderAssetType[] - NOT transformed
         measuredAt: new Date().toISOString()
-      },
-      ...(rates.length > 0 && { rates }),
-      ...(liquidity.length > 0 && { liquidity }),
-    };
-  }
-}
+      }},
+      ...(rates.length > 0 && {{ rates }}),
+      ...(liquidity.length > 0 && {{ liquidity }})
+    }};
+  }}
+}}
 ```
 
-#### 3. Update Plugin Index
+**❌ WRONG Anti-Patterns:**
 ```typescript
-// plugins/_plugin_template/src/index.ts
-import { transformRate, transformLiquidity } from "@data-provider/plugin-utils";
+// ❌ Wrong: Private methods (everything needs to be callable from router)
+private async getRates(...) {{ ... }}
 
-initialize: (config) =>
-  Effect.gen(function* () {
-    const service = new DataProviderService(/*...*/);
+// ❌ Wrong: Accepts NEAR Intents AssetType (service only works with provider formats)
+async getRates(routes: RouteType<AssetType>[], ...) {{ ... }}
 
-    // NEAR Intents → Provider (for middleware/requests)
-    const transformAssetToProvider = async (asset: AssetType): Promise<ProviderAssetType> => {
+// ❌ Wrong: Returns NEAR Intents format (transformations happen in router)
+async getListedAssets(): Promise<AssetType[]> {{ ... }}
+```
+
+---
+
+### Phase 4: Create Router Layer with Middleware
+
+**Update `src/index.ts`**
+```typescript
+import {{ createPlugin }} from "every-plugin";
+import {{ Effect }} from "every-plugin/effect";
+import {{ z }} from "every-plugin/zod";
+import {{
+  createTransformRoutesMiddleware,
+  getBlockchainFromChainId,
+  getChainId,
+  transformRate,
+  transformLiquidity
+}} from "@data-provider/plugin-utils";
+
+import {{ {Provider}ApiClient }} from "./client";
+import {{ contract }} from "./contract";
+import {{ {Provider}Service }} from "./service";
+import type {{ AssetType, {Provider}AssetType }} from "./contract";
+
+export default createPlugin({{
+  variables: z.object({{
+    baseUrl: z.string().url().default("https://api.{provider}.com"),
+    timeout: z.number().min(1000).max(60000).default(30000),
+  }}),
+
+  secrets: z.object({{
+    apiKey: z.string().default("not-required"),
+  }}),
+
+  contract,
+
+  initialize: (config) => Effect.gen(function* () {{
+    // Create HTTP client
+    const client = new {Provider}ApiClient(
+      config.variables.baseUrl,
+      config.secrets.apiKey,
+      config.variables.timeout
+    );
+
+    // Create service
+    const service = new {Provider}Service(client);
+
+    // NEAR Intents → Provider transformation
+    const transformAssetToProvider = async (asset: AssetType): Promise<{Provider}AssetType> => {{
       const chainId = await getChainId(asset.blockchain);
-      return {
-        chainId: chainId?.toString() || asset.chainId!,
-        address: asset.contractAddress,
+      if (!chainId) {{
+        throw new Error(`Unsupported blockchain: ${{asset.blockchain}}`);
+      }}
+      return {{
+        chainId: chainId,
+        address: asset.contractAddress!,
         symbol: asset.symbol,
         decimals: asset.decimals
-      };
-    };
+      }};
+    }};
 
-    // Provider → NEAR Intents (for responses)
-    const transformAssetFromProvider = async (asset: ProviderAssetType): Promise<AssetType> => {
-      let blockchain = await getBlockchainFromChainId(asset.chainId);
+    // Provider → NEAR Intents transformation
+    const transformAssetFromProvider = async (asset: {Provider}AssetType): Promise<AssetType> => {{
+      let blockchain = await getBlockchainFromChainId(String(asset.chainId));
 
-      if (!blockchain) {
-        // Handle provider specific mappings
-        switch (asset.chainId) {
-          case "34268394551451": { // Solana example
+      if (!blockchain) {{
+        // Handle provider-specific mappings
+        switch (String(asset.chainId)) {{
+          case "34268394551451": // Solana example
             blockchain = "sol";
             break;
-          }
-          default: {
-            throw new Error(`Unknown chainId: ${asset.chainId}`);
-          }
-        }
-      }
+          default:
+            throw new Error(`Unknown chainId: ${{asset.chainId}}`);
+        }}
+      }}
 
-      const assetId = asset.address ? `nep141:${blockchain}-${asset.address.toLowerCase()}.omft.near` : `nep141:${asset.symbol}`;
+      const assetId = asset.address
+        ? `nep141:${{blockchain}}-${{asset.address.toLowerCase()}}.omft.near`
+        : `nep141:${{asset.symbol}}`;
 
-      return {
+      return {{
         blockchain,
         assetId,
         symbol: asset.symbol,
         decimals: asset.decimals,
         contractAddress: asset.address
-        // Note: No chainId in response - it's optional
-      };
-    };
+      }};
+    }};
 
-    return { service, transformAssetToProvider, transformAssetFromProvider };
-  }),
+    return {{ service, transformAssetToProvider, transformAssetFromProvider }};
+  }}),
 
-createRouter: (context, builder) => {
-  const { service, transformAssetToProvider, transformAssetFromProvider } = context;
+  shutdown: () => Effect.void,
 
-  // Create typed middleware from builder - builds routes from transformed assets
-  const transformRoutesMiddleware = createTransformRoutesMiddleware<
-    AssetType,
-    ProviderAssetType
-  >(transformAssetToProvider);
+  createRouter: (context, builder) => {{
+    const {{ service, transformAssetToProvider, transformAssetFromProvider }} = context;
 
-  return {
-    getVolumes: builder.getVolumes.handler(async ({ input }) => {
-      const volumes = await service.getVolumes(input.includeWindows || ["24h"]);
-      return { volumes };
-    }),
+    // Create middleware for route transformation
+    const transformRoutesMiddleware = createTransformRoutesMiddleware<
+      AssetType,
+      {Provider}AssetType
+    >(transformAssetToProvider);
 
-    getListedAssets: builder.getListedAssets.handler(async () => {
-      const providerAssets = await service.getListedAssets();
+    return {{
+      // No middleware - accepts standard inputs
+      getVolumes: builder.getVolumes.handler(async ({{ input }}) => {{
+        const volumes = await service.getVolumes(input.includeWindows || ["24h"]);
+        return {{ volumes }};
+      }}),
 
-      const assets = await Promise.all(
-        providerAssets.map(asset => transformAssetFromProvider(asset))
-      );
+      // No middleware - transforms provider assets to NEAR Intents
+      getListedAssets: builder.getListedAssets.handler(async () => {{
+        const providerAssets = await service.getListedAssets();
+        const assets = await Promise.all(
+          providerAssets.map(asset => transformAssetFromProvider(asset))
+        );
+        return {{
+          assets,
+          measuredAt: new Date().toISOString()
+        }};
+      }}),
 
-      return {
-        assets,
-        measuredAt: new Date().toISOString()
-      };
-    }),
+      // WITH middleware - accepts NEAR Intents, transforms to provider format
+      getRates: builder.getRates.use(transformRoutesMiddleware).handler(async ({{ input, context }}) => {{
+        const providerRates = await service.getRates(context.routes, input.notionals);
+        const rates = await Promise.all(
+          providerRates.map(r => transformRate(r, transformAssetFromProvider))
+        );
+        return {{ rates }};
+      }}),
 
-    getRates: builder.getRates.use(transformRoutesMiddleware).handler(async ({ input, context }) => {
-      const providerRates = await service.getRates(context.routes, input.notionals);
-      const rates = await Promise.all(
-        providerRates.map(r => transformRate(r, transformAssetFromProvider))
-      );
-      return { rates };
-    }),
+      getLiquidity: builder.getLiquidity.use(transformRoutesMiddleware).handler(async ({{ input, context }}) => {{
+        const providerLiquidity = await service.getLiquidityDepth(context.routes);
+        const liquidity = await Promise.all(
+          providerLiquidity.map(l => transformLiquidity(l, transformAssetFromProvider))
+        );
+        return {{ liquidity }};
+      }}),
 
-    getLiquidity: builder.getLiquidity.use(transformRoutesMiddleware).handler(async ({ input, context }) => {
-      const providerLiquidity = await service.getLiquidityDepth(context.routes);
-      const liquidity = await Promise.all(
-        providerLiquidity.map(l => transformLiquidity(l, transformAssetFromProvider))
-      );
-      return { liquidity };
-    }),
+      getSnapshot: builder.getSnapshot
+        .use(transformRoutesMiddleware)
+        .handler(async ({{ input, context }}) => {{
+          const providerSnapshot = await service.getSnapshot({{
+            routes: context.routes,
+            notionals: input.notionals,
+            includeWindows: input.includeWindows
+          }});
 
-    getSnapshot: builder.getSnapshot
-      .use(transformRoutesMiddleware)
-      .handler(async ({ input, context }) => {
-        const providerSnapshot = await service.getSnapshot({
-          routes: context.routes,
-          notionals: input.notionals,
-          includeWindows: input.includeWindows
-        });
+          // Transform all nested provider types to NEAR Intents format
+          const [rates, liquidity, assets] = await Promise.all([
+            providerSnapshot.rates
+              ? Promise.all(providerSnapshot.rates.map(r => transformRate(r, transformAssetFromProvider)))
+              : undefined,
+            providerSnapshot.liquidity
+              ? Promise.all(providerSnapshot.liquidity.map(l => transformLiquidity(l, transformAssetFromProvider)))
+              : undefined,
+            Promise.all(providerSnapshot.listedAssets.assets.map(transformAssetFromProvider))
+          ]);
 
-        // Transform all nested provider types to NEAR Intents format
-        const [rates, liquidity, assets] = await Promise.all([
-          providerSnapshot.rates
-            ? Promise.all(providerSnapshot.rates.map(r => transformRate(r, transformAssetFromProvider)))
-            : undefined,
-          providerSnapshot.liquidity
-            ? Promise.all(providerSnapshot.liquidity.map(l => transformLiquidity(l, transformAssetFromProvider)))
-            : undefined,
-          Promise.all(providerSnapshot.listedAssets.assets.map(transformAssetFromProvider))
-        ]);
+          return {{
+            volumes: providerSnapshot.volumes,
+            listedAssets: {{ assets, measuredAt: providerSnapshot.listedAssets.measuredAt }},
+            ...(rates && {{ rates }}),
+            ...(liquidity && {{ liquidity }})
+          }};
+        }}),
 
-        return {
-          volumes: providerSnapshot.volumes,
-          listedAssets: { assets, measuredAt: providerSnapshot.listedAssets.measuredAt },
-          ...(rates && { rates }),
-          ...(liquidity && { liquidity })
-        };
-      }),
-
-    ping: builder.ping.handler(async () => ({
-      status: "ok" as const,
-      timestamp: new Date().toISOString(),
-    })),
-  };
-}
+      ping: builder.ping.handler(async () => ({{
+        status: "ok" as const,
+        timestamp: new Date().toISOString(),
+      }})),
+    }};
+  }}
+}});
 ```
 
-### Phase 3: Provider-Specific Customizations
+---
 
-#### Default Providers (ChainId Format)
-For Across, cBridge, deBridge, Li.Fi - use the template as-is.
+## When Documentation Is Unclear
 
-**Across Example:**
+If you're unsure about API endpoints or data formats during migration:
+
+1. **Check existing implementation** - Look at current service.ts for API usage patterns
+2. **Avoid initialization network calls** - Don't add health checks during plugin initialization
+3. **Consult provider documentation directly**
+4. **Preserve existing behavior** - When in doubt, keep the same API calls that work
+5. **Ask for clarification** - If multiple interpretations exist, ask about the correct approach
+
+---
+
+## Critical Anti-Patterns
+
+### ❌ Don't Call Health Checks During Initialization
+
+**Problem**: Some providers don't have health check endpoints, causing plugin initialization to fail.
+
+**Wrong:**
 ```typescript
-// plugins/across/src/contract.ts
-export const AcrossAsset = z.object({
-  chainId: z.string(),      // Numeric chainId as string
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number()
-});
-
-export const AcrossRoute = z.object({
-  source: AcrossAsset,
-  destination: AcrossAsset
-});
-
-export type AcrossAssetType = z.infer<typeof AcrossAsset>;
-export type AcrossRouteType = z.infer<typeof AcrossRoute>;
+initialize: (config) => Effect.gen(function* () {
+  const client = new SomeClient(config);
+  // ❌ This fails if the API doesn't have this endpoint
+  yield* Effect.tryPromise(() => client.healthCheck());
+  return { service };
+})
 ```
 
-**Service Method Signatures:**
+**Correct:**
 ```typescript
-// ❌ BEFORE - Wrong: accepts NEAR Intents format, private methods
-private async getRates(
-  routes: Array<{ source: AssetType; destination: AssetType }>,
-  notionals: string[]
-): Promise<RateType[]>
-
-private async getListedAssets(): Promise<ListedAssetsType>
-
-// ✅ AFTER - Correct: accepts provider format, public methods
-async getRates(
-  routes: AcrossRouteType[],
-  notionals: string[]
-): Promise<RateType[]>
-
-async getListedAssets(): Promise<AcrossAssetType[]>
+initialize: (config) => Effect.gen(function* () {
+  const client = new SomeClient(config);
+  const service = new SomeService(client);
+  // ✅ Keep initialization lightweight - no network calls
+  return { service };
+})
 ```
 
-#### Custom Providers (Different Formats)
+**Why this matters**: Plugin loading fails during tests and deployment if health checks fail. Keep initialization synchronous and fast.
 
-**Axelar (chainName instead of chainId):**
+### 9. Handle Unsupported Chains Gracefully in Transformations
+
+**Problem**: Provider APIs may return assets on chains not supported by NEAR Intents mapping.
+
+**Wrong:**
 ```typescript
-// plugins/axelar/src/contract.ts
-export const ProviderAsset = z.object({
-  chainName: z.string(), // ← Different from template
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number()
-});
-
-// plugins/axelar/src/index.ts
-const transformRoute = async (route: { source: AssetType; destination: AssetType }) => {
-  const sourceChainId = await getChainId(route.source.blockchain);
-  const destChainId = await getChainId(route.destination.blockchain);
-
-  if (!sourceChainId || !destChainId) return null;
-
-  // Fetch chain names from Axelarscan API
-  const sourceChainName = await getChainNameFromId(sourceChainId);
-  const destChainName = await getChainNameFromId(destChainId);
-
-  return {
-    source: {
-      chainName: sourceChainName, // ← Use chainName
-      address: route.source.contractAddress,
-      symbol: route.source.symbol,
-      decimals: route.source.decimals
-    },
-    destination: { /* same */ }
-  };
-};
-```
-
-**CCTP (domainId instead of chainId):**
-```typescript
-// plugins/cctp/src/contract.ts
-export const ProviderAsset = z.object({
-  domainId: z.string(), // ← Circle's domain ID
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number()
-});
-
-// plugins/cctp/src/index.ts
-const transformRoute = async (route: { source: AssetType; destination: AssetType }) => {
-  const sourceChainId = await getChainId(route.source.blockchain);
-  const destChainId = await getChainId(route.destination.blockchain);
-
-  if (!sourceChainId || !destChainId) return null;
-
-  // Map chainId to Circle domainId
-  const sourceDomainId = await getDomainIdFromChainId(sourceChainId);
-  const destDomainId = await getDomainIdFromChainId(destChainId);
-
-  return {
-    source: {
-      domainId: sourceDomainId, // ← Use domainId
-      address: route.source.contractAddress,
-      symbol: route.source.symbol,
-      decimals: route.source.decimals
-    },
-    destination: { /* same */ }
-  };
-};
-```
-
-## Testing Migration
-
-### Unit Tests
-```typescript
-// plugins/_plugin_template/tests/unit/service.test.ts
-describe('DataProviderService', () => {
-  it('getVolumes returns empty array', async () => {
-    const service = new DataProviderService('http://test', 'key', 1000);
-    const result = await service.getVolumes(['24h']);
-    expect(result).toEqual([]);
-  });
-
-  it('getSnapshot coordinates all methods', async () => {
-    const service = new DataProviderService('http://test', 'key', 1000);
-    const result = await service.getSnapshot({
-      routes: [],
-      notionals: ['1000000'],
-      includeWindows: ['24h']
-    });
-
-    expect(result).toEqual({
-      volumes: [],
-      listedAssets: [], // Service returns ProviderAssetType[]
-      rates: [],
-      liquidity: []
-    });
-  });
-});
-```
-
-### Integration Tests
-```typescript
-// plugins/_plugin_template/tests/integration/plugin.test.ts
-describe('Plugin Integration', () => {
-  it('getSnapshot transforms routes and returns data', async () => {
-    const { client } = await runtime.usePlugin('@data-provider/template', {
-      variables: { baseUrl: 'http://test' },
-      secrets: { apiKey: 'test-key' }
-    });
-
-    const result = await client.getSnapshot({
-      routes: testRoutes,
-      notionals: testNotionals,
-      includeWindows: ['24h']
-    });
-
-    expect(result.volumes).toBeDefined();
-    expect(result.listedAssets).toBeDefined();
-    expect(result.rates).toBeDefined();
-    expect(result.liquidity).toBeDefined();
-  });
-});
-```
-
-## Common Pitfalls
-
-### 1. Wrong Parameter Names
-❌ `service.getSnapshot({ providerRoutes: routes })`
-✅ `service.getSnapshot({ routes })`
-
-### 2. Missing Generic Types
-❌ `withAssetTransform(({ routes }) => ...)`
-✅ `withAssetTransform<typeof input, ProviderRouteType, never, Error, ProviderSnapshotType>(({ routes }) => ...)`
-
-### 3. Incorrect Context Access
-❌ `context.routes` (middleware adds to context)
-✅ `routeContext.routes` (destructured parameter)
-
-### 4. Schema Mismatches
-❌ Using `chainId` for Axelar
-✅ Define custom `ProviderAsset` schema with `chainName`
-
-### 5. Missing TransformRoute Context
-❌ `return { service };` in initialize
-✅ `return { service, transformRoute };` in initialize
-
-### 6. Missing TransformAsset Context
-❌ `return { service, transformRoute };` in initialize
-✅ `return { service, transformRoute, transformAsset };` in initialize
-
-### 7. Wrong Middleware Factory Usage
-❌ `createTransformRoutesMiddleware<T>()` (missing parameters)
-✅ `createTransformRoutesMiddleware<TInput, TOutput>(transformRoute)` (with parameters)
-
-## Architecture Decisions
-
-### Why Multi-Route Instead of Monolithic?
-
-**Before**: Single `getSnapshot` endpoint handled everything internally
-**After**: 5 separate endpoints with middleware-based transformation
-
-**Rationale**:
-- **Testability**: Individual endpoints can be tested in isolation
-- **Flexibility**: Clients can fetch only the data they need
-- **Performance**: Parallel API calls instead of sequential
-- **Maintainability**: Clear separation of concerns between data types
-- **Evolution**: Easy to add new endpoints without breaking existing ones
-
-### Why Middleware for Route Transformation?
-
-**Before**: Manual transformation in service methods
-**After**: oRPC middleware handles transformation automatically
-
-**Rationale**:
-- **Consistency**: All route-handling endpoints use the same pattern
-- **Reusability**: Middleware can be shared across plugins
-- **Separation**: Transformation logic isolated from business logic
-- **Type Safety**: Middleware provides typed context to handlers
-- **Maintainability**: Changes to transformation logic centralized
-
-### Why Two-Format Architecture?
-
-**Provider Format** vs **NEAR Intents Format**
-
-**Rationale**:
-- **API Fidelity**: Service layer matches provider APIs exactly
-- **Client Compatibility**: Router layer ensures consistent client interface
-- **Evolution**: Provider APIs change independently of client expectations
-- **Testing**: Can test transformation logic separately from business logic
-- **Customization**: Each provider can define their own schemas
-
-### Asset Transformation Patterns
-
-#### AssetId Format
-Assets must follow the NEAR Intents format:
-```typescript
-// ✅ Correct format
-assetId: `nep141:${blockchain}-${address.toLowerCase()}.omft.near`
-
-// ❌ Wrong formats
-assetId: `nep141:${address}`  // Missing blockchain and .omft.near
-assetId: `nep141:${blockchain}-${address}`  // Missing .omft.near
-```
-
-#### ChainId Handling
-- **NEAR Intents Format**: Does NOT include `chainId` in asset responses (optional field)
-- **Provider Format**: Uses `chainId` as string (matches provider API)
-- **Custom Mappings**: Handle provider-specific chainIds in `transformAssetFromProvider`
-
-```typescript
-// Example: Solana chainId mapping
-const transformAssetFromProvider = async (asset: ProviderAssetType): Promise<AssetType> => {
-  let blockchain = await getBlockchainFromChainId(asset.chainId);
-
+// Throws and fails entire operation
+const transformAssetFromProvider = async (asset: ProviderAssetType) => {
+  const blockchain = await getBlockchainFromChainId(String(asset.chainId));
   if (!blockchain) {
+    throw new Error(`Unknown chainId: ${asset.chainId}`); // 💥 BOOM
+  }
+  return assetInNEARFormat;
+};
+```
+
+**Correct:**
+```typescript
+// Log warning and skip unsupported chains
+const transformAssetFromProvider = async (asset: ProviderAssetType) => {
+  const blockchain = await getBlockchainFromChainId(String(asset.chainId));
+  if (!blockchain) {
+    // Handle known unsupported chains specifically
     switch (asset.chainId) {
-      case "34268394551451": { // Solana
-        blockchain = "sol";
-        break;
-      }
-      default: {
-        throw new Error(`Unknown chainId: ${asset.chainId}`);
-      }
+      case 1990: // Elrond testnet
+        console.warn(`Skipping unsupported Elrond testnet: ${asset.chainId}`);
+        throw new Error(`Unsupported chainId: ${asset.chainId}`);
+      default:
+        console.warn(`Unknown chainId: ${asset.chainId}, skipping asset`);
+        throw new Error(`Unsupported chainId: ${asset.chainId}`);
     }
   }
-
-  return {
-    blockchain,
-    assetId: `nep141:${blockchain}-${asset.address.toLowerCase()}.omft.near`,
-    symbol: asset.symbol,
-    decimals: asset.decimals,
-    contractAddress: asset.address
-    // Note: No chainId in response - it's optional
-  };
+  return assetInNEARFormat;
 };
+
+// In router handlers, use Promise.allSettled to filter out failures
+getListedAssets: builder.getListedAssets.handler(async () => {
+  const providerAssets = await service.getListedAssets();
+
+  const assetResults = await Promise.allSettled(
+    providerAssets.map(asset => transformAssetFromProvider(asset))
+  );
+
+  const assets = assetResults
+    .filter((result): result is PromiseFulfilledResult<AssetType> =>
+      result.status === 'fulfilled'
+    )
+    .map(result => result.value);
+
+  console.log(`Transformed ${assets.length}/${providerAssets.length} assets`);
+  return { assets, measuredAt: new Date().toISOString() };
+}),
 ```
 
-#### Price Caching Pattern
-For providers that include price data in asset listings:
+**Why this matters**: Provider APIs change frequently. Handle unsupported chains gracefully instead of failing entire operations.
 
+### 10. Return Specific Thresholds, Not All Matching Amounts
+
+**Problem**: Liquidity tests expect exactly 2 thresholds (50bps, 100bps) but services return all amounts that fit criteria.
+
+**Wrong:**
 ```typescript
-// 1. Update provider asset schema
-export const ProviderAsset = z.object({
-  chainId: z.string(),
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number(),
-  priceUsd: z.string().optional()  // Add price field
-});
+// Returns 1, 2, 3, or 4 thresholds depending on what fits
+for (const amount of testAmounts) {
+  if (slippage <= 50) thresholds.push({ maxAmountIn: amount, slippageBps: 50 });
+  if (slippage <= 100) thresholds.push({ maxAmountIn: amount, slippageBps: 100 });
+}
+return { thresholds }; // Could be 0, 2, 4, 6, 8 thresholds
+```
 
-// 2. Cache prices during asset fetching
-private async fetchTokens(): Promise<ProviderAssetType[]> {
-  const tokens = await this.client.fetchTokens();
+**Correct:**
+```typescript
+// Return exactly 2 specific thresholds
+let recommendedAmount: string | null = null;
+let maxAmount: string | null = null;
 
-  const assets: ProviderAssetType[] = tokens.map(token => {
-    if (token.priceUsd) {
-      const cacheKey = `${token.chainId}:${token.address.toLowerCase()}`;
-      this.priceCache.set(cacheKey, {
-        priceUsd: parseFloat(token.priceUsd),
-        symbol: token.symbol,
-        fetchedAt: Date.now(),
-      });
-    }
+// Find largest amounts that fit within 50bps and 100bps respectively
+for (const amount of testAmounts) {
+  const data = await fetchEstimate(amount);
+  const slippage = calculateSlippage(amount, data.out);
 
-    return {
-      chainId: token.chainId,
-      address: token.address,
-      symbol: token.symbol,
-      decimals: token.decimals,
-      priceUsd: token.priceUsd,
-    };
-  });
-
-  return assets;
+  if (slippage <= 50 && recommendedAmount === null) {
+    recommendedAmount = amount; // Largest <= 50bps
+  }
+  if (slippage <= 100 && maxAmount === null) {
+    maxAmount = amount; // Largest <= 100bps
+  }
 }
 
-// 3. Use cached prices for fee calculations
-private async getTokenPrice(chainId: number, tokenAddress: string): Promise<number | null> {
-  const cacheKey = `${chainId}:${tokenAddress.toLowerCase()}`;
-  const cached = this.priceCache.get(cacheKey);
-
-  if (cached && (Date.now() - cached.fetchedAt) < this.PRICE_CACHE_TTL) {
-    return cached.priceUsd;
-  }
-
-  return null;
-}
-```
-
-## Testing Strategy
-
-### Migration Verification
-
-After migration, verify these aspects:
-
-1. **Contract Compliance**: All endpoints return expected data structures
-2. **Transformation Accuracy**: Routes and assets convert correctly between formats
-3. **Middleware Integration**: Routes passed through middleware are properly transformed
-4. **Performance**: Parallel API calls work correctly
-5. **Error Handling**: Errors propagate through the full stack
-
-### Integration Test Examples
-
-```typescript
-describe('Migration Verification', () => {
-  it('getSnapshot returns all data types', async () => {
-    const { client } = await runtime.usePlugin('@data-provider/template', config);
-
-    const result = await client.getSnapshot({
-      routes: testRoutes,
-      notionals: ['1000000'],
-      includeWindows: ['24h']
-    });
-
-    // Verify all data types present
-    expect(result.volumes).toBeDefined();
-    expect(result.listedAssets.assets).toBeDefined();
-    expect(result.rates).toBeDefined();
-    expect(result.liquidity).toBeDefined();
-
-    // Verify asset transformation
-    expect(result.listedAssets.assets[0].assetId).toMatch(/^nep141:/);
-  });
-
-  it('individual routes work independently', async () => {
-    const { client } = await runtime.usePlugin('@data-provider/template', config);
-
-    // Test each endpoint separately
-    const volumes = await client.getVolumes({ includeWindows: ['24h'] });
-    const assets = await client.getListedAssets();
-    const rates = await client.getRates({ routes: testRoutes, notionals: ['1000000'] });
-    const liquidity = await client.getLiquidity({ routes: testRoutes });
-
-    expect(volumes.volumes).toBeDefined();
-    expect(assets.assets).toBeDefined();
-    expect(rates.rates).toBeDefined();
-    expect(liquidity.liquidity).toBeDefined();
-  });
-});
-```
-
-## Troubleshooting
-
-### Common Migration Issues
-
-#### 1. Middleware Context Not Available
-**Error**: `context.routes is undefined` in handlers
-
-**Cause**: Handler expects `context.routes` but middleware didn't run
-**Solution**: Ensure `.use(transformRoutesMiddleware)` is applied to route builder
-
-```typescript
-// ❌ Wrong
-getRates: builder.getRates.handler(async ({ input }) => {
-  // context.routes undefined
-});
-
-// ✅ Correct
-getRates: builder.getRates.use(transformRoutesMiddleware).handler(async ({ input, context }) => {
-  // context.routes available
-});
-```
-
-#### 2. Asset Transformation Fails
-**Error**: Assets not transforming from provider to NEAR Intents format
-
-**Cause**: `transformAsset` function missing or incorrect
-**Solution**: Verify `transformAsset` returns proper `AssetType` structure
-
-```typescript
-const transformAsset = async (asset: ProviderAssetType): Promise<AssetType> => {
-  return {
-    blockchain: await getBlockchainFromChainId(asset.chainId),
-    assetId: asset.address ? `nep141:${asset.address}` : `nep141:${asset.symbol}`,
-    symbol: asset.symbol,
-    decimals: asset.decimals,
-    chainId: asset.chainId,
-    contractAddress: asset.address
-  };
-};
-```
-
-#### 3. Route Transformation Returns Null
-**Error**: Routes not transforming, handlers receive empty arrays
-
-**Cause**: `transformRoute` returns `null` for unsupported blockchains
-**Solution**: Check `getChainId` calls and handle unsupported chains
-
-```typescript
-const transformRoute = async (route: RouteType) => {
-  const sourceChainId = await getChainId(route.source.blockchain);
-  const destChainId = await getChainId(route.destination.blockchain);
-
-  if (!sourceChainId || !destChainId) {
-    console.warn(`Unsupported blockchain: ${route.source.blockchain}`);
-    return null; // Skip this route
-  }
-
-  return { /* transformed route */ };
-};
-```
-
-#### 4. Schema Validation Errors
-**Error**: Zod validation fails on provider schemas
-
-**Cause**: Provider API response doesn't match `ProviderAsset`/`ProviderRoute` schemas
-**Solution**: Customize schemas to match actual provider API format
-
-```typescript
-// For Axelar (uses chainName instead of chainId)
-export const ProviderAsset = z.object({
-  chainName: z.string(), // Customize based on provider
-  address: z.string().optional(),
-  symbol: z.string(),
-  decimals: z.number()
-});
-```
-
-#### 5. Parallel API Calls Fail
-**Error**: `Promise.all` in `getSnapshot` fails with network errors
-
-**Cause**: Provider API rate limits or temporary failures
-**Solution**: Add error handling and fallback logic
-
-```typescript
-const [volumes, listedAssets, rates, liquidity] = await Promise.allSettled([
-  this.getVolumes(params.includeWindows || ["24h"]),
-  this.getListedAssets(),
-  params.notionals ? this.getRates(params.routes, params.notionals) : Promise.resolve([]),
-  this.getLiquidityDepth(params.routes)
-]);
-
-// Handle partial failures gracefully
 return {
-  volumes: volumes.status === 'fulfilled' ? volumes.value : [],
-  listedAssets: listedAssets.status === 'fulfilled' ? listedAssets.value : [],
-  rates: rates.status === 'fulfilled' ? rates.value : [],
-  liquidity: liquidity.status === 'fulfilled' ? liquidity.value : []
+  thresholds: [
+    { maxAmountIn: recommendedAmount, slippageBps: 50 },
+    { maxAmountIn: maxAmount, slippageBps: 100 }
+  ]
 };
 ```
 
-### Performance Considerations
+**Why this matters**: Contract compliance requires specific threshold definitions, not arbitrary lists.
 
-#### Parallel Processing
-- `getSnapshot` uses `Promise.all` for concurrent API calls
-- Reduces total response time compared to sequential calls
-- Consider provider rate limits when adding parallelism
+---
 
-#### Memory Usage
-- Large datasets may require streaming or pagination
-- Asset transformation creates new objects - consider memory implications
-- Use bounded queues for background processing
+## Provider-Specific Considerations
 
-#### Rate Limiting
-- HTTP client includes rate limiting (10 req/sec default)
-- Adjust based on provider API limits
-- Implement exponential backoff for retries
+### Network ID Formats
 
-### Rollback Plan
+**Most Providers (ChainId as Number):**
+- Across, cBridge, deBridge, Li.Fi
+- Ethereum Mainnet: `1`
+- Polynomial/Scroll: `534352`/`534353`
 
-If migration issues arise:
+**Custom Providers:**
+- **Axelar**: Uses `chainName: "ethereum" | "polygon" | ...`
+- **CCTP**: Uses `domainId: "0" (Ethereum) | "2" (Optimism) | ...`
 
-1. **Keep Old Contract**: Maintain monolithic `getSnapshot` alongside new routes
-2. **Feature Flags**: Use configuration to switch between architectures
-3. **Gradual Migration**: Migrate one provider at a time
-4. **Fallback Logic**: Implement fallback to old behavior on errors
+### Asset ID Format
 
-## Benefits
+Assets MUST follow this exact format:
+```typescript
+// ✅ Correct
+assetId: `nep141:${{blockchain}}-${{address.toLowerCase()}}.omft.near`
 
-- **Type Safety**: Provider-specific schemas prevent runtime errors
-- **Reusability**: Middleware can be reused across plugins
-- **Testability**: Individual routes can be tested separately
-- **Maintainability**: Clear separation between transformation and business logic
-- **Extensibility**: Easy to add new providers with custom schemas
 
-## Rollback Plan
+// ❌ Wrong (missing omft.near)
+assetId: `nep141:${{blockchain}}-${{address}}`
 
-If issues arise, rollback involves:
-1. Revert contract to single `getSnapshot` endpoint
-2. Remove middleware usage
-3. Restore monolithic service methods
-4. Keep provider schemas for future migration
+// ❌ Wrong (missing blockchain)  
+assetId: `nep141:${{address}}.omft.near`
+```
+
+---
+
+## Migration Checklist
+
+### Client Layer
+- [ ] `src/client.ts` exists
+- [ ] Uses `createHttpClient` and `createRateLimiter`
+- [ ] All HTTP calls moved from service to client
+- [ ] Returns raw provider API formats
+
+### Contract Layer
+- [ ] `src/contract.ts` has provider-specific schemas
+- [ ] Field names match actual provider API responses
+- [ ] Exports `{Provider}AssetType` and `{Provider}RouteType`
+
+### Service Layer
+- [ ] Extends `BaseDataProviderService<{Provider}AssetType>`
+- [ ] Constructor injects client
+- [ ] **All methods are PUBLIC**
+- [ ] `getListedAssets()` returns `{Provider}AssetType[]`
+- [ ] `getRates()` accepts `RouteType<{Provider}AssetType>[]`
+- [ ] No NEAR Intents transformations
+
+### Router Layer
+- [ ] Has `transformAssetToProvider` function
+- [ ] Has `transformAssetFromProvider` function
+- [ ] Returns both functions from `initialize()`
+- [ ] Creates middleware with `createTransformRoutesMiddleware`
+- [ ] Routes without routes (`getVolumes`, `getListedAssets`) have no middleware
+- [ ] Routes with routes (`getRates`, `getLiquidity`, `getSnapshot`) have middleware
+- [ ] All responses are in NEAR Intents format
+
+### Testing
+- [ ] `npm test` passes (assuming tests already migrated)
+- [ ] Contract compliance tests pass
+- [ ] Integration tests cover all endpoints
+
+---
+
+## Success Indicators
+
+Migration is complete when:
+- ✅ Plugin follows template structure exactly
+- ✅ Service methods call client, not HTTP directly
+- ✅ Service works in provider format only
+- ✅ Router handles all NEAR Intents transformations
+- ✅ Middleware provides `context.routes` in provider format
+- ✅ All endpoints return NEAR Intents format
+- ✅ Tests pass and plugin loads successfully
+
+---
+
+## Reference
+
+See `plugins/across` for the canonical implementation of this pattern. All other plugins should match this structure exactly, customizing only:
+1. Provider-specific schemas in `contract.ts`
+2. API method implementations in `client.ts`
+3. Business logic in `service.ts` (within provider format)
+4. ChainId mappings in transformation functions

@@ -1,3 +1,7 @@
+import type { PluginConfigInput } from 'every-plugin';
+import type Plugin from './src/index';
+import packageJson from './package.json' with { type: 'json' };
+
 // Universal cross-chain route for testing: Ethereum USDC → Arbitrum USDC
 // This route is used across all plugins for consistent testing
 export const testRoutes = [
@@ -29,15 +33,14 @@ export const testNotionals = [
 ];
 
 export default {
-  pluginId: "@data-provider/cbridge",
+  pluginId: packageJson.name, // DO NOT CHANGE
   port: 3021,
   config: {
+    // Update these variables to what's required for your plugin
     variables: {
-      baseUrl: process.env.CBRIDGE_BASE_URL || "https://cbridge-prod2.celer.app",
-      timeout: parseInt(process.env.CBRIDGE_TIMEOUT || "30000")
+      baseUrl: "https://cbridge-prod2.celer.app",
+      timeout: 30000,
     },
-    secrets: {
-      apiKey: process.env.CBRIDGE_API_KEY || ""  // No API key needed for cBridge
-    }
-  }
+    secrets: {}
+  } satisfies PluginConfigInput<typeof Plugin>
 }

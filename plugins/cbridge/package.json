@@ -1,7 +1,7 @@
 {
   "name": "@data-provider/cbridge",
   "version": "0.0.1",
-  "description": "cBridge data provider plugin for every-plugin framework",
+  "description": "cbridge data provider plugin",
 	"main": "./dist/index.js",
 	"types": "./src/index.ts",
   "type": "module",
@@ -30,10 +30,8 @@
     "build": "rspack build",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
     "dev": "rspack serve",
-    "test": "vitest run; vitest run --config vitest.integration.config.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
     "coverage": "vitest run --coverage"
   }
 }

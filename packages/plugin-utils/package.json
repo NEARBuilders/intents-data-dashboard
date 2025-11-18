@@ -8,6 +8,7 @@
     "./decimal": "./src/decimal.ts"
   },
   "dependencies": {
+    "@defuse-protocol/crosschain-assetid": "^1.0.2",
     "bottleneck": "^2.19.5",
     "decimal.js": "^10.6.0",
     "every-plugin": "^0.4.14",
