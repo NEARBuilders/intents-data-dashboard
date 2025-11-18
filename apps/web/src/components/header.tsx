@@ -16,8 +16,8 @@ export default function Header() {
 	const [rpcUrl, setRpcUrl] = useState("");
 	const [currentUrl, setCurrentUrl] = useState("");
 
-	const pluginPing = useQuery(orpc.dataProvider.ping.queryOptions());
-	const isConnected = pluginPing?.data?.status === "ok";
+	const apiHealthcheck = useQuery(orpc.health.queryOptions());
+	const isConnected = apiHealthcheck.data === "OK";
 
 	useEffect(() => {
 		const config = DevConfigManager.getConfig();
@@ -89,7 +89,7 @@ export default function Header() {
 							}`}
 						/>
 						<span className="text-sm">
-							{pluginPing.isLoading ? "Checking..." : isConnected ? "Connected" : "Disconnected"}
+							{apiHealthcheck.isLoading ? "Checking..." : isConnected ? "Connected" : "Disconnected"}
 						</span>
 					</div>
 

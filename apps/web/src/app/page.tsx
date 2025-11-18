@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { client } from "@/utils/orpc";
-import { SERVER_URL } from "@/utils/orpc";
-import type { SnapshotType, TimeWindow } from "@data-provider/shared-contract";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { client } from "@/utils/orpc";
+import type { SnapshotType, TimeWindow } from "@data-provider/shared-contract";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 type ProviderId = "across" | "nearIntents";
 
@@ -49,10 +48,8 @@ const PROVIDERS: Provider[] = [
   { id: "nearIntents", label: "NEAR Intents", tag: "Intent-based" },
 ];
 
-const AVAILABLE_PROVIDERS = PROVIDERS.map(p => p.id) as ProviderId[];
+const AVAILABLE_PROVIDERS = PROVIDERS.map((p) => p.id) as ProviderId[];
 type SnapshotByProvider = Record<ProviderId, SnapshotType>;
-
-
 
 // Combined notionals object (value + label)
 const NOTIONALS = [
@@ -101,12 +98,13 @@ export default function Home() {
   >(NOTIONALS.map((n) => n.value));
   const [selectedWindows, setSelectedWindows] =
     useState<TimeWindow[]>(ALL_WINDOWS);
-  const [leftProviderId, setLeftProviderId] = useState<ProviderId>("nearIntents");
+  const [leftProviderId, setLeftProviderId] =
+    useState<ProviderId>("nearIntents");
   const [rightProviderId, setRightProviderId] = useState<ProviderId>("across");
 
   // Derive provider metadata from selection
-  const leftProvider = PROVIDERS.find(p => p.id === leftProviderId)!;
-  const rightProvider = PROVIDERS.find(p => p.id === rightProviderId)!;
+  const leftProvider = PROVIDERS.find((p) => p.id === leftProviderId)!;
+  const rightProvider = PROVIDERS.find((p) => p.id === rightProviderId)!;
 
   const routes = [routeConfig];
 
@@ -165,12 +163,15 @@ export default function Home() {
                 <Select
                   value={routeConfig.source.blockchain}
                   onValueChange={(value: BlockchainId) =>
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
                       source: {
                         ...prev.source,
                         blockchain: value,
-                        assetId: buildAssetId(value, prev.source.contractAddress),
+                        assetId: buildAssetId(
+                          value,
+                          prev.source.contractAddress
+                        ),
                       },
                     }))
                   }
@@ -191,7 +192,7 @@ export default function Home() {
                 <Input
                   value={routeConfig.source.symbol}
                   onChange={(e) =>
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
                       source: { ...prev.source, symbol: e.target.value },
                     }))
@@ -203,12 +204,15 @@ export default function Home() {
                   value={routeConfig.source.contractAddress}
                   onChange={(e) => {
                     const contractAddress = e.target.value;
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
                       source: {
                         ...prev.source,
                         contractAddress,
-                        assetId: buildAssetId(prev.source.blockchain, contractAddress),
+                        assetId: buildAssetId(
+                          prev.source.blockchain,
+                          contractAddress
+                        ),
                       },
                     }));
                   }}
@@ -222,12 +226,15 @@ export default function Home() {
                 <Select
                   value={routeConfig.destination.blockchain}
                   onValueChange={(value: BlockchainId) =>
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
                       destination: {
                         ...prev.destination,
                         blockchain: value,
-                        assetId: buildAssetId(value, prev.destination.contractAddress),
+                        assetId: buildAssetId(
+                          value,
+                          prev.destination.contractAddress
+                        ),
                       },
                     }))
                   }
@@ -248,9 +255,12 @@ export default function Home() {
                 <Input
                   value={routeConfig.destination.symbol}
                   onChange={(e) =>
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
-                      destination: { ...prev.destination, symbol: e.target.value },
+                      destination: {
+                        ...prev.destination,
+                        symbol: e.target.value,
+                      },
                     }))
                   }
                 />
@@ -260,12 +270,15 @@ export default function Home() {
                   value={routeConfig.destination.contractAddress}
                   onChange={(e) => {
                     const contractAddress = e.target.value;
-                    setRouteConfig(prev => ({
+                    setRouteConfig((prev) => ({
                       ...prev,
                       destination: {
                         ...prev.destination,
                         contractAddress,
-                        assetId: buildAssetId(prev.destination.blockchain, contractAddress),
+                        assetId: buildAssetId(
+                          prev.destination.blockchain,
+                          contractAddress
+                        ),
                       },
                     }));
                   }}
@@ -299,17 +312,21 @@ export default function Home() {
                 <Label className="text-sm font-medium">Right Provider</Label>
                 <Select
                   value={rightProviderId}
-                  onValueChange={(value: ProviderId) => setRightProviderId(value)}
+                  onValueChange={(value: ProviderId) =>
+                    setRightProviderId(value)
+                  }
                 >
                   <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select provider"/>
+                    <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PROVIDERS.filter(p => p.id !== leftProviderId).map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.label}
-                      </SelectItem>
-                    ))}
+                    {PROVIDERS.filter((p) => p.id !== leftProviderId).map(
+                      (provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.label}
+                        </SelectItem>
+                      )
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -522,7 +539,10 @@ export default function Home() {
                           <td className="py-3 px-3 font-medium">{label}</td>
                           <td className="py-3 px-3 text-center">
                             {leftRate
-                              ? `${(Number(leftRate.amountOut) / (leftProviderId === "across" ? 1e18 : 1e6)).toFixed(6)}`
+                              ? `${(
+                                  Number(leftRate.amountOut) /
+                                  (leftProviderId === "across" ? 1e18 : 1e6)
+                                ).toFixed(6)}`
                               : "-"}
                           </td>
                           <td className="py-3 px-3 text-center">
@@ -535,7 +555,10 @@ export default function Home() {
                           </td>
                           <td className="py-3 px-3 text-center">
                             {rightRate
-                              ? `${(Number(rightRate.amountOut) / (rightProviderId === "across" ? 1e18 : 1e6)).toFixed(6)}`
+                              ? `${(
+                                  Number(rightRate.amountOut) /
+                                  (rightProviderId === "across" ? 1e18 : 1e6)
+                                ).toFixed(6)}`
                               : "-"}
                           </td>
                           <td className="py-3 px-3 text-center">
@@ -613,7 +636,9 @@ export default function Home() {
 
             <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <h3 className="font-medium mb-2">Only in {leftProvider.label}</h3>
+                <h3 className="font-medium mb-2">
+                  Only in {leftProvider.label}
+                </h3>
                 <div className="flex flex-wrap gap-1">
                   {leftSnapshot.listedAssets.assets
                     .filter(
@@ -656,7 +681,9 @@ export default function Home() {
               </div>
 
               <div>
-                <h3 className="font-medium mb-2">Only in {rightProvider.label}</h3>
+                <h3 className="font-medium mb-2">
+                  Only in {rightProvider.label}
+                </h3>
                 <div className="flex flex-wrap gap-1">
                   {rightSnapshot.listedAssets.assets
                     .filter(
