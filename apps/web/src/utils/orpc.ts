@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type { AppRouterClient } from "@data-provider/api";
 import { DevConfigManager } from "@/lib/dev-config";
 
-export const SERVER_URL = process.env.SERVER_URL || "http://localhost:8787/api/rpc";
+export const SERVER_URL = `${process.env.NEXT_PUBLIC_SERVER_URL}/api/rpc` || "http://localhost:8787/api/rpc";
 
 function getRpcUrl(): string {
 	

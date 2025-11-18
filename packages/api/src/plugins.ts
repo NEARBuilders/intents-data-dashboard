@@ -10,6 +10,7 @@ declare module "every-plugin" {
     "@data-provider/debridge": typeof DataProviderTemplatePlugin;
     "@data-provider/layerzero": typeof DataProviderTemplatePlugin;
     "@data-provider/lifi": typeof DataProviderTemplatePlugin;
+    "@data-provider/near-intents": typeof DataProviderTemplatePlugin;
     "@data-provider/wormhole": typeof DataProviderTemplatePlugin;
   }
 }
@@ -24,6 +25,7 @@ const PLUGIN_URLS = {
     "@data-provider/debridge": "https://elliot-braem-473-data-provider-debridge-data-prov-bfcae6fcd-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/layerzero": "https://elliot-braem-474-data-provider-layerzero-data-pro-78f5bc1cb-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/lifi": "https://elliot-braem-475-data-provider-lifi-data-provider-f8d1b962e-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/near-intents": "https://elliot-braem-537-data-provider-near-intents-data--87342dba1-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/wormhole": "https://elliot-braem-476-data-provider-wormhole-data-prov-2d0649a2a-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
@@ -34,6 +36,7 @@ const PLUGIN_URLS = {
     "@data-provider/debridge": "http://localhost:3018/remoteEntry.js",
     "@data-provider/layerzero": "http://localhost:3015/remoteEntry.js",
     "@data-provider/lifi": "http://localhost:3019/remoteEntry.js",
+    "@data-provider/near-intents": "http://localhost:3022/remoteEntry.js",
     "@data-provider/wormhole": "http://localhost:3020/remoteEntry.js",
   }
 } as const;
@@ -43,6 +46,7 @@ const urls = isDevelopment ? PLUGIN_URLS.development : PLUGIN_URLS.production;
 
 const env = {
   DATA_PROVIDER_API_KEY: process.env.DATA_PROVIDER_API_KEY || "",
+  NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY || ""
 };
 
 export const runtime = createPluginRuntime({
@@ -54,6 +58,7 @@ export const runtime = createPluginRuntime({
     // "@data-provider/debridge": { remoteUrl: urls["@data-provider/debridge"] },
     // "@data-provider/layerzero": { remoteUrl: urls["@data-provider/layerzero"] },
     // "@data-provider/lifi": { remoteUrl: urls["@data-provider/lifi"] },
+    "@data-provider/near-intents": { remoteUrl: urls["@data-provider/near-intents"] },
     // "@data-provider/wormhole": { remoteUrl: urls["@data-provider/wormhole"] },
   },
   secrets: env,
@@ -130,6 +135,14 @@ const across = await runtime.usePlugin("@data-provider/across", {
 //   },
 // });
 
+const nearIntents = await runtime.usePlugin("@data-provider/near-intents", {
+  variables: {
+  },
+  secrets: {
+    apiKey: "{{NEAR_INTENTS_API_KEY}}"
+  },
+});
+
 // const wormhole = await runtime.usePlugin("@data-provider/wormhole", {
 //   variables: {
 //     baseUrl: process.env.WORMHOLE_BASE_URL || "https://api.wormholescan.io/api/v1",
@@ -148,6 +161,7 @@ export const plugins = {
   // debridge,
   // layerzero,
   // lifi,
+  nearIntents
   // wormhole
 } as const;
 

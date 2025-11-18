@@ -20,6 +20,7 @@ export const router = {
 		// debridge: os.prefix('/providers/debridge').router(plugins.debridge.router),
 		// layerzero: os.prefix('/providers/layerzero').router(plugins.layerzero.router),
 		// lifi: os.prefix('/providers/lifi').router(plugins.lifi.router),
+		nearIntents: os.prefix('/providers/near-intents').router(plugins.nearIntents.router),
 		// wormhole: os.prefix('/providers/wormhole').router(plugins.wormhole.router),
 	},
 
