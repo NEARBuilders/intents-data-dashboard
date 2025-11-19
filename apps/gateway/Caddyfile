@@ -40,7 +40,7 @@
 
     route {
         # Server API
-        handle /api/* {
+        handle /api* {
             reverse_proxy {
                 dynamic a {
                     name {$SERVER_DOMAIN}
