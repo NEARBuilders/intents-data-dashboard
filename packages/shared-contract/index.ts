@@ -1,26 +1,12 @@
 import type { z } from 'every-plugin/zod';
 import {
   Asset,
-  Rate,
   LiquidityDepthPoint,
-  LiquidityDepth,
-  VolumeWindow,
   ListedAssets,
-  Snapshot,
-  Route,
+  VolumeWindow
 } from './contract';
 
-export { contract } from './contract';
-export {
-  Asset,
-  Rate,
-  LiquidityDepthPoint,
-  LiquidityDepth,
-  VolumeWindow,
-  ListedAssets,
-  Snapshot,
-  Route,
-} from './contract';
+export { Asset, contract, LiquidityDepth, LiquidityDepthPoint, ListedAssets, Rate, Route, Snapshot, TimeWindowEnum, VolumeWindow } from './contract';
 
 export type AssetType = z.infer<typeof Asset>;
 export type RateType<TAsset = AssetType> = {

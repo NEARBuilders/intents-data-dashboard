@@ -1,4 +1,4 @@
-import { Asset, Snapshot } from "@data-provider/shared-contract";
+import { Asset, Snapshot, TimeWindowEnum } from "@data-provider/shared-contract";
 import type { RouterClient } from "@orpc/server";
 import { os } from "@orpc/server";
 import { z } from "every-plugin/zod";
@@ -31,7 +31,7 @@ export const router = {
 			providers: z.array(z.string()).optional(),
 			routes: z.array(z.object({ source: Asset, destination: Asset })).optional(),
 			notionals: z.array(z.string()).optional(),
-			includeWindows: z.array(z.enum(["24h", "7d", "30d"])).default(["24h"]).optional(),
+			includeWindows: z.array(TimeWindowEnum).default(["24h"]).optional(),
 		}))
 		.output(z.record(z.string(), Snapshot))
 		.handler(async ({ input }) => {
@@ -41,7 +41,7 @@ export const router = {
 			const results = await Promise.allSettled(
 				activeProviders.map((id: string) =>
 					plugins[id as keyof typeof plugins].client.getSnapshot({
-						routes: input.routes as any,
+						routes: input.routes,
 						notionals: input.notionals,
 						includeWindows: input.includeWindows,
 					})
