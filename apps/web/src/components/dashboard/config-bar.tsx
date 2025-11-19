@@ -132,20 +132,20 @@ export function ConfigBar({
       : selectedWindows.join(", ");
 
   return (
-    <Card>
-      <CardContent className="pt-4 pb-4">
-        <div className="flex flex-wrap items-center gap-4 justify-between">
-          <div className="flex flex-wrap items-center gap-4">
+    <Card className="py-2">
+      <CardContent className="py-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <Popover open={routeEditorOpen} onOpenChange={setRouteEditorOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleOpenRouteEditor}
-                  className="gap-2"
+                  className="gap-2 w-full sm:w-auto"
                 >
-                  <Settings2 className="h-4 w-4" />
-                  <span className="font-mono text-xs">{routeSummary}</span>
+                  <Settings2 className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-mono text-xs truncate">{routeSummary}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-96" align="start">
@@ -290,10 +290,10 @@ export function ConfigBar({
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2 w-full sm:w-auto">
                   <span className="text-xs">Notionals:</span>
                   <span className="text-xs text-muted-foreground">{notionalsLabel}</span>
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-3 w-3 ml-auto sm:ml-0" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56" align="start">
@@ -335,10 +335,10 @@ export function ConfigBar({
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2 w-full sm:w-auto">
                   <span className="text-xs">Windows:</span>
                   <span className="text-xs text-muted-foreground">{windowsLabel}</span>
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-3 w-3 ml-auto sm:ml-0" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56" align="start">
@@ -378,13 +378,13 @@ export function ConfigBar({
               </PopoverContent>
             </Popover>
 
-            <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Compare:</Label>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Label className="text-xs text-muted-foreground hidden sm:inline">Compare:</Label>
               <Select
                 value={rightProviderId}
                 onValueChange={(value: ProviderId) => onRightProviderChange(value)}
               >
-                <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectTrigger className="h-8 w-full sm:w-[160px] text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -403,6 +403,7 @@ export function ConfigBar({
             disabled={isLoading}
             variant="outline"
             size="sm"
+            className="self-end md:self-auto"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>

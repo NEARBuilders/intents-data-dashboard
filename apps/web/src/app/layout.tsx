@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "plugin-builder",
-	description: "plugin-builder",
+	title: "intents data dashboard",
+	description: "data dashboard for intents",
 };
 
 export default function RootLayout({

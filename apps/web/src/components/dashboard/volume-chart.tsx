@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SnapshotType } from "@data-provider/shared-contract";
 import { useMemo } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,6 +22,7 @@ type VolumeChartProps = {
 export function VolumeChart({ snapshots, providerLabels }: VolumeChartProps) {
   const chartData = useMemo(() => {
     const windowMap = new Map<string, any>();
+    const windowOrder = ["cumulative", "30d", "7d", "24h"];
 
     Object.entries(snapshots).forEach(([providerId, snapshot]) => {
       if (!snapshot?.volumes) return;
@@ -35,14 +36,27 @@ export function VolumeChart({ snapshots, providerLabels }: VolumeChartProps) {
       });
     });
 
-    return Array.from(windowMap.values());
+    return Array.from(windowMap.values()).sort((a, b) => {
+      const indexA = windowOrder.indexOf(a.window);
+      const indexB = windowOrder.indexOf(b.window);
+      return indexA - indexB;
+    });
   }, [snapshots]);
 
   const providerKeys = Object.keys(snapshots).filter(
     (id) => snapshots[id]?.volumes
   );
 
-  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+  const colors = [
+    "#60a5fa",
+    "#34d399", 
+    "#fbbf24",
+    "#f87171",
+    "#a78bfa",
+    "#2dd4bf",
+    "#fb923c",
+    "#f472b6",
+  ];
 
   return (
     <Card>
@@ -51,7 +65,7 @@ export function VolumeChart({ snapshots, providerLabels }: VolumeChartProps) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
+          <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis dataKey="window" className="text-xs" />
             <YAxis
@@ -61,25 +75,29 @@ export function VolumeChart({ snapshots, providerLabels }: VolumeChartProps) {
             <Tooltip
               formatter={(value: number) => `$${value.toLocaleString()}`}
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "6px",
+                backgroundColor: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                padding: "12px",
+              }}
+              labelStyle={{
+                color: "var(--card-foreground)",
+                fontWeight: 600,
+                marginBottom: "8px",
               }}
             />
             <Legend />
             {providerKeys.map((providerId, idx) => (
-              <Line
+              <Bar
                 key={providerId}
-                type="monotone"
                 dataKey={providerId}
                 name={providerLabels[providerId] || providerId}
-                stroke={colors[idx % colors.length]}
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                activeDot={{ r: 6 }}
+                fill={colors[idx % colors.length]}
+                stackId="volume"
               />
             ))}
-          </LineChart>
+          </BarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
