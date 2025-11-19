@@ -10,7 +10,7 @@ declare module "every-plugin" {
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-592-data-provider-aggregator-data-pr-53926cd45-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-598-data-provider-aggregator-data-pr-cc8f437ed-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
