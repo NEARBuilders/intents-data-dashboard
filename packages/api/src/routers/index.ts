@@ -50,8 +50,11 @@ export const router = {
 
 			const snapshots: Record<string, any> = {};
 			results.forEach((result: PromiseSettledResult<any>, i: number) => {
+				const providerId = activeProviders[i];
 				if (result.status === 'fulfilled') {
-					snapshots[activeProviders[i]] = result.value;
+					snapshots[providerId] = result.value;
+				} else {
+					console.error(`[snapshot] Provider ${providerId} failed:`, result.reason);
 				}
 			});
 

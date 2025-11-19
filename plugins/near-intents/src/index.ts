@@ -1,6 +1,7 @@
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
+import { parse1cs } from "@defuse-protocol/crosschain-assetid";
 
 import { createTransformRoutesMiddleware, getBlockchainFromChainId, getChainId, transformRate, transformLiquidity } from "@data-provider/plugin-utils";
 import { ProviderApiClient } from "./client";
@@ -68,16 +69,72 @@ export default createPlugin({
 
       // Create service instance
       const service = new DataProviderService(client);
+      
+      // Prefetch and cache token list for asset resolution
+      const tokenList = yield* Effect.tryPromise({
+        try: () => service.getListedAssets(),
+        catch: (error) => new Error(`Failed to fetch token list: ${error}`)
+      });
+      
+      // Build lookup indices for fast asset resolution
+      const assetByExactId = new Map(
+        tokenList.map(t => [t.assetId, t])
+      );
+      
+      const assetByBlockchainAndAddress = new Map(
+        tokenList
+          .filter(t => t.contractAddress) // Filter out undefined
+          .map(t => [`${t.blockchain}:${t.contractAddress!.toLowerCase()}`, t])
+      );
 
       // NEAR Intents → Provider (for middleware/requests)
-      // Since 1Click uses NEAR Intents asset format, transform is direct mapping
-      const transformAssetToProvider = async (asset: AssetType): Promise<ProviderAssetType> => ({
-        blockchain: asset.blockchain,
-        assetId: asset.assetId,
-        symbol: asset.symbol,
-        decimals: asset.decimals,
-        contractAddress: asset.contractAddress,
-      });
+      // Handles both 1cs_v1 and legacy NEAR asset IDs
+      const transformAssetToProvider = async (asset: AssetType): Promise<ProviderAssetType> => {
+        // Strategy 1: Try exact assetId match (1Click may already use 1cs_v1 or have canonical IDs)
+        const exactMatch = assetByExactId.get(asset.assetId);
+        if (exactMatch) {
+          console.log(`[NEAR Intents] Resolved asset via exact ID: ${asset.assetId}`);
+          return exactMatch;
+        }
+
+        // Strategy 2: If assetId is 1cs_v1, parse it and try to match components
+        if (asset.assetId.startsWith('1cs_v1:')) {
+          try {
+            const parsed = parse1cs(asset.assetId);
+            
+            // Try to find token by matching parsed components with token metadata
+            // For ERC20: chain=eth/arb/etc, namespace=erc20, reference=0xAddress
+            // Look up by blockchain + reference (contract address)
+            const blockchainKey = `${parsed.chain}:${parsed.reference.toLowerCase()}`;
+            const matchByParsed = assetByBlockchainAndAddress.get(blockchainKey);
+            
+            if (matchByParsed) {
+              console.log(`[NEAR Intents] Resolved 1cs_v1 asset via parsed components: ${asset.assetId} -> ${matchByParsed.assetId}`);
+              return matchByParsed;
+            }
+          } catch (error) {
+            console.warn(`[NEAR Intents] Failed to parse 1cs_v1 ID: ${asset.assetId}`, error);
+          }
+        }
+
+        // Strategy 3: Fallback to blockchain + contractAddress matching
+        const fallbackKey = `${asset.blockchain}:${asset.contractAddress.toLowerCase()}`;
+        const fallbackMatch = assetByBlockchainAndAddress.get(fallbackKey);
+        if (fallbackMatch) {
+          console.log(`[NEAR Intents] Resolved asset via blockchain+address: ${fallbackKey} -> ${fallbackMatch.assetId}`);
+          return fallbackMatch;
+        }
+
+        // Strategy 4: No match found - return as-is and let 1Click API handle/reject it
+        console.warn(`[NEAR Intents] Could not resolve asset in token list, passing through: ${asset.assetId}`);
+        return {
+          blockchain: asset.blockchain,
+          assetId: asset.assetId,
+          symbol: asset.symbol,
+          decimals: asset.decimals,
+          contractAddress: asset.contractAddress,
+        };
+      };
 
       // Provider → NEAR Intents (for responses)
       // Direct passthrough since both use same format, but normalize contractAddress

@@ -10,6 +10,7 @@
   "dependencies": {
     "@data-provider/api": "workspace:*",
     "@data-provider/shared-contract": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.2",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",

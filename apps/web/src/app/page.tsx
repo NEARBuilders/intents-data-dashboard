@@ -7,6 +7,7 @@ import { useState } from "react";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { ConfigBar } from "@/components/dashboard/config-bar";
 import { ProviderComparison } from "@/components/dashboard/provider-comparison";
+import { stringify1cs } from "@defuse-protocol/crosschain-assetid";
 
 type ProviderId = "across" | "nearIntents";
 type BlockchainId = "eth" | "arb";
@@ -51,8 +52,18 @@ const NOTIONALS = [
 
 const ALL_WINDOWS: TimeWindow[] = ["24h", "7d", "30d", "cumulative"];
 
-const buildAssetId = (blockchain: string, contractAddress: string) =>
-  `nep141:${blockchain}-${contractAddress}.omft.near`;
+const build1csAssetId = (
+  chain: string,
+  namespace: string,
+  reference: string,
+  selector?: string,
+) => stringify1cs({
+  version: "v1",
+  chain,
+  namespace,
+  reference,
+  ...(selector ? { selector } : {}),
+});
 
 const INITIAL_ROUTE_CONFIG: RouteConfig = {
   source: {
@@ -60,14 +71,22 @@ const INITIAL_ROUTE_CONFIG: RouteConfig = {
     symbol: "USDC",
     decimals: 6,
     contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    assetId: buildAssetId("eth", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+    assetId: build1csAssetId(
+      "eth",
+      "erc20",
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    ),
   },
   destination: {
     blockchain: "arb",
     symbol: "USDC",
     decimals: 6,
     contractAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    assetId: buildAssetId("arb", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"),
+    assetId: build1csAssetId(
+      "arb",
+      "erc20",
+      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    ),
   },
 };
 

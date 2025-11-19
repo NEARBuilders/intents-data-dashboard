@@ -113,6 +113,7 @@
       "dependencies": {
         "@data-provider/api": "workspace:*",
         "@data-provider/shared-contract": "workspace:*",
+        "@defuse-protocol/crosschain-assetid": "^1.0.2",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
@@ -445,6 +446,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@defuse-protocol/crosschain-assetid": "^1.0.2",
         "@defuse-protocol/one-click-sdk-typescript": "^0.1.13",
       },
       "devDependencies": {

@@ -18,14 +18,14 @@ declare module "every-plugin" {
 // Plugin URLs - hardcoded for cleanliness since these are deployment artifacts
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/across": "https://elliot-braem-517-data-provider-across-data-provid-4e003b088-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/across": "https://elliot-braem-541-data-provider-across-data-provid-61265c97f-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/axelar": "https://elliot-braem-403-data-provider-axelar-usman-data--4c705eff4-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/cbridge": "https://elliot-braem-471-data-provider-cbridge-data-provi-5f2091ce2-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/cctp": "https://elliot-braem-470-data-provider-cctp-data-provider-bb21830cb-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/debridge": "https://elliot-braem-473-data-provider-debridge-data-prov-bfcae6fcd-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/layerzero": "https://elliot-braem-474-data-provider-layerzero-data-pro-78f5bc1cb-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/lifi": "https://elliot-braem-475-data-provider-lifi-data-provider-f8d1b962e-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/near-intents": "https://elliot-braem-539-data-provider-near-intents-data--ecb3b3cff-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/near-intents": "https://elliot-braem-540-data-provider-near-intents-data--cb4cccc7d-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/wormhole": "https://elliot-braem-476-data-provider-wormhole-data-prov-2d0649a2a-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
