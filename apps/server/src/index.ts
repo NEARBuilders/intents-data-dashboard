@@ -10,6 +10,7 @@ import { initializePlugins, createRouter, createContext } from '@data-provider/a
 import { serverEnv } from './env'
 
 const plugins = await initializePlugins({
+  secrets: { DUNE_API_KEY: serverEnv.DUNE_API_KEY },
   isDevelopment: serverEnv.NODE_ENV !== 'production'
 });
 

@@ -1,6 +1,5 @@
 import type DataAggregatorPlugin from "@data-provider/aggregator";
 import { createPluginRuntime } from "every-plugin";
-import { apiEnv } from "./env";
 
 declare module "every-plugin" {
   interface RegisteredPlugins {
@@ -18,24 +17,23 @@ const PLUGIN_URLS = {
   }
 } as const;
 
-export async function initializePlugins(config?: {
+export async function initializePlugins(config: {
+  secrets: { DUNE_API_KEY: string },
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
 }) {
-  const urls = (config?.registry || PLUGIN_URLS)[config?.isDevelopment ? 'development' : 'production'];
+  const urls = (config.registry || PLUGIN_URLS)[config.isDevelopment ? 'development' : 'production'];
   
   const runtime = createPluginRuntime({
     registry: {
       "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
     },
-    secrets: { DUNE_API_KEY: apiEnv.DUNE_API_KEY },
+    secrets: config.secrets,
   });
 
   const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
     variables: {},
-    secrets: {
-      DUNE_API_KEY: apiEnv.DUNE_API_KEY
-    },
+    secrets: config.secrets,
   });
 
   return { runtime, aggregator } as const;
