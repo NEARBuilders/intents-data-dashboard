@@ -1,175 +1,132 @@
 "use client";
 
 import { client } from "@/utils/orpc";
-import type { TimeWindow } from "@data-provider/shared-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { VolumeChart } from "@/components/dashboard/volume-chart";
-import { ConfigBar } from "@/components/dashboard/config-bar";
-import { ProviderComparison } from "@/components/dashboard/provider-comparison";
-import { stringify1cs } from "@defuse-protocol/crosschain-assetid";
-
-type ProviderId = "across" | "nearIntents";
-type BlockchainId = "eth" | "arb";
-
-type RouteConfig = {
-  source: {
-    blockchain: BlockchainId;
-    symbol: string;
-    decimals: number;
-    contractAddress: string;
-    assetId: string;
-  };
-  destination: {
-    blockchain: BlockchainId;
-    symbol: string;
-    decimals: number;
-    contractAddress: string;
-    assetId: string;
-  };
-};
-
-interface Provider {
-  id: ProviderId;
-  label: string;
-  tag: string;
-}
-
-const PROVIDERS: Provider[] = [
-  { id: "across", label: "Across Protocol", tag: "Bridge" },
-  { id: "nearIntents", label: "NEAR Intents", tag: "Intent-based" },
-];
-
-const AVAILABLE_PROVIDERS = PROVIDERS.map((p) => p.id) as ProviderId[];
-
-const NOTIONALS = [
-  { label: "$100", value: "100000000" },
-  { label: "$1K", value: "1000000000" },
-  { label: "$10K", value: "10000000000" },
-  { label: "$100K", value: "100000000000" },
-  { label: "$1M", value: "1000000000000" },
-] as const;
-
-const ALL_WINDOWS: TimeWindow[] = ["24h", "7d", "30d", "cumulative"];
-
-const build1csAssetId = (
-  chain: string,
-  namespace: string,
-  reference: string,
-  selector?: string,
-) => stringify1cs({
-  version: "v1",
-  chain,
-  namespace,
-  reference,
-  ...(selector ? { selector } : {}),
-});
-
-const INITIAL_ROUTE_CONFIG: RouteConfig = {
-  source: {
-    blockchain: "eth",
-    symbol: "USDC",
-    decimals: 6,
-    contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    assetId: build1csAssetId(
-      "eth",
-      "erc20",
-      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    ),
-  },
-  destination: {
-    blockchain: "arb",
-    symbol: "USDC",
-    decimals: 6,
-    contractAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    assetId: build1csAssetId(
-      "arb",
-      "erc20",
-      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    ),
-  },
-};
 
 export default function Home() {
-  const [routeConfig, setRouteConfig] = useState(INITIAL_ROUTE_CONFIG);
-  const [selectedNotionalValues, setSelectedNotionalValues] = useState<string[]>(
-    NOTIONALS.map((n) => n.value)
-  );
-  const [selectedWindows, setSelectedWindows] = useState<TimeWindow[]>(ALL_WINDOWS);
-  const [leftProviderId] = useState<ProviderId>("nearIntents");
-  const [rightProviderId, setRightProviderId] = useState<ProviderId>("across");
+  const [selectedProviderId, setSelectedProviderId] = useState<string>("near_intents");
 
-  const leftProvider = PROVIDERS.find((p) => p.id === leftProviderId)!;
-  const rightProvider = PROVIDERS.find((p) => p.id === rightProviderId)!;
-
-  const routes = [routeConfig];
-
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [
-      "snapshot",
-      {
-        providers: AVAILABLE_PROVIDERS,
-        routes,
-        notionals: selectedNotionalValues,
-        includeWindows: selectedWindows,
-      },
-    ],
-    queryFn: () =>
-      client.snapshot({
-        providers: AVAILABLE_PROVIDERS,
-        routes,
-        notionals: selectedNotionalValues,
-        includeWindows: selectedWindows,
-      }),
+  const { data: providersData, isLoading: providersLoading } = useQuery({
+    queryKey: ["providers"],
+    queryFn: () => client.getProviders(),
     refetchOnWindowFocus: false,
-    staleTime: 30000,
   });
 
-  const leftSnapshot = data?.[leftProviderId];
-  const rightSnapshot = data?.[rightProviderId];
+  const { data: volumeData, isLoading: volumeLoading, error: volumeError } = useQuery({
+    queryKey: ["volumes", selectedProviderId],
+    queryFn: () => client.getVolumes({ providers: [selectedProviderId as any] }),
+    enabled: !!selectedProviderId,
+    refetchOnWindowFocus: false,
+  });
 
-  const providerLabels = {
-    [leftProviderId]: leftProvider.label,
-    [rightProviderId]: rightProvider.label,
-  };
+  const providers = (providersData?.providers || []).filter(
+    (provider) => provider.supportedData.includes("volumes")
+  );
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-6">
+    <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="space-y-6">
-        {error && (
-          <div className="p-4 bg-destructive/15 border border-destructive rounded-lg">
-            <p className="text-destructive text-sm">
-              Error loading data: {(error as Error).message}
-            </p>
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Intents Data Dashboard</h1>
+          <p className="text-muted-foreground">
+            Query volume data from bridge providers.{" "}
+            <a 
+              href="https://intents.everything.dev/api" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              View API docs →
+            </a>
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="provider" className="block text-sm font-medium mb-2">
+              Select Provider
+            </label>
+            {providersLoading ? (
+              <div className="text-sm text-muted-foreground">Loading providers...</div>
+            ) : (
+              <select
+                id="provider"
+                value={selectedProviderId}
+                onChange={(e) => setSelectedProviderId(e.target.value)}
+                className="w-full p-2 border rounded-md bg-background"
+              >
+                <option value="">-- Choose a provider --</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.label} ({provider.category})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-        )}
 
-        <ConfigBar
-          routeConfig={routeConfig}
-          onRouteChange={setRouteConfig}
-          selectedNotionals={selectedNotionalValues}
-          onNotionalsChange={setSelectedNotionalValues}
-          selectedWindows={selectedWindows}
-          onWindowsChange={setSelectedWindows}
-          notionals={NOTIONALS.map((n) => ({ label: n.label, value: n.value }))}
-          windows={ALL_WINDOWS}
-          rightProviderId={rightProviderId}
-          onRightProviderChange={setRightProviderId}
-          availableProviders={PROVIDERS.filter((p) => p.id !== leftProviderId)}
-          isLoading={isLoading}
-          onRefresh={refetch}
-        />
+          {selectedProviderId && (
+            <div className="border rounded-lg p-4 space-y-4">
+              <h2 className="text-xl font-semibold">
+                Volume Data for {providers.find(p => p.id === selectedProviderId)?.label}
+              </h2>
+              
+              {volumeLoading && (
+                <div className="text-sm text-muted-foreground">Loading volume data...</div>
+              )}
 
-        <VolumeChart snapshots={data || {}} providerLabels={providerLabels} />
+              {volumeError && (
+                <div className="p-4 bg-destructive/15 border border-destructive rounded-lg">
+                  <p className="text-destructive text-sm">
+                    Error: {(volumeError as Error).message}
+                  </p>
+                </div>
+              )}
 
-        <ProviderComparison
-          leftProvider={leftProvider}
-          rightProvider={rightProvider}
-          leftSnapshot={leftSnapshot}
-          rightSnapshot={rightSnapshot}
-          selectedNotionals={selectedNotionalValues}
-          notionals={NOTIONALS.map((n) => ({ label: n.label, value: n.value }))}
-        />
+              {volumeData && !volumeLoading && (
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-md">
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                      ✓ Successfully fetched volume data
+                    </p>
+                  </div>
+                  
+                  <div className="text-sm space-y-1">
+                    <div>
+                      <span className="font-medium">Providers:</span>{" "}
+                      {volumeData.providers.join(", ")}
+                    </div>
+                    <div>
+                      <span className="font-medium">Measured at:</span>{" "}
+                      {new Date(volumeData.measuredAt).toLocaleString()}
+                    </div>
+                    <div>
+                      <span className="font-medium">Data points:</span>{" "}
+                      {Object.keys(volumeData.data).length} provider(s)
+                    </div>
+                  </div>
+
+                  <details className="text-sm">
+                    <summary className="cursor-pointer font-medium mb-2">View raw response</summary>
+                    <pre className="bg-muted p-3 rounded-md overflow-auto text-xs">
+                      {JSON.stringify(volumeData, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="text-xs text-muted-foreground border-t pt-4">
+          <p>
+            This dashboard queries the{" "}
+            <code className="bg-muted px-1 py-0.5 rounded">/providers</code> and{" "}
+            <code className="bg-muted px-1 py-0.5 rounded">/volumes</code> endpoints
+            from the aggregator plugin.
+          </p>
+        </div>
       </div>
     </div>
   );
