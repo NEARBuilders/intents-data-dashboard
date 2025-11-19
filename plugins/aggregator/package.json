@@ -1,5 +1,5 @@
 {
-  "name": "@data-provider/canonical-asset-conversion",
+  "name": "@data-provider/aggregator",
   "version": "0.0.1",
   "description": "Convert to and from canonical asset",
   "main": "./dist/index.js",
@@ -31,6 +31,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@defuse-protocol/crosschain-assetid": "^1.0.2"
+    "@defuse-protocol/crosschain-assetid": "^1.0.2",
+    "@duneanalytics/client-sdk": "^0.3.4"
   }
 }

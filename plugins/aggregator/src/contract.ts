@@ -4,9 +4,9 @@ import { z } from "every-plugin/zod";
 export const ProviderIdentifierEnum = z.enum([
   "across", "axelar", "cashmere", "ccip", "celer", "chainflip",
   "circle_cctp", "debridge", "everclear", "gaszip", "hyperlane",
-  "layerzero", "mayan", "meson", "near_intents", "orbiter", "relay",
+  "layerzero", "mayan", "meson", "near_intents", "oneinch", "orbiter", "relay",
   "squid_axelar", "stargate", "synapse", "wormhole", "socket_bungee",
-  "lifi", "okx", "rango"
+  "lifi", "okx", "rango", "thorswap"
 ]);
 
 export type ProviderIdentifier = z.infer<typeof ProviderIdentifierEnum>;
@@ -35,7 +35,7 @@ export type AssetType = z.infer<typeof Asset>;
 
 export const ProviderInfo = z.object({
   id: ProviderIdentifierEnum,
-  label: z.string().describe("Human-friendly display name, e.g., 'Axelar'"),
+  label: z.string().describe("Human-friendly display name, e.g., 'NEAR Intents'"),
   category: CategoryEnum,
   logoUrl: z.string().url().optional().describe("URL for the provider's logo"),
   supportedData: z
@@ -77,7 +77,7 @@ export type DailyVolumeType = z.infer<typeof DailyVolume>;
 const createProviderDataSchema = <T extends z.ZodTypeAny>(dataType: T) =>
   z.object({
     providers: z.array(ProviderIdentifierEnum),
-    data: z.record(ProviderIdentifierEnum, z.array(dataType)),
+    data: z.record(z.string(), z.array(dataType)),
     measuredAt: z.iso.datetime(),
   });
 
@@ -160,17 +160,24 @@ export const contract = oc.router({
         providers: z
           .array(ProviderIdentifierEnum)
           .optional()
+          .default(["near_intents"])
           .describe("Filter by specific providers. Returns all providers if omitted."),
-        startDate: IsoDate.optional().describe("Start date for volume data (YYYY-MM-DD format)."),
-        endDate: IsoDate.optional().describe("End date for volume data (YYYY-MM-DD format)."),
+
+        startDate: IsoDate.optional().or(z.literal("")).transform(val => val || undefined).default("2025-11-01").describe("Start date for volume data (YYYY-MM-DD format)."),
+        endDate: IsoDate.optional().or(z.literal("")).transform(val => val || undefined).describe("End date for volume data (YYYY-MM-DD format)."),
         route: z
           .object({ source: Asset, destination: Asset })
           .optional()
+          .default(undefined)
           .describe("Filter volumes for a specific route."),
       })
     )
     .output(VolumeData)
     .errors({
+      BAD_REQUEST: {
+        message: "Invalid request parameters",
+        status: 400,
+      },
       SERVICE_UNAVAILABLE: {
         message: "Cache unavailable or service not ready",
         status: 503,

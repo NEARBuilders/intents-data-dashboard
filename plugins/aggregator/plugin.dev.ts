@@ -2,7 +2,6 @@ import type { PluginConfigInput } from 'every-plugin';
 import type Plugin from './src/index';
 import packageJson from './package.json' with { type: 'json' };
 
-
 export default {
   pluginId: packageJson.name, // DO NOT CHANGE
   port: 3014,
@@ -11,6 +10,7 @@ export default {
     variables: {
     },
     secrets: {
+      DUNE_API_KEY: process.env.DUNE_API_KEY!
     }
   } satisfies PluginConfigInput<typeof Plugin>
 }

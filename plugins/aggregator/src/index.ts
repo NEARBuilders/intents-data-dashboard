@@ -1,22 +1,26 @@
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
+import { DuneClient } from "@duneanalytics/client-sdk";
 
 import { contract } from "./contract";
-import { DataProviderService } from "./service";
+import { DataAggregatorService } from "./service";
 
 export default createPlugin({
   variables: z.object({}),
 
-  secrets: z.object({}),
+  secrets: z.object({
+    DUNE_API_KEY: z.string()
+  }),
 
   contract,
 
   initialize: (config) =>
     Effect.gen(function* () {
-      const service = new DataProviderService();
+      const dune = new DuneClient(config.secrets.DUNE_API_KEY);
+      const service = new DataAggregatorService(dune);
 
-      console.log("Data Provider Aggregation plugin initialized");
+      console.log("Aggregator plugin initialized");
 
       return { service };
     }),

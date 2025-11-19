@@ -15,6 +15,7 @@
     "build": "tsdown"
   },
   "devDependencies": {
+    "@data-provider/aggregator": "workspace:*",
     "@data-provider/template": "workspace:*",
     "@data-provider/shared-contract": "workspace:*",
     "@types/node": "^24.10.0",

@@ -1,16 +1,23 @@
+import type { DuneClient } from "@duneanalytics/client-sdk";
 import { ORPCError } from "every-plugin/orpc";
 import type {
-  ProviderInfoType,
-  ProviderIdentifier,
-  DataType,
-  DailyVolumeType,
   AssetType,
-  RateType,
+  DailyVolumeType,
+  DataType,
   LiquidityDepthType,
+  ProviderIdentifier,
+  ProviderInfoType,
+  RateType,
 } from "./contract";
+import { DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volume";
 
-export class DataProviderService {
+export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
+  private dune: DuneClient;
+
+  constructor(dune: DuneClient) {
+    this.dune = dune;
+  }
 
   getProviders(): ProviderInfoType[] {
     return [
@@ -18,49 +25,49 @@ export class DataProviderService {
         id: "across",
         label: "Across",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "axelar",
         label: "Axelar",
         category: "GMP",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "cashmere",
         label: "Cashmere",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "ccip",
         label: "CCIP (Chainlink)",
         category: "GMP",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "celer",
         label: "Celer cBridge",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "chainflip",
         label: "Chainflip",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: [],
       },
       {
         id: "circle_cctp",
         label: "Circle CCTP",
         category: "Other Bridge",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "debridge",
         label: "deBridge (DLN)",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: [],
       },
       {
         id: "everclear",
@@ -72,97 +79,109 @@ export class DataProviderService {
         id: "gaszip",
         label: "GasZip",
         category: "Other Bridge",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "hyperlane",
         label: "Hyperlane",
         category: "GMP",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "layerzero",
         label: "LayerZero",
         category: "GMP",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "mayan",
         label: "Mayan",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: [],
       },
       {
         id: "meson",
         label: "Meson",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "near_intents",
         label: "NEAR Intents",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
+      },
+      {
+        id: "oneinch",
+        label: "1inch",
+        category: "Bridge Aggregator",
+        supportedData: ["volumes"],
       },
       {
         id: "orbiter",
         label: "Orbiter Finance",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "relay",
         label: "Relay",
         category: "Intent-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "squid_axelar",
         label: "Squid (Axelar)",
         category: "Bridge Aggregator",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "stargate",
         label: "Stargate",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "synapse",
         label: "Synapse",
         category: "Pool-based Bridge",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "wormhole",
         label: "Wormhole",
         category: "GMP",
-        supportedData: ["volumes", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "socket_bungee",
         label: "Socket (Bungee)",
         category: "Bridge Aggregator",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "lifi",
         label: "LiFi",
         category: "Bridge Aggregator",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "okx",
         label: "OKX Bridge",
         category: "Bridge Aggregator",
-        supportedData: ["volumes", "rates", "assets"],
+        supportedData: ["volumes"],
       },
       {
         id: "rango",
         label: "Rango Exchange",
         category: "Bridge Aggregator",
-        supportedData: ["volumes", "rates", "liquidity", "assets"],
+        supportedData: ["volumes"],
+      },
+      {
+        id: "thorswap",
+        label: "THORSwap",
+        category: "Bridge Aggregator",
+        supportedData: [],
       },
     ];
   }
@@ -192,11 +211,23 @@ export class DataProviderService {
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Record<ProviderIdentifier, DailyVolumeType[]>;
+    aggregateTotal: DailyVolumeType[];
+    measuredAt: string;
   }> {
-    return {
-      providers: [],
-      data: {} as Record<ProviderIdentifier, DailyVolumeType[]>,
-    };
+    try {
+      const queryResult = await this.dune.getLatestResult({ queryId: 5487957 });
+      const rawData = queryResult.result?.rows || [];
+
+      const transformedData = transformDuneVolumeData(rawData as DuneVolumeRow[]);
+      const filteredData = filterVolumeData(transformedData, input);
+
+      return filteredData;
+    } catch (error) {
+      console.error("Error fetching volume data:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Failed to fetch volume data",
+      });
+    }
   }
 
   async getListedAssets(input: {
@@ -204,10 +235,13 @@ export class DataProviderService {
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Record<ProviderIdentifier, AssetType[]>;
+    aggregateTotal?: DailyVolumeType[];
+    measuredAt: string;
   }> {
     return {
       providers: [],
       data: {} as Record<ProviderIdentifier, AssetType[]>,
+      measuredAt: new Date().toISOString(),
     };
   }
 
@@ -221,10 +255,13 @@ export class DataProviderService {
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Record<ProviderIdentifier, RateType[]>;
+    aggregateTotal?: DailyVolumeType[];
+    measuredAt: string;
   }> {
     return {
       providers: [],
       data: {} as Record<ProviderIdentifier, RateType[]>,
+      measuredAt: new Date().toISOString(),
     };
   }
 
@@ -237,10 +274,13 @@ export class DataProviderService {
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Record<ProviderIdentifier, LiquidityDepthType[]>;
+    aggregateTotal?: DailyVolumeType[];
+    measuredAt: string;
   }> {
     return {
       providers: [],
       data: {} as Record<ProviderIdentifier, LiquidityDepthType[]>,
+      measuredAt: new Date().toISOString(),
     };
   }
 }
