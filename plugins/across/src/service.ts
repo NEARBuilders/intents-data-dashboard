@@ -124,6 +124,10 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
             // Use monthlyVolume which represents the last 30 days
             volumeUsd = bridgeData.monthlyVolume || 0;
             break;
+          default:
+            // Skip unsupported windows (e.g., cumulative)
+            console.log(`[Across] Skipping unsupported volume window: ${window}`);
+            continue;
         }
 
         volumes.push({

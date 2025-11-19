@@ -117,6 +117,12 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
     const rates: RateType<ProviderAssetType>[] = [];
 
     for (const route of routes) {
+      // Skip routes where source and destination are the same asset
+      if (route.source.assetId === route.destination.assetId) {
+        console.log(`[NEAR Intents] Skipping same-asset route: ${route.source.assetId}`);
+        continue;
+      }
+
       for (const notional of notionals) {
         try {
           // Build quote request for dry-run mode
@@ -166,7 +172,11 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
             quotedAt: response.timestamp || new Date().toISOString(),
           });
         } catch (error) {
-          console.error(`[NEAR Intents] Failed to get rate for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[NEAR Intents] Failed to get rate for ${route.source.symbol} (${route.source.assetId}) -> ` +
+            `${route.destination.symbol} (${route.destination.assetId}) with amount ${notional}: ${errorMessage}`
+          );
           // Skip this route/notional pair but continue with others
         }
       }
