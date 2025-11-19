@@ -38,7 +38,8 @@ const apiHandler = new OpenAPIHandler(router, {
           version: '1.0.0',
         },
         servers: [ // or let the plugin auto-infer from the request
-          { url: `${process.env.CORS_ORIGIN ?? "http://localhost:8787"}/api`},
+          { url: 'https://intents.everything.dev/api', },
+          { url: 'http://localhost:8787/api' },
         ],
       },
     }),
