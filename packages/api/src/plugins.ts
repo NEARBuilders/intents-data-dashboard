@@ -1,5 +1,4 @@
 import type DataAggregatorPlugin from "@data-provider/aggregator";
-import 'dotenv/config';
 import { createPluginRuntime } from "every-plugin";
 
 declare module "every-plugin" {
@@ -8,37 +7,38 @@ declare module "every-plugin" {
   }
 }
 
+// TODO: central in repository
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-598-data-provider-aggregator-data-pr-cc8f437ed-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-599-data-provider-aggregator-data-pr-98c0da225-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
   }
 } as const;
 
-const isDevelopment = false;
-const urls = isDevelopment ? PLUGIN_URLS.development : PLUGIN_URLS.production;
+export async function initializePlugins(config: {
+  secrets: { DUNE_API_KEY: string },
+  isDevelopment?: boolean,
+  registry?: typeof PLUGIN_URLS
+}) {
+  const urls = (config.registry || PLUGIN_URLS)[config.isDevelopment ? 'development' : 'production'];
+  
+  const runtime = createPluginRuntime({
+    registry: {
+      "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
+    },
+    secrets: config.secrets,
+  });
 
-const env = {
-  DUNE_API_KEY: process.env.DUNE_API_KEY!
-};
+  const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
+    variables: {},
+    secrets: {
+      DUNE_API_KEY: config.secrets.DUNE_API_KEY
+    },
+  });
 
-export const runtime = createPluginRuntime({
-  registry: {
-    "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
-  },
-  secrets: env,
-});
+  return { runtime, aggregator } as const;
+}
 
-const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
-  variables: {
-  },
-  secrets: {
-    DUNE_API_KEY: env.DUNE_API_KEY
-  },
-});
-
-export const plugins = {
-  aggregator,
-} as const;
+export type Plugins = Awaited<ReturnType<typeof initializePlugins>>;

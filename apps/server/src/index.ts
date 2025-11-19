@@ -7,9 +7,14 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import 'dotenv/config'
 
-// router & context
-import { createContext } from '@data-provider/api/context'
-import { router } from '@data-provider/api/routers'
+import { initializePlugins, createRouter, createContext } from '@data-provider/api'
+
+const plugins = await initializePlugins({
+  secrets: { DUNE_API_KEY: process.env.DUNE_API_KEY! },
+  isDevelopment: process.env.NODE_ENV !== 'production'
+});
+
+const router = createRouter(plugins);
 
 const app = new Hono()
 

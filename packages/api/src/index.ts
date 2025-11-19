@@ -5,6 +5,8 @@ export const o = os.$context<Context>();
 
 export const publicProcedure = o;
 
-// Plugin exports
-export { runtime, plugins } from './plugins';
-export { router, type AppRouter, type AppRouterClient } from './routers';
+export { createContext } from "./context";
+export type { Context };
+
+export { initializePlugins, type Plugins } from './plugins';
+export { createRouter, type AppRouter, type AppRouterClient } from './routers';

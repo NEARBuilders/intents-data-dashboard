@@ -1,15 +1,17 @@
 import type { RouterClient } from "@orpc/server";
 import { os } from "@orpc/server";
-import { plugins } from "../plugins";
+import type { Plugins } from "../plugins";
 
-export const router = {
-	health: os
-		.route({ method: "GET", path: "/health" })
-		.handler(() => {
-			return "OK";
-		}),
-	...plugins.aggregator.router
-} as const;
+export function createRouter(plugins: Plugins) {
+	return {
+		health: os
+			.route({ method: "GET", path: "/health" })
+			.handler(() => {
+				return "OK";
+			}),
+		...plugins.aggregator.router
+	} as const;
+}
 
-export type AppRouter = typeof router;
+export type AppRouter = ReturnType<typeof createRouter>;
 export type AppRouterClient = RouterClient<AppRouter>;
