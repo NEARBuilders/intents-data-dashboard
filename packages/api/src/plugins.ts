@@ -17,8 +17,9 @@ const PLUGIN_URLS = {
   }
 } as const;
 
+// Ignore type error for now, some singleton zod issue
 export async function initializePlugins(config: {
-  secrets: { DUNE_API_KEY: string },
+  secrets: { DUNE_API_KEY: string }, // TODO: typed env
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
 }) {

@@ -10,8 +10,8 @@ import 'dotenv/config'
 import { initializePlugins, createRouter, createContext } from '@data-provider/api'
 
 const plugins = await initializePlugins({
-  secrets: { DUNE_API_KEY: process.env.DUNE_API_KEY! },
-  isDevelopment: process.env.NODE_ENV !== 'production'
+  secrets: { DUNE_API_KEY: Bun.env.DUNE_API_KEY! },
+  isDevelopment: Bun.env.NODE_ENV !== 'production'
 });
 
 const router = createRouter(plugins);
@@ -19,7 +19,7 @@ const router = createRouter(plugins);
 const app = new Hono()
 
 app.use('/*', cors({
-  origin: process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim())
+  origin: Bun.env.CORS_ORIGIN?.split(',').map(origin => origin.trim())
     ?? ['http://localhost:3001'],
   credentials: true,
 }))
