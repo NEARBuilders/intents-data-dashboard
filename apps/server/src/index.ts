@@ -32,13 +32,22 @@ const apiHandler = new OpenAPIHandler(router, {
   plugins: [
     new OpenAPIReferencePlugin({
       schemaConverters: [new ZodToJsonSchemaConverter()],
+      specGenerateOptions: {
+        info: {
+          title: 'everything intents',
+          version: '1.0.0',
+        },
+        servers: [ // or let the plugin auto-infer from the request
+          { url: `${process.env.CORS_ORIGIN ?? "http://localhost:8787"}/api`},
+        ],
+      },
     }),
   ],
   interceptors: [
     onError((error) => {
       console.error('OpenAPI Error:', error)
     }),
-  ]
+  ],
 })
 
 // Health check
