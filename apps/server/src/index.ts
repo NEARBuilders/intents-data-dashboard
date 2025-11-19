@@ -7,10 +7,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
 import { initializePlugins, createRouter, createContext } from '@data-provider/api'
+import { serverEnv } from './env'
 
 const plugins = await initializePlugins({
-  secrets: { DUNE_API_KEY: Bun.env.DUNE_API_KEY! },
-  isDevelopment: false
+  isDevelopment: serverEnv.NODE_ENV !== 'production'
 });
 
 const router = createRouter(plugins);
@@ -18,7 +18,7 @@ const router = createRouter(plugins);
 const app = new Hono()
 
 app.use('/*', cors({
-  origin: Bun.env.CORS_ORIGIN?.split(',').map(origin => origin.trim())
+  origin: serverEnv.CORS_ORIGIN?.split(',').map(origin => origin.trim())
     ?? ['http://localhost:3001'],
   credentials: true,
 }))
@@ -99,9 +99,7 @@ app.all('/api/*', async (c) => {
 
 app.all('*', (c) => c.text('Not Found', 404))
 
-const port = Number(process.env.PORT) || 8787
-
 export default {
-  port: port,
+  port: serverEnv.PORT,
   fetch: app.fetch,
 };
