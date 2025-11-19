@@ -35,7 +35,7 @@ const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
   variables: {
   },
   secrets: {
-    DUNE_API_KEY: "{{DUNE_API_KEY}}"
+    DUNE_API_KEY: env.DUNE_API_KEY
   },
 });
 
