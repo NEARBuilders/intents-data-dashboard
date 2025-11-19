@@ -11,7 +11,7 @@ import { initializePlugins, createRouter, createContext } from '@data-provider/a
 
 const plugins = await initializePlugins({
   secrets: { DUNE_API_KEY: Bun.env.DUNE_API_KEY! },
-  isDevelopment: Bun.env.NODE_ENV !== 'production'
+  isDevelopment: false
 });
 
 const router = createRouter(plugins);
