@@ -9,7 +9,7 @@ import type {
   ProviderInfoType,
   RateType,
 } from "./contract";
-import { DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volume";
+import { type DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volume";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
