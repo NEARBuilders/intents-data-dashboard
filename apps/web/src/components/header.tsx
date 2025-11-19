@@ -100,7 +100,7 @@ export default function Header() {
 								<span>Dev Mode</span>
 							</Button>
 						</PopoverTrigger>
-						<PopoverContent className="w-80" align="end">
+					w	<PopoverContent className="w-80" align="end">
 							<div className="space-y-4">
 								<div>
 									<h4 className="font-medium mb-2">Custom RPC URL</h4>

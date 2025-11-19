@@ -39,5 +39,4 @@ export const ProviderRoute = z.object({
 export type ProviderAssetType = z.infer<typeof ProviderAsset>;
 export type ProviderRouteType = z.infer<typeof ProviderRoute>;
 
-// Re-export shared contract types for convenience
 export * from '@data-provider/shared-contract';

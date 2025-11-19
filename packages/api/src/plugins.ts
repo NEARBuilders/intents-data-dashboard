@@ -25,7 +25,7 @@ const PLUGIN_URLS = {
     "@data-provider/debridge": "https://elliot-braem-473-data-provider-debridge-data-prov-bfcae6fcd-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/layerzero": "https://elliot-braem-474-data-provider-layerzero-data-pro-78f5bc1cb-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/lifi": "https://elliot-braem-475-data-provider-lifi-data-provider-f8d1b962e-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/near-intents": "https://elliot-braem-537-data-provider-near-intents-data--87342dba1-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/near-intents": "https://elliot-braem-539-data-provider-near-intents-data--ecb3b3cff-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/wormhole": "https://elliot-braem-476-data-provider-wormhole-data-prov-2d0649a2a-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {

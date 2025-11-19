@@ -1,5 +1,18 @@
 import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
-import type { QuoteRequest, QuoteResponse, Quote, TokenResponse } from '@defuse-protocol/one-click-sdk-typescript';
+import type { QuoteRequest, QuoteResponse, TokenResponse } from '@defuse-protocol/one-click-sdk-typescript';
+
+/**
+ * DefiLlama DEX Volume Summary Response for NEAR Intents
+ * From https://api.llama.fi/summary/dexs/near-intents
+ */
+export interface DefiLlamaNearIntentsDexSummary {
+  protocol?: string; // "near-intents"
+  total24h?: number;
+  total48hto24h?: number;
+  total7d?: number;
+  total30d?: number;
+  totalAllTime?: number;
+}
 
 /**
  * HTTP Client Layer for NEAR Intents Data Provider APIs
@@ -54,6 +67,7 @@ export interface OneClickTokensResponse {
 export class ProviderApiClient {
   private readonly oneClickHttp: HttpClient;
   private readonly explorerHttp: HttpClient;
+  private readonly llamaHttp: HttpClient;
 
   constructor(
     private readonly oneClickBaseUrl: string,
@@ -86,6 +100,14 @@ export class ProviderApiClient {
       rateLimiter: createRateLimiter(2), // 2 req/sec for Explorer
       timeout,
       retries: 2 // Fewer retries for Explorer
+    });
+
+    // DefiLlama client for DEX volume data
+    this.llamaHttp = createHttpClient({
+      baseUrl: "https://api.llama.fi",
+      rateLimiter: createRateLimiter(5), // 5 req/sec for DefiLlama
+      timeout,
+      retries: 3
     });
   }
 
@@ -121,5 +143,12 @@ export class ProviderApiClient {
         ...params
       }
     });
+  }
+
+  /**
+   * Fetch DEX volume summary from DefiLlama for NEAR Intents.
+   */
+  async fetchDexSummary(): Promise<DefiLlamaNearIntentsDexSummary> {
+    return this.llamaHttp.get<DefiLlamaNearIntentsDexSummary>('/summary/dexs/near-intents');
   }
 }

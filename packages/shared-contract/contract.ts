@@ -2,6 +2,11 @@ import { CommonPluginErrors } from "every-plugin";
 import { oc } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 
+const TimeWindowEnumDefine = z.enum(["24h", "7d", "30d", "cumulative"]);
+
+export const TimeWindowEnum = TimeWindowEnumDefine;
+export type TimeWindow = z.infer<typeof TimeWindowEnum>;
+
 // --- Schemas ---
 
 export const Asset = z.object({
@@ -34,7 +39,7 @@ export const LiquidityDepth = z.object({
 });
 
 export const VolumeWindow = z.object({
-  window: z.enum(["24h", "7d", "30d"]),
+  window: TimeWindowEnum,
   volumeUsd: z.number(),
   measuredAt: z.iso.datetime(),
 });
@@ -78,7 +83,6 @@ export type LiquidityDepthType<TAsset> = {
   measuredAt: string;
 };
 export type VolumeWindowType = z.infer<typeof VolumeWindow>;
-export type TimeWindow = "24h" | "7d" | "30d";
 export type ListedAssetsType = z.infer<typeof ListedAssets>;
 export type SnapshotType = z.infer<typeof Snapshot>;
 
@@ -89,7 +93,7 @@ export const contract = oc.router({
   getVolumes: oc
     .route({ method: 'POST', path: '/volumes' })
     .input(z.object({
-      includeWindows: z.array(z.enum(["24h", "7d", "30d"])).default(["24h"]).optional(),
+      includeWindows: z.array(TimeWindowEnum).default(["24h"]).optional(),
     }))
     .output(z.object({ volumes: z.array(VolumeWindow) }))
     .errors(CommonPluginErrors),
@@ -122,7 +126,7 @@ export const contract = oc.router({
     .input(z.object({
       routes: z.array(z.object({ source: Asset, destination: Asset })).optional(),
       notionals: z.array(z.string()).optional(),
-      includeWindows: z.array(z.enum(["24h", "7d", "30d"]))
+      includeWindows: z.array(TimeWindowEnum)
         .default(["24h"]).optional(),
     }))
     .output(Snapshot)

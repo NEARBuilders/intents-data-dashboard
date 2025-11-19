@@ -1,6 +1,6 @@
 import { DataProviderService as BaseDataProviderService, calculateEffectiveRate } from "@data-provider/plugin-utils";
-import { ProviderApiClient } from "./client";
 import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
+import { ProviderApiClient } from "./client";
 import type {
   LiquidityDepthType,
   ProviderAssetType,
@@ -31,64 +31,47 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   }
 
   /**
-   * Fetch volume metrics for specified time windows using Intents Explorer API.
-   * Aggregates successful transactions to get global NEAR Intents volume.
+   * Fetch volume metrics using DefiLlama DEX volume data.
+   * Supports cumulative window in addition to standard time periods.
    */
   async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {
-    const now = new Date();
-    const volumes: VolumeWindowType[] = [];
+    try {
+      const summary = await this.client.fetchDexSummary();
+      const measuredAt = new Date().toISOString();
+      const volumes: { window: TimeWindow; volumeUsd: number; measuredAt: string }[] = [];
 
-    for (const window of windows) {
-      let volumeUsd = 0;
-      let page = 1;
+      for (const window of windows) {
+        let volumeUsd = 0;
 
-      // Calculate start timestamp in seconds
-      const windowDurationSec = window === "24h" ? 24 * 60 * 60 :
-        window === "7d" ? 7 * 24 * 60 * 60 :
-          30 * 24 * 60 * 60;
-      const startTimestamp = Math.floor(now.getTime() / 1000) - windowDurationSec;
-
-      try {
-        // Paginate through all transactions in the time window
-        while (true) {
-          const response = await this.client.fetchTransactionsPage({
-            page,
-            startTimestamp,
-            statuses: 'SUCCESS'
-          });
-
-          // Sum up USD values from successful transactions
-          for (const tx of response.data) {
-            const usdAmount = parseFloat(tx.amountInUsd || tx.amountOutUsd || '0');
-            if (usdAmount > 0) {
-              volumeUsd += usdAmount;
-            }
-          }
-
-          // Check if we have more pages
-          if (response.nextPage === null) {
+        switch (window) {
+          case "24h":
+            volumeUsd = summary.total24h ?? 0;
             break;
-          }
-          page = response.nextPage;
+          case "7d":
+            volumeUsd = summary.total7d ?? 0;
+            break;
+          case "30d":
+            volumeUsd = summary.total30d ?? 0;
+            break;
+          case "cumulative":
+            volumeUsd = summary.totalAllTime ?? 0;
+            break;
         }
 
-        volumes.push({
-          window,
-          volumeUsd,
-          measuredAt: now.toISOString()
-        });
-      } catch (error) {
-        console.error(`[NEAR Intents] Failed to fetch volume for ${window}:`, error);
-        // Return zero volume for this window on error
-        volumes.push({
-          window,
-          volumeUsd: 0,
-          measuredAt: now.toISOString()
-        });
-      }
-    }
+        volumes.push({ window, volumeUsd, measuredAt });
 
-    return volumes;
+        console.log(`[NEAR Intents] Volume ${window}: $${volumeUsd.toLocaleString()}`);
+      }
+
+      return volumes;
+    } catch (error) {
+      console.error("[NEAR Intents] Failed to fetch DEX volume from DefiLlama:", error);
+      return windows.map(window => ({
+        window,
+        volumeUsd: 0,
+        measuredAt: new Date().toISOString(),
+      }));
+    }
   }
 
   /**
