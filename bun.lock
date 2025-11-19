@@ -16,6 +16,7 @@
         "@orpc/openapi": "^1.10.3",
         "@orpc/server": "^1.10.0",
         "@orpc/zod": "^1.10.3",
+        "dotenv": "^17.2.3",
         "hono": "^4.10.4",
       },
       "devDependencies": {
@@ -187,7 +188,7 @@
         "@rspack/cli": "^1.5.2",
         "@rspack/core": "^1.5.2",
         "@types/node": "^24.6.0",
-        "dotenv": "^17.2.2",
+        "dotenv": "^17.2.3",
         "every-plugin": "catalog:",
         "msw": "^2.3.0",
         "sirv": "^3.0.2",

@@ -1,7 +1,7 @@
+import { DuneClient } from "@duneanalytics/client-sdk";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
-import { DuneClient } from "@duneanalytics/client-sdk";
 
 import { contract } from "./contract";
 import { DataAggregatorService } from "./service";
@@ -17,6 +17,8 @@ export default createPlugin({
 
   initialize: (config) =>
     Effect.gen(function* () {
+      if (!config.secrets.DUNE_API_KEY) console.error("Dune API key not provided.");
+
       const dune = new DuneClient(config.secrets.DUNE_API_KEY);
       const service = new DataAggregatorService(dune);
 

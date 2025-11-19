@@ -1,5 +1,5 @@
-import type DataProviderTemplatePlugin from "@data-provider/template";
 import type DataAggregatorPlugin from "@data-provider/aggregator";
+import 'dotenv/config';
 import { createPluginRuntime } from "every-plugin";
 
 declare module "every-plugin" {
@@ -10,7 +10,7 @@ declare module "every-plugin" {
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-591-data-provider-aggregator-data-pr-d89e5d1a2-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-592-data-provider-aggregator-data-pr-53926cd45-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
@@ -21,8 +21,7 @@ const isDevelopment = false;
 const urls = isDevelopment ? PLUGIN_URLS.development : PLUGIN_URLS.production;
 
 const env = {
-  DUNE_API_KEY: process.env.DUNE_API_KEY!,
-  NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY || ""
+  DUNE_API_KEY: process.env.DUNE_API_KEY!
 };
 
 export const runtime = createPluginRuntime({

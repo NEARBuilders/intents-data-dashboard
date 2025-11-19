@@ -5,6 +5,7 @@ import { RPCHandler } from '@orpc/server/fetch'
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import 'dotenv/config'
 
 // router & context
 import { createContext } from '@data-provider/api/context'
