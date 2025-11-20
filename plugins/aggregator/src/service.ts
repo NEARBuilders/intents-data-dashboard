@@ -18,21 +18,25 @@ import { aggregateRates } from "./services/rates";
 import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
 import { RedisService } from "./services/redis";
+import { IconResolverService } from "./services/icon-resolver";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, any>>;
   private redis?: RedisService;
+  private iconResolver?: IconResolverService;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, any>>,
-    redis?: RedisService
+    redis?: RedisService,
+    iconResolver?: IconResolverService
   ) {
     this.dune = dune;
     this.providers = providers;
     this.redis = redis;
+    this.iconResolver = iconResolver;
   }
 
   getProviders(): ProviderInfoType[] {
@@ -128,7 +132,7 @@ export class DataAggregatorService {
     const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
-    const result = await aggregateListedAssets(this.providers, targetProviders);
+    const result = await aggregateListedAssets(this.providers, targetProviders, this.iconResolver, this.redis);
     return { ...result, measuredAt: new Date().toISOString() };
   }
 

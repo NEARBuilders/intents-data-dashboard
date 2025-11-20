@@ -12,7 +12,8 @@ export default {
     },
     secrets: {
       DUNE_API_KEY: process.env.DUNE_API_KEY!,
-      NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY!
+      NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY!,
+      COINMARKETCAP_API_KEY: process.env.COINMARKETCAP_API_KEY!
     }
   } satisfies PluginConfigInput<typeof Plugin>
 }

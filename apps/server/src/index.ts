@@ -2,15 +2,16 @@ import { OpenAPIHandler } from '@orpc/openapi/fetch'
 import { OpenAPIReferencePlugin } from '@orpc/openapi/plugins'
 import { onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
+import { BatchHandlerPlugin } from '@orpc/server/plugins'
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
-import { initializePlugins, createRouter, createContext } from '@data-provider/api'
+import { createContext, createRouter, initializePlugins } from '@data-provider/api'
 import { serverEnv } from './env'
 
 const plugins = await initializePlugins({
-  secrets: { REDIS_URL: serverEnv.REDIS_URL, DUNE_API_KEY: serverEnv.DUNE_API_KEY, NEAR_INTENTS_API_KEY: serverEnv.NEAR_INTENTS_API_KEY },
+  secrets: { REDIS_URL: serverEnv.REDIS_URL, DUNE_API_KEY: serverEnv.DUNE_API_KEY, NEAR_INTENTS_API_KEY: serverEnv.NEAR_INTENTS_API_KEY, COINMARKETCAP_API_KEY: serverEnv.COINMARKETCAP_API_KEY },
   isDevelopment: serverEnv.NODE_ENV !== 'production'
 });
 
@@ -26,6 +27,7 @@ app.use('/*', cors({
 
 // Create RPC handler
 const rpcHandler = new RPCHandler(router, {
+  plugins: [new BatchHandlerPlugin()],
   interceptors: [
     onError((error) => {
       console.error('RPC Error:', error)

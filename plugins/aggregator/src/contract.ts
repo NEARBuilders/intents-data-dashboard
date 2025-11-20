@@ -30,6 +30,7 @@ export const Asset = z.object({
   symbol: z.string(),
   decimals: z.number().int().min(0),
   contractAddress: z.string().optional(),
+  iconUrl: z.string().url().optional(),
 });
 export type AssetType = z.infer<typeof Asset>;
 

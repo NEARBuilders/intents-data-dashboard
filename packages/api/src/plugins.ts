@@ -3,7 +3,7 @@ import { createPluginRuntime } from "every-plugin";
 // TODO: central in repository
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-624-data-provider-aggregator-data-pr-46ef100c2-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-628-data-provider-aggregator-data-pr-4344b1f9d-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
@@ -11,7 +11,7 @@ const PLUGIN_URLS = {
 } as const;
 
 export async function initializePlugins(config: {
-  secrets: { REDIS_URL: string, DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string },
+  secrets: { REDIS_URL: string, DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string, COINMARKETCAP_API_KEY: string },
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
 }) {

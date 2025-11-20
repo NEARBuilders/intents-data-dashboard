@@ -1,4 +1,7 @@
+import { Effect } from "every-plugin/effect";
 import type { AssetType, ProviderIdentifier } from "../contract";
+import type { IconResolverService } from "./icon-resolver";
+import type { RedisService } from "./redis";
 
 export async function buildAssetSupportIndex(
   providers: Partial<Record<ProviderIdentifier, any>>,
@@ -49,13 +52,49 @@ export function getProvidersForRoute(
 
 export async function aggregateListedAssets(
   providers: Partial<Record<ProviderIdentifier, any>>,
-  targetProviders: ProviderIdentifier[]
+  targetProviders: ProviderIdentifier[],
+  iconResolver?: IconResolverService,
+  redis?: RedisService
 ): Promise<{
   providers: ProviderIdentifier[];
   data: Record<ProviderIdentifier, AssetType[]>;
 }> {
+  const ASSETS_CACHE_TTL = 60 * 60;
+
+  const data: Partial<Record<ProviderIdentifier, AssetType[]>> = {};
+  const successfulProviders: ProviderIdentifier[] = [];
+  const providersToFetch: ProviderIdentifier[] = [];
+
+  if (redis) {
+    for (const providerId of targetProviders) {
+      const cacheKey = `assets:${providerId}`;
+      try {
+        const cached = await Effect.runPromise(redis.get<AssetType[]>(cacheKey));
+        if (cached) {
+          data[providerId] = cached;
+          successfulProviders.push(providerId);
+          console.log(`[Aggregator] Using cached assets for ${providerId}`);
+        } else {
+          providersToFetch.push(providerId);
+        }
+      } catch (error) {
+        console.warn(`[Aggregator] Cache check failed for ${providerId}:`, error);
+        providersToFetch.push(providerId);
+      }
+    }
+  } else {
+    providersToFetch.push(...targetProviders);
+  }
+
+  if (providersToFetch.length === 0) {
+    return {
+      providers: successfulProviders,
+      data: data as Record<ProviderIdentifier, AssetType[]>,
+    };
+  }
+
   const results = await Promise.allSettled(
-    targetProviders.map(async (providerId) => {
+    providersToFetch.map(async (providerId) => {
       const client = providers[providerId];
       if (!client) {
         console.warn(`[Aggregator] Provider ${providerId} not available`);
@@ -72,16 +111,29 @@ export async function aggregateListedAssets(
     })
   );
 
-  const data: Partial<Record<ProviderIdentifier, AssetType[]>> = {};
-  const successfulProviders: ProviderIdentifier[] = [];
-
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
-    const providerId = targetProviders[i]!;
+    const providerId = providersToFetch[i]!;
 
     if (result?.status === 'fulfilled' && result.value) {
-      data[providerId] = result.value.assets;
+      let assets = result.value.assets;
+      
+      if (iconResolver) {
+        assets = await iconResolver.enrichAssetsWithIcons(assets);
+      }
+      
+      data[providerId] = assets;
       successfulProviders.push(providerId);
+
+      if (redis) {
+        const cacheKey = `assets:${providerId}`;
+        try {
+          await Effect.runPromise(redis.set<AssetType[]>(cacheKey, assets, ASSETS_CACHE_TTL));
+          console.log(`[Aggregator] Cached ${assets.length} assets for ${providerId} (TTL: 1 hour)`);
+        } catch (error) {
+          console.warn(`[Aggregator] Failed to cache assets for ${providerId}:`, error);
+        }
+      }
     }
   }
 

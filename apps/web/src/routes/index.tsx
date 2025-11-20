@@ -18,6 +18,7 @@ const GradientBlur = ({ className }: { className: string }) => (
 function LandingPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("ALL")
   const [visibleProviders, setVisibleProviders] = useState<Set<string>>(new Set())
+  const [selectedProvider, setSelectedProvider] = useState("")
 
   const { data: providersData, isLoading: providersLoading } = useQuery({
     queryKey: ["providers"],
@@ -30,6 +31,18 @@ function LandingPage() {
       p.supportedData.includes("volumes")
     ), [providersData]
   )
+
+  const assetProviders = useMemo(() => 
+    (providersData?.providers || []).filter((p: any) => 
+      p.id !== "near_intents" && p.supportedData?.includes("assets")
+    ), [providersData]
+  )
+
+  useEffect(() => {
+    if (assetProviders.length > 0 && !selectedProvider) {
+      setSelectedProvider(assetProviders[0].id)
+    }
+  }, [assetProviders, selectedProvider])
 
   const { data: volumeData, isLoading: volumeLoading } = useQuery({
     queryKey: ["volumes-aggregated", selectedPeriod.toLowerCase(), volumeProviders.map((p: any) => p.id)],
@@ -72,10 +85,16 @@ function LandingPage() {
         onToggleProvider={handleToggleProvider}
       />
       <ComparisonTable 
+        selectedProvider={selectedProvider}
+        onProviderChange={setSelectedProvider}
         providersInfo={providersData?.providers || []}
         loading={providersLoading}
       />
-      <MetricsTable />
+      <MetricsTable 
+        selectedProvider={selectedProvider}
+        providersInfo={providersData?.providers || []}
+        loading={providersLoading}
+      />
       <Footer />
     </div>
   )
