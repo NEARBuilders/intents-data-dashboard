@@ -20,7 +20,8 @@ export class DataAggregatorService {
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, any>>;
 
-  constructor(dune: DuneClient, providers: Partial<Record<ProviderIdentifier, any>>) {
+  constructor(dune: DuneClient,
+    providers: Partial<Record<ProviderIdentifier, any>>) {
     this.dune = dune;
     this.providers = providers;
   }

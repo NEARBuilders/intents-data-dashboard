@@ -1,11 +1,4 @@
-import type DataAggregatorPlugin from "@data-provider/aggregator";
 import { createPluginRuntime } from "every-plugin";
-
-declare module "every-plugin" {
-  interface RegisteredPlugins {
-    "@data-provider/aggregator": typeof DataAggregatorPlugin;
-  }
-}
 
 // TODO: central in repository
 const PLUGIN_URLS = {
@@ -18,7 +11,7 @@ const PLUGIN_URLS = {
 } as const;
 
 export async function initializePlugins(config: {
-  secrets: { DUNE_API_KEY: string },
+  secrets: { DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string },
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
 }) {
@@ -31,6 +24,7 @@ export async function initializePlugins(config: {
     secrets: config.secrets,
   });
 
+  // @ts-ignore 
   const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
     variables: {},
     secrets: config.secrets,

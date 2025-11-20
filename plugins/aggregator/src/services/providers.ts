@@ -1,4 +1,4 @@
-import { ProviderInfoType } from "@/contract";
+import { ProviderInfoType } from "../contract";
 
 export const PROVIDERS_LIST: ProviderInfoType[] = [
   {
