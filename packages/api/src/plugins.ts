@@ -11,12 +11,12 @@ const PLUGIN_URLS = {
 } as const;
 
 export async function initializePlugins(config: {
-  secrets: { DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string },
+  secrets: { REDIS_URL: string, DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string },
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
 }) {
   const urls = (config.registry || PLUGIN_URLS)[config.isDevelopment ? 'development' : 'production'];
-  
+
   const runtime = createPluginRuntime({
     registry: {
       "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },

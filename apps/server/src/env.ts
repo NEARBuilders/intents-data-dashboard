@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 export const serverEnv = createEnv({
   server: {
+    REDIS_URL: z.string().min(1),
     NEAR_INTENTS_API_KEY: z.string().min(1),
     DUNE_API_KEY: z.string().min(1),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -10,6 +11,7 @@ export const serverEnv = createEnv({
     CORS_ORIGIN: z.string().optional(),
   },
   runtimeEnv: {
+    REDIS_URL: process.env.REDIS_URL,
     NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY,
     DUNE_API_KEY: process.env.DUNE_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
