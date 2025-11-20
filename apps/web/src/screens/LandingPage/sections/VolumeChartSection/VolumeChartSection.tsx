@@ -118,8 +118,9 @@ export const VolumeChartSection = ({
   }, [providerTotals, selectedCategories, categoryGroups]);
 
   const displayedProviders = useMemo(() => {
-    return showAllProviders ? filteredProviders : filteredProviders.slice(0, 6);
-  }, [filteredProviders, showAllProviders]);
+    const mobileLimit = isMobile ? 4 : 6;
+    return showAllProviders ? filteredProviders : filteredProviders.slice(0, mobileLimit);
+  }, [filteredProviders, showAllProviders, isMobile]);
 
   const chartData = useMemo(() => {
     if (!volumeData?.data) return [];
@@ -219,7 +220,7 @@ export const VolumeChartSection = ({
   // Responsive margin for mobile
   const chartMargin = useMemo(() => {
     if (isMobile) {
-      return { top: 5, right: 5, left: 0, bottom: 60 };
+      return { top: 5, right: 5, left: 0, bottom: 20 };
     }
     return { top: 5, right: 30, left: 30, bottom: 60 };
   }, [isMobile]);
@@ -437,15 +438,98 @@ export const VolumeChartSection = ({
 
       <Card className="w-full max-w-[1170px] mt-4 md:mt-6 lg:mt-[37px] bg-[#0e0e0e] rounded-[18px] border border-solid border-[#343434] overflow-hidden">
         <CardContent className="relative p-0 h-[500px] md:h-[550px] lg:h-[666px]">
-          <div className="absolute top-4 md:top-6 lg:top-[30px] left-4 md:left-6 lg:left-[30px] w-auto md:w-auto lg:w-[304px] font-normal text-white text-xs md:text-sm lg:text-base tracking-[-0.36px] md:tracking-[-0.42px] lg:tracking-[-0.48px] leading-[normal]">
+          {/* Mobile: Volume + Filters in one row */}
+          <div className="flex lg:hidden absolute top-4 left-4 right-4 items-center gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <div className="font-normal text-white text-xs tracking-[-0.36px] leading-tight">
+                NEAR Intents Volume
+              </div>
+              <div className="font-medium text-white text-lg tracking-[-0.72px] leading-tight">
+                {nearIntentsTotal}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-9 px-2.5 flex items-center justify-between gap-1.5 !bg-[#242424] !text-white border-[#343434] hover:!bg-[#343434] text-xs min-w-[100px]"
+                  >
+                    <span className="font-normal">
+                      {selectedCategories.length === 0
+                        ? "All"
+                        : selectedCategories.join(", ")}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[200px] p-3 !bg-[#1a1a1a] !border-[#343434]"
+                >
+                  <div className="flex flex-col gap-2">
+                    {Array.from(categoryGroups.keys()).map((group) => {
+                      const isSelected =
+                        selectedCategories.includes(group) ||
+                        (group === "All" && selectedCategories.length === 0);
+                      return (
+                        <div
+                          key={group}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-[#2a2a2a] p-2 rounded transition-colors"
+                          onClick={() => {
+                            if (group === "All") {
+                              setSelectedCategories([]);
+                            } else {
+                              setSelectedCategories([group]);
+                            }
+                          }}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            className="border-[#5a5a5a]"
+                          />
+                          <span className="text-white text-sm">{group}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {periods.map((period) => {
+                const isSelected = selectedPeriod === period;
+                return (
+                  <Button
+                    key={period}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onPeriodChange(period)}
+                    className={`h-9 px-2 min-w-[40px] text-xs transition-colors ${
+                      isSelected
+                        ? "!bg-white !text-black border-white hover:!bg-white hover:!text-black"
+                        : "!bg-[#292929] !text-white border-[#343434] hover:!bg-[#343434] hover:!text-white"
+                    }`}
+                  >
+                    <span className="font-normal tracking-[-0.36px]">
+                      {period}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Desktop: Volume label and value */}
+          <div className="hidden lg:block absolute top-4 md:top-6 lg:top-[30px] left-4 md:left-6 lg:left-[30px] w-auto md:w-auto lg:w-[304px] font-normal text-white text-xs md:text-sm lg:text-base tracking-[-0.36px] md:tracking-[-0.42px] lg:tracking-[-0.48px] leading-[normal]">
             NEAR Intents Volume
           </div>
 
-          <div className="absolute top-8 md:top-12 lg:top-[65px] left-4 md:left-6 lg:left-[30px] w-auto md:w-auto lg:w-[304px] font-medium text-white text-2xl md:text-3xl lg:text-[50px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.50px] leading-[normal]">
+          <div className="hidden lg:block absolute top-8 md:top-12 lg:top-[65px] left-4 md:left-6 lg:left-[30px] w-auto md:w-auto lg:w-[304px] font-medium text-white text-2xl md:text-3xl lg:text-[50px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.50px] leading-[normal]">
             {nearIntentsTotal}
           </div>
 
-          <div className="absolute top-20 md:top-24 lg:top-[154px] left-0 md:left-4 lg:left-10 w-[calc(100%-0.25rem)] md:w-[calc(100%-2rem)] lg:w-[844px] h-[380px] md:h-[420px] lg:h-[475px] overflow-visible">
+          <div className="absolute top-[90px] md:top-24 lg:top-[154px] left-4 md:left-4 lg:left-10 w-[calc(100%-2rem)] md:w-[calc(100%-2rem)] lg:w-[844px] h-[280px] md:h-[420px] lg:h-[475px] overflow-visible">
             <ResponsiveContainer width="100%" height="100%" debounce={100}>
               <LineChart data={chartData} margin={chartMargin}>
                 <CartesianGrid
@@ -460,8 +544,8 @@ export const VolumeChartSection = ({
                   tickLine={false}
                   axisLine={false}
                   interval={xAxisInterval}
-                  angle={0}
-                  textAnchor="middle"
+                  angle={-45}
+                  textAnchor="end"
                   height={60}
                   minTickGap={isMobile ? 5 : 0}
                 />
@@ -557,109 +641,7 @@ export const VolumeChartSection = ({
             )}
           </div>
 
-          <div className="flex lg:hidden flex-wrap items-center gap-2 absolute top-4 right-4 left-4">
-            <span className="text-white text-xs font-normal w-full mb-1">
-              Category:
-            </span>
-
-            {Array.from(categoryGroups.keys()).map((group) => {
-              const isSelected =
-                selectedCategories.includes(group) ||
-                (group === "All" && selectedCategories.length === 0);
-              return (
-                <Button
-                  key={group}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (group === "All") {
-                      setSelectedCategories([]);
-                    } else {
-                      setSelectedCategories([group]);
-                    }
-                  }}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    isSelected
-                      ? "!bg-[#4a4a4a] !text-white border-[#5a5a5a]"
-                      : "!bg-[#242424] !text-white border-[#343434]"
-                  }`}
-                >
-                  {group}
-                </Button>
-              );
-            })}
-
-            <div className="h-px w-full bg-[#343434] my-1" />
-
-            {periods.map((period) => {
-              const isSelected = selectedPeriod === period;
-              return (
-                <Button
-                  key={period}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onPeriodChange(period)}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    isSelected
-                      ? "!bg-white !text-black border-white hover:!bg-white hover:!text-black"
-                      : "!bg-[#292929] !text-white border-[#343434] hover:!bg-[#343434] hover:!text-white"
-                  }`}
-                >
-                  <span className="font-normal text-center tracking-[-0.36px] leading-[normal]">
-                    {period}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-
-          <div className="lg:hidden absolute bottom-4 left-4 right-4">
-            <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto">
-              {legendItems.map((item) => (
-                <div
-                  key={`legend-mobile-${item.id}`}
-                  className={`flex items-center gap-1.5 w-full cursor-pointer hover:opacity-80 transition-opacity ${
-                    item.isNearIntents ? "border-l-2 border-[#3ffa90] pl-1" : ""
-                  }`}
-                  onClick={() => onToggleProvider(item.id)}
-                >
-                  <div
-                    className={`${
-                      item.isNearIntents ? "w-4 h-4" : "w-3 h-3"
-                    } rounded flex-shrink-0`}
-                    style={{
-                      backgroundColor: item.color,
-                      opacity: item.visible ? 1 : 0.3,
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={`text-[10px] ${
-                        item.isNearIntents ? "font-semibold" : "font-normal"
-                      } truncate ${
-                        item.visible ? "text-white" : "text-gray-500"
-                      }`}
-                    >
-                      {item.label}
-                    </div>
-                    <div className="text-[8px] text-gray-400">
-                      ${(item.totalVolume / 1_000_000_000).toFixed(1)}B
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {!showAllProviders && filteredProviders.length > 6 && (
-              <button
-                onClick={() => setShowAllProviders(true)}
-                className="w-full text-xs text-blue-400 py-2 text-center border-t border-[#343434] mt-2"
-              >
-                + Show {filteredProviders.length - 6} More
-              </button>
-            )}
-          </div>
-
+          {/* Desktop: Category and Period filters */}
           <div className="hidden lg:flex flex-wrap items-center gap-2 absolute top-4 md:top-6 lg:top-[30px] right-4 md:right-6 lg:right-[30px]">
             <span className="text-white text-sm font-normal mr-1">
               Category:
@@ -714,6 +696,62 @@ export const VolumeChartSection = ({
                 </Button>
               );
             })}
+          </div>
+
+          <div className="lg:hidden absolute bottom-4 left-4 right-4">
+            <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 bg-[#0e0e0e]">
+              {legendItems.map((item) => (
+                <div
+                  key={`legend-mobile-${item.id}`}
+                  className={`flex items-center gap-2 w-full cursor-pointer hover:bg-[#1a1a1a] p-1.5 rounded transition-colors ${
+                    item.isNearIntents ? "border-l-2 border-[#3ffa90] pl-2" : ""
+                  }`}
+                  onClick={() => onToggleProvider(item.id)}
+                >
+                  <div
+                    className={`${
+                      item.isNearIntents ? "w-4 h-4" : "w-3.5 h-3.5"
+                    } rounded flex-shrink-0`}
+                    style={{
+                      backgroundColor: item.color,
+                      opacity: item.visible ? 1 : 0.3,
+                    }}
+                  />
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <div
+                      className={`text-xs ${
+                        item.isNearIntents ? "font-semibold" : "font-normal"
+                      } truncate ${
+                        item.visible ? "text-white" : "text-gray-500"
+                      }`}
+                    >
+                      {item.label}
+                    </div>
+                    <div className="text-[10px] text-gray-400 flex-shrink-0">
+                      ${(item.totalVolume / 1_000_000_000).toFixed(1)}B
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {!showAllProviders && filteredProviders.length > (isMobile ? 4 : 6) && (
+                <button
+                  onClick={() => setShowAllProviders(true)}
+                  className="w-full text-sm text-blue-400 hover:text-blue-300 py-2 text-center border-t border-[#343434] mt-1 bg-[#0e0e0e] sticky bottom-0"
+                >
+                  + Show {filteredProviders.length - (isMobile ? 4 : 6)} More
+                </button>
+              )}
+
+              {showAllProviders && filteredProviders.length > (isMobile ? 4 : 6) && (
+                <button
+                  onClick={() => setShowAllProviders(false)}
+                  className="w-full text-sm text-blue-400 hover:text-blue-300 py-2 text-center border-t border-[#343434] mt-1 bg-[#0e0e0e] sticky bottom-0"
+                >
+                  - Show Less
+                </button>
+              )}
+            </div>
           </div>
 
           {sortedHoveredData &&
