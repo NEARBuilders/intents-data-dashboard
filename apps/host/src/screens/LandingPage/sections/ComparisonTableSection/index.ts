@@ -1,0 +1,1 @@
+export { ComparisonTableSection } from "./ComparisonTableSection";
