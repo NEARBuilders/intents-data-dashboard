@@ -6,6 +6,7 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "serve": "vite preview",
+    "start": "bun .output/server/index.mjs",
     "test": "vitest run"
   },
   "dependencies": {
