@@ -214,6 +214,10 @@
     border-color: hsl(214.3 31.8% 91.4%);
   }
 
+  html {
+    background-color: #090909;
+  }
+
   body {
     margin: 0;
     padding: 0;
