@@ -9,6 +9,7 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@data-provider/template": "workspace:*",
     "@effect/language-service": "^0.41.1",
     "@module-federation/node": "^2.7.17",
     "@rspack/cli": "^1.5.2",

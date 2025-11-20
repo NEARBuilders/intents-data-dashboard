@@ -1,8 +1,9 @@
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
+import { fromUniswapToken, parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
 
-import { createTransformRoutesMiddleware, getBlockchainFromChainId, getChainId, transformLiquidity, transformRate } from "@data-provider/plugin-utils";
+import { createTransformRoutesMiddleware, getBlockchainFromChainId, getChainId, transformLiquidity, transformRate, getChainNamespace } from "@data-provider/plugin-utils";
 import type { AssetType } from "@data-provider/shared-contract";
 import type { AcrossAssetType } from "./contract";
 import { contract } from "./contract";
@@ -101,12 +102,57 @@ export default createPlugin({
       getListedAssets: builder.getListedAssets.handler(async () => {
         const providerAssets = await service.getListedAssets();
 
-        const assets = await Promise.all(
-          providerAssets.map(asset => transformAssetFromProvider(asset))
-        );
+        const assetMap = new Map<string, AssetType>();
+
+        for (const asset of providerAssets) {
+          try {
+            let canonical: string;
+            let blockchain: string | null;
+
+            try {
+              canonical = fromUniswapToken({
+                chainId: asset.chainId,
+                address: asset.address.toLowerCase()
+              });
+              const parsed = parse1cs(canonical);
+              blockchain = parsed.chain;
+            } catch (error) {
+              blockchain = await getBlockchainFromChainId(asset.chainId.toString());
+              
+              if (!blockchain) {
+                if (asset.chainId === 34268394551451) {
+                  blockchain = "sol";
+                } else {
+                  console.warn(`[Across] Skipping asset ${asset.symbol} - unknown chainId: ${asset.chainId}`);
+                  continue;
+                }
+              }
+
+              const { namespace, reference } = getChainNamespace(blockchain, asset.address);
+              canonical = stringify1cs({
+                version: 'v1',
+                chain: blockchain,
+                namespace,
+                reference: reference.toLowerCase()
+              });
+            }
+
+            if (!assetMap.has(canonical)) {
+              assetMap.set(canonical, {
+                blockchain,
+                assetId: canonical,
+                symbol: asset.symbol,
+                decimals: asset.decimals,
+                contractAddress: asset.address.toLowerCase()
+              });
+            }
+          } catch (error) {
+            console.warn(`[Across] Failed to convert asset ${asset.symbol} (chainId: ${asset.chainId}, address: ${asset.address}):`, error);
+          }
+        }
 
         return {
-          assets,
+          assets: Array.from(assetMap.values()),
           measuredAt: new Date().toISOString()
         };
       }),

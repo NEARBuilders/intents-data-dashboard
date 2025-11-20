@@ -9,181 +9,24 @@ import type {
   ProviderInfoType,
   RateType,
 } from "./contract";
-import { type DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volume";
+import { type DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volumes";
+import { buildAssetSupportIndex, aggregateListedAssets } from "./services/assets";
+import { aggregateRates } from "./services/rates";
+import { aggregateLiquidity } from "./services/liquidity";
+import { PROVIDERS_LIST } from "./services/providers";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
   private dune: DuneClient;
+  private providers: Partial<Record<ProviderIdentifier, any>>;
 
-  constructor(dune: DuneClient) {
+  constructor(dune: DuneClient, providers: Partial<Record<ProviderIdentifier, any>>) {
     this.dune = dune;
+    this.providers = providers;
   }
 
   getProviders(): ProviderInfoType[] {
-    return [
-      {
-        id: "across",
-        label: "Across",
-        category: "Intent-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "axelar",
-        label: "Axelar",
-        category: "GMP",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "cashmere",
-        label: "Cashmere",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "ccip",
-        label: "CCIP (Chainlink)",
-        category: "GMP",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "celer",
-        label: "Celer cBridge",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "chainflip",
-        label: "Chainflip",
-        category: "Intent-based Bridge",
-        supportedData: [],
-      },
-      {
-        id: "circle_cctp",
-        label: "Circle CCTP",
-        category: "Other Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "debridge",
-        label: "deBridge (DLN)",
-        category: "Intent-based Bridge",
-        supportedData: [],
-      },
-      {
-        id: "everclear",
-        label: "Everclear",
-        category: "Clearing Protocol",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "gaszip",
-        label: "GasZip",
-        category: "Other Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "hyperlane",
-        label: "Hyperlane",
-        category: "GMP",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "layerzero",
-        label: "LayerZero",
-        category: "GMP",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "mayan",
-        label: "Mayan",
-        category: "Intent-based Bridge",
-        supportedData: [],
-      },
-      {
-        id: "meson",
-        label: "Meson",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "near_intents",
-        label: "NEAR Intents",
-        category: "Intent-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "oneinch",
-        label: "1inch",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "orbiter",
-        label: "Orbiter Finance",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "relay",
-        label: "Relay",
-        category: "Intent-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "squid_axelar",
-        label: "Squid (Axelar)",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "stargate",
-        label: "Stargate",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "synapse",
-        label: "Synapse",
-        category: "Pool-based Bridge",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "wormhole",
-        label: "Wormhole",
-        category: "GMP",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "socket_bungee",
-        label: "Socket (Bungee)",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "lifi",
-        label: "LiFi",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "okx",
-        label: "OKX Bridge",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "rango",
-        label: "Rango Exchange",
-        category: "Bridge Aggregator",
-        supportedData: ["volumes"],
-      },
-      {
-        id: "thorswap",
-        label: "THORSwap",
-        category: "Bridge Aggregator",
-        supportedData: [],
-      },
-    ];
+    return PROVIDERS_LIST;
   }
 
   async startSync(datasets?: DataType[]): Promise<void> {
@@ -238,12 +81,14 @@ export class DataAggregatorService {
     aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
-    return {
-      providers: [],
-      data: {} as Record<ProviderIdentifier, AssetType[]>,
-      measuredAt: new Date().toISOString(),
-    };
+    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+    const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+
+    const result = await aggregateListedAssets(this.providers, targetProviders);
+    return { ...result, measuredAt: new Date().toISOString() };
   }
+
+
 
   async getRates(input: {
     routes: Array<{
@@ -258,11 +103,12 @@ export class DataAggregatorService {
     aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
-    return {
-      providers: [],
-      data: {} as Record<ProviderIdentifier, RateType[]>,
-      measuredAt: new Date().toISOString(),
-    };
+    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+    const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+
+    const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
+    const result = await aggregateRates(this.providers, { ...input, targetProviders }, assetSupportIndex);
+    return { ...result, measuredAt: new Date().toISOString() };
   }
 
   async getLiquidity(input: {
@@ -277,10 +123,11 @@ export class DataAggregatorService {
     aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
-    return {
-      providers: [],
-      data: {} as Record<ProviderIdentifier, LiquidityDepthType[]>,
-      measuredAt: new Date().toISOString(),
-    };
+    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+    const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+
+    const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
+    const result = await aggregateLiquidity(this.providers, { ...input, targetProviders }, assetSupportIndex);
+    return { ...result, measuredAt: new Date().toISOString() };
   }
 }

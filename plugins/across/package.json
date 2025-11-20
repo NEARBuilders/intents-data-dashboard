@@ -2,8 +2,8 @@
   "name": "@data-provider/across",
   "version": "1.0.0",
   "description": "Across Protocol data provider plugin",
-	"main": "./dist/index.js",
-	"types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
   "type": "module",
   "author": "0xJesus",
   "keywords": ["across", "bridge", "defi", "near-intents", "data-provider", "every-plugin"],
@@ -26,7 +26,8 @@
     "zephyr-rspack-plugin": "^0.0.59"
   },
   "dependencies": {
-    "@data-provider/plugin-utils": "workspace:*"
+    "@data-provider/plugin-utils": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.2"
   },
   "scripts": {
     "build": "rspack build",

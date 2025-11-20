@@ -10,7 +10,7 @@ declare module "every-plugin" {
 // TODO: central in repository
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-600-data-provider-aggregator-data-pr-c4fedde8e-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-621-data-provider-aggregator-data-pr-05ae337d1-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",

@@ -1,9 +1,9 @@
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
-import { parse1cs } from "@defuse-protocol/crosschain-assetid";
+import { parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
 
-import { createTransformRoutesMiddleware, getBlockchainFromChainId, getChainId, transformRate, transformLiquidity } from "@data-provider/plugin-utils";
+import { createTransformRoutesMiddleware, getBlockchainFromChainId, getChainId, transformRate, transformLiquidity, getChainNamespace } from "@data-provider/plugin-utils";
 import { ProviderApiClient } from "./client";
 import type { AssetType, ProviderAssetType, ProviderRouteType, RouteType } from "./contract";
 import { contract } from "./contract";
@@ -176,12 +176,44 @@ export default createPlugin({
       getListedAssets: builder.getListedAssets.handler(async () => {
         const providerAssets = await service.getListedAssets();
 
-        const assets = await Promise.all(
-          providerAssets.map(asset => transformAssetFromProvider(asset))
-        );
+        const assetMap = new Map<string, AssetType>();
+
+        for (const asset of providerAssets) {
+          try {
+            let canonical: string;
+
+            if (asset.assetId.startsWith('1cs_v1:')) {
+              canonical = asset.assetId;
+            } else {
+              const { namespace, reference } = getChainNamespace(
+                asset.blockchain,
+                asset.contractAddress
+              );
+              canonical = stringify1cs({
+                version: 'v1',
+                chain: asset.blockchain,
+                namespace,
+                reference: reference.toLowerCase()
+              });
+            }
+
+            if (!assetMap.has(canonical)) {
+              const parsed = parse1cs(canonical);
+              assetMap.set(canonical, {
+                blockchain: asset.blockchain,
+                assetId: canonical,
+                symbol: asset.symbol,
+                decimals: asset.decimals,
+                contractAddress: asset.contractAddress || parsed.reference
+              });
+            }
+          } catch (error) {
+            console.warn(`[NEAR Intents] Failed to convert asset ${asset.symbol} (blockchain: ${asset.blockchain}):`, error);
+          }
+        }
 
         return {
-          assets,
+          assets: Array.from(assetMap.values()),
           measuredAt: new Date().toISOString()
         };
       }),
