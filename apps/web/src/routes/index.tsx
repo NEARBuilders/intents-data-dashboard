@@ -2,10 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { client } from '@/utils/orpc'
 import { useState, useMemo, useEffect } from 'react'
-import { VolumeChartSection } from '@/screens/LandingPage/sections/VolumeChartSection'
-import { ComparisonTableSection } from '@/screens/LandingPage/sections/ComparisonTableSection'
-import { MetricsTableSection } from '@/screens/LandingPage/sections/MetricsTableSection'
-import { FooterSection } from '@/screens/LandingPage/sections/FooterSection'
+import { VolumeChart } from '@/components/dashboard/volume-chart'
+import { ComparisonTable } from '@/components/dashboard/comparison-table'
+import { MetricsTable } from '@/components/dashboard/metrics-table'
+import { Footer } from '@/components/footer'
 
 export const Route = createFileRoute('/')({
   component: LandingPage,
@@ -62,7 +62,7 @@ function LandingPage() {
       <GradientBlur className="top-[-214px] left-[1111px] w-[244px] h-[401px] rounded-[122.14px/200.39px] rotate-[-62.18deg] [background:radial-gradient(50%_50%_at_78%_27%,rgba(117,98,228,1)_0%,rgba(199,107,107,1)_100%)]" />
       <GradientBlur className="top-[50px] left-[1233px] w-[301px] h-[705px] rounded-[150.26px/352.45px] rotate-[-19.39deg] [background:radial-gradient(50%_50%_at_78%_27%,rgba(117,98,228,1)_0%,rgba(189,146,65,1)_100%)]" />
       
-      <VolumeChartSection 
+      <VolumeChart 
         volumeData={volumeData}
         providersInfo={volumeProviders}
         loading={volumeLoading || providersLoading}
@@ -71,12 +71,12 @@ function LandingPage() {
         visibleProviders={visibleProviders}
         onToggleProvider={handleToggleProvider}
       />
-      <ComparisonTableSection 
+      <ComparisonTable 
         providersInfo={providersData?.providers || []}
         loading={providersLoading}
       />
-      <MetricsTableSection />
-      <FooterSection />
+      <MetricsTable />
+      <Footer />
     </div>
   )
 }

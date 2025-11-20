@@ -66,7 +66,7 @@ const dataRows = [
   },
 ];
 
-export const MetricsTableSection = () => {
+export const MetricsTable = () => {
   return (
     <section className="w-full flex justify-center py-4 px-4 md:px-6 lg:px-0">
       <Card className="w-full max-w-[844px] bg-[#0e0e0e] rounded-[14px] border border-[#343434] overflow-hidden">

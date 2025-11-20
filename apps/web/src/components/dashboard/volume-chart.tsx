@@ -19,7 +19,7 @@ import {
 } from "recharts";
 import { generateProviderColor } from "@/utils/colors";
 
-interface VolumeChartSectionProps {
+interface VolumeChartProps {
   volumeData?: any;
   providersInfo: any[];
   loading: boolean;
@@ -50,7 +50,7 @@ const formatFullDate = (dateStr: string) => {
 
 const periods = ["7D", "30D", "90D", "ALL"];
 
-export const VolumeChartSection = ({
+export const VolumeChart = ({
   volumeData,
   providersInfo,
   loading,
@@ -58,7 +58,7 @@ export const VolumeChartSection = ({
   onPeriodChange,
   visibleProviders,
   onToggleProvider,
-}: VolumeChartSectionProps) => {
+}: VolumeChartProps) => {
   const [hoveredData, setHoveredData] = useState<any>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{
     x: number;

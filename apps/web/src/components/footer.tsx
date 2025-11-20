@@ -2,7 +2,7 @@ const GradientBlur = ({ className, opacity = "opacity-30" }: { className: string
   <div className={`absolute blur-[60.4px] ${opacity} ${className}`} />
 );
 
-export const FooterSection = () => {
+export const Footer = () => {
   return (
     <footer className="relative w-full bg-[#090909] overflow-hidden py-10 md:py-12 lg:py-[77px]">
       <GradientBlur 

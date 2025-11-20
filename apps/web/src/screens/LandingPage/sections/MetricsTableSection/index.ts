@@ -1,1 +1,0 @@
-export { MetricsTableSection } from "./MetricsTableSection";

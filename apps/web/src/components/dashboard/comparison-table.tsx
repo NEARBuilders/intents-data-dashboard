@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 const selectItemClassName =
   "text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white";
 
-interface ComparisonTableSectionProps {
+interface ComparisonTableProps {
   providersInfo: any[];
   loading: boolean;
 }
@@ -58,10 +58,10 @@ const GradientBlur = ({ className }: { className: string }) => (
   <div className={`absolute blur-[60.4px] opacity-30 ${className}`} />
 );
 
-export const ComparisonTableSection = ({
+export const ComparisonTable = ({
   providersInfo,
   loading: providersLoading,
-}: ComparisonTableSectionProps) => {
+}: ComparisonTableProps) => {
   const [selectedFilter, setSelectedFilter] = useState("fees");
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [cryptoData, setCryptoData] = useState<
