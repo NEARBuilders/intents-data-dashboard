@@ -9,6 +9,8 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { toast } from "sonner";
 
+export const SERVER_URL = `${process.env.VITE_SERVER_URL}/api/rpc` || "http://localhost:8787/api/rpc";
+
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
@@ -33,7 +35,7 @@ const getORPCClient = createIsomorphicFn()
   .server(() => {
     // Server-side: Use full server URL and forward headers/cookies
     const link = new RPCLink({
-      url: `http://localhost:8787/api/rpc`,
+      url: SERVER_URL,
       headers: () => getRequestHeaders(), // Forward request headers
       interceptors: [
         onError((error) => {
@@ -54,7 +56,7 @@ const getORPCClient = createIsomorphicFn()
   .client(() => {
     // Client-side: Use browser relative URL with cookies
     const link = new RPCLink({
-      url: `http://localhost:8787/api/rpc`,
+      url: SERVER_URL,
       plugins: [
         new BatchLinkPlugin({
           // Batch requests to reduce network overhead
