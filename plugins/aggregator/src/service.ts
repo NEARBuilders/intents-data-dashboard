@@ -1,4 +1,5 @@
 import type { DuneClient } from "@duneanalytics/client-sdk";
+import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import type {
   AssetType,
@@ -8,22 +9,30 @@ import type {
   ProviderIdentifier,
   ProviderInfoType,
   RateType,
+  TimePeriod,
+  AggregatedVolumeResultType,
 } from "./contract";
-import { type DuneVolumeRow, filterVolumeData, transformDuneVolumeData } from "./services/volumes";
+import { getVolumes, aggregateVolumes } from "./services/volumes";
 import { buildAssetSupportIndex, aggregateListedAssets } from "./services/assets";
 import { aggregateRates } from "./services/rates";
 import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
+import { RedisService } from "./services/redis";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, any>>;
+  private redis?: RedisService;
 
-  constructor(dune: DuneClient,
-    providers: Partial<Record<ProviderIdentifier, any>>) {
+  constructor(
+    dune: DuneClient,
+    providers: Partial<Record<ProviderIdentifier, any>>,
+    redis?: RedisService
+  ) {
     this.dune = dune;
     this.providers = providers;
+    this.redis = redis;
   }
 
   getProviders(): ProviderInfoType[] {
@@ -59,17 +68,51 @@ export class DataAggregatorService {
     measuredAt: string;
   }> {
     try {
-      const queryResult = await this.dune.getLatestResult({ queryId: 5487957 });
-      const rawData = queryResult.result?.rows || [];
-
-      const transformedData = transformDuneVolumeData(rawData as DuneVolumeRow[]);
-      const filteredData = filterVolumeData(transformedData, input);
-
-      return filteredData;
+      const result = await Effect.runPromise(
+        getVolumes(this.dune, input, this.redis)
+      );
+      return result;
     } catch (error) {
       console.error("Error fetching volume data:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
         message: "Failed to fetch volume data",
+      });
+    }
+  }
+
+  async getVolumesAggregated(input: {
+    period: TimePeriod;
+    providers?: ProviderIdentifier[];
+    route?: {
+      source: AssetType;
+      destination: AssetType;
+    };
+  }): Promise<{
+    providers: ProviderIdentifier[];
+    data: Record<ProviderIdentifier, AggregatedVolumeResultType>;
+    measuredAt: string;
+  }> {
+    try {
+      const rawVolumes = await Effect.runPromise(
+        getVolumes(this.dune, { providers: input.providers, route: input.route }, this.redis)
+      );
+
+      const aggregatedData: Record<ProviderIdentifier, AggregatedVolumeResultType> = {} as Record<ProviderIdentifier, AggregatedVolumeResultType>;
+
+      for (const provider of rawVolumes.providers) {
+        const providerVolumes = rawVolumes.data[provider] || [];
+        aggregatedData[provider] = aggregateVolumes(providerVolumes, input.period);
+      }
+
+      return {
+        providers: rawVolumes.providers,
+        data: aggregatedData,
+        measuredAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error fetching aggregated volume data:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Failed to fetch aggregated volume data",
       });
     }
   }

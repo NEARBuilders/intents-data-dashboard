@@ -9,7 +9,7 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { toast } from "sonner";
 
-export const SERVER_URL = `${process.env.VITE_SERVER_URL}/api/rpc` || "http://localhost:8787/api/rpc";
+export const SERVER_URL = `${process.env.VITE_SERVER_URL ?? "http://localhost:8787"}/api/rpc`;
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({

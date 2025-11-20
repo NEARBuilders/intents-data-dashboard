@@ -6,13 +6,15 @@ import { z } from "every-plugin/zod";
 import { contract } from "./contract";
 import { DataAggregatorService } from "./service";
 import { initializeProviderRuntime } from "./plugins";
+import { RedisService } from "./services/redis";
 
 export default createPlugin({
   variables: z.object({}),
 
   secrets: z.object({
     DUNE_API_KEY: z.string(),
-    NEAR_INTENTS_API_KEY: z.string()
+    NEAR_INTENTS_API_KEY: z.string(),
+    REDIS_URL: z.string().default("redis://localhost:6379")
   }),
 
   contract,
@@ -23,21 +25,24 @@ export default createPlugin({
 
       const dune = new DuneClient(config.secrets.DUNE_API_KEY);
 
+      const redis = new RedisService(config.secrets.REDIS_URL);
+      yield* redis.healthCheck();
+
       const { runtime, providers } = yield* initializeProviderRuntime({
         NEAR_INTENTS_API_KEY: config.secrets.NEAR_INTENTS_API_KEY
       });
 
-      const service = new DataAggregatorService(dune, providers);
+      const service = new DataAggregatorService(dune, providers, redis);
 
-      console.log("Aggregator plugin initialized with provider plugins");
+      console.log("Aggregator plugin initialized with provider plugins and Redis");
 
-      return { service, runtime, providers };
+      return { service, runtime, providers, redis };
     }),
 
   shutdown: () => Effect.void,
 
   createRouter: (context, builder) => {
-    const { service } = context;
+    const { service, redis } = context;
 
     return {
       getProviders: builder.getProviders.handler(async () => {
@@ -47,6 +52,31 @@ export default createPlugin({
 
       sync: builder.sync.handler(async ({ input }) => {
         await service.startSync(input.datasets);
+        
+        const cleared: string[] = [];
+        
+        if (!input.datasets || input.datasets.includes('volumes')) {
+          const count = await Effect.runPromise(redis.clear('volumes:*'));
+          cleared.push(`volumes (${count} keys)`);
+        }
+        
+        if (!input.datasets || input.datasets.includes('rates')) {
+          const count = await Effect.runPromise(redis.clear('rates:*'));
+          cleared.push(`rates (${count} keys)`);
+        }
+        
+        if (!input.datasets || input.datasets.includes('liquidity')) {
+          const count = await Effect.runPromise(redis.clear('liquidity:*'));
+          cleared.push(`liquidity (${count} keys)`);
+        }
+        
+        if (!input.datasets || input.datasets.includes('assets')) {
+          const count = await Effect.runPromise(redis.clear('assets:*'));
+          cleared.push(`assets (${count} keys)`);
+        }
+        
+        console.log('Cache cleared:', cleared.join(', '));
+        
         return {
           status: "sync_initiated" as const,
           timestamp: new Date().toISOString(),
@@ -55,6 +85,14 @@ export default createPlugin({
 
       getVolumes: builder.getVolumes.handler(async ({ input }) => {
         const result = await service.getVolumes(input);
+        return {
+          ...result,
+          measuredAt: new Date().toISOString(),
+        };
+      }),
+
+      getVolumesAggregated: builder.getVolumesAggregated.handler(async ({ input }) => {
+        const result = await service.getVolumesAggregated(input);
         return {
           ...result,
           measuredAt: new Date().toISOString(),

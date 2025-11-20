@@ -19,28 +19,6 @@ function LandingPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("ALL")
   const [visibleProviders, setVisibleProviders] = useState<Set<string>>(new Set())
 
-  const dateRange = useMemo(() => {
-    const today = new Date()
-    const formatDate = (d: Date) => d.toISOString().split('T')[0]
-    
-    if (selectedPeriod === "7D") {
-      const start = new Date(today)
-      start.setDate(start.getDate() - 7)
-      return { startDate: formatDate(start), endDate: formatDate(today) }
-    }
-    if (selectedPeriod === "30D") {
-      const start = new Date(today)
-      start.setDate(start.getDate() - 30)
-      return { startDate: formatDate(start), endDate: formatDate(today) }
-    }
-    if (selectedPeriod === "90D") {
-      const start = new Date(today)
-      start.setDate(start.getDate() - 90)
-      return { startDate: formatDate(start), endDate: formatDate(today) }
-    }
-    return { startDate: undefined, endDate: undefined }
-  }, [selectedPeriod])
-
   const { data: providersData, isLoading: providersLoading } = useQuery({
     queryKey: ["providers"],
     queryFn: () => client.getProviders(),
@@ -48,17 +26,16 @@ function LandingPage() {
   })
 
   const volumeProviders = useMemo(() => 
-    (providersData?.providers || []).filter(p => 
+    (providersData?.providers || []).filter((p: any) => 
       p.supportedData.includes("volumes")
     ), [providersData]
   )
 
   const { data: volumeData, isLoading: volumeLoading } = useQuery({
-    queryKey: ["volumes", volumeProviders.map(p => p.id), dateRange],
-    queryFn: () => client.getVolumes({
-      providers: volumeProviders.map(p => p.id as any),
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+    queryKey: ["volumes-aggregated", selectedPeriod.toLowerCase(), volumeProviders.map((p: any) => p.id)],
+    queryFn: () => client.getVolumesAggregated({
+      period: selectedPeriod.toLowerCase() as "7d" | "30d" | "90d" | "all",
+      providers: volumeProviders.map((p: any) => p.id as any),
     }),
     enabled: volumeProviders.length > 0,
     refetchOnWindowFocus: false,
@@ -66,7 +43,7 @@ function LandingPage() {
 
   useEffect(() => {
     if (volumeProviders.length > 0 && visibleProviders.size === 0) {
-      setVisibleProviders(new Set(volumeProviders.map(p => p.id)))
+      setVisibleProviders(new Set(volumeProviders.map((p: any) => p.id)))
     }
   }, [volumeProviders, visibleProviders.size])
 

@@ -84,6 +84,29 @@ const createProviderDataSchema = <T extends z.ZodTypeAny>(dataType: T) =>
 export const VolumeData = createProviderDataSchema(DailyVolume);
 export type VolumeDataType = z.infer<typeof VolumeData>;
 
+export const AggregatedDataPoint = z.object({
+  date: IsoDate,
+  volumeUsd: z.number(),
+  cumulativeVolume: z.number(),
+});
+export type AggregatedDataPointType = z.infer<typeof AggregatedDataPoint>;
+
+export const AggregatedVolumeResult = z.object({
+  totalVolume: z.number(),
+  dataPoints: z.array(AggregatedDataPoint),
+});
+export type AggregatedVolumeResultType = z.infer<typeof AggregatedVolumeResult>;
+
+export const AggregatedVolumeData = z.object({
+  providers: z.array(ProviderIdentifierEnum),
+  data: z.record(z.string(), AggregatedVolumeResult),
+  measuredAt: z.iso.datetime(),
+});
+export type AggregatedVolumeDataType = z.infer<typeof AggregatedVolumeData>;
+
+export const TimePeriodEnum = z.enum(["7d", "30d", "90d", "all"]);
+export type TimePeriod = z.infer<typeof TimePeriodEnum>;
+
 export const RateData = createProviderDataSchema(Rate);
 export type RateDataType = z.infer<typeof RateData>;
 
@@ -173,6 +196,41 @@ export const contract = oc.router({
       })
     )
     .output(VolumeData)
+    .errors({
+      BAD_REQUEST: {
+        message: "Invalid request parameters",
+        status: 400,
+      },
+      SERVICE_UNAVAILABLE: {
+        message: "Cache unavailable or service not ready",
+        status: 503,
+      },
+      INTERNAL_SERVER_ERROR: {
+        message: "An unexpected error occurred",
+        status: 500,
+      },
+    }),
+  getVolumesAggregated: oc
+    .route({
+      method: "POST",
+      path: "/volumes/aggregated",
+      summary: "Aggregated Volumes",
+      description: "Retrieve pre-calculated cumulative volume data with time-based granularity (daily/weekly/monthly) based on the selected period.",
+    })
+    .input(
+      z.object({
+        period: TimePeriodEnum.describe("Time period for volume data (7d, 30d, 90d, or all)."),
+        providers: z
+          .array(ProviderIdentifierEnum)
+          .optional()
+          .describe("Filter by specific providers. Returns all providers if omitted."),
+        route: z
+          .object({ source: Asset, destination: Asset })
+          .optional()
+          .describe("Filter volumes for a specific route."),
+      })
+    )
+    .output(AggregatedVolumeData)
     .errors({
       BAD_REQUEST: {
         message: "Invalid request parameters",
