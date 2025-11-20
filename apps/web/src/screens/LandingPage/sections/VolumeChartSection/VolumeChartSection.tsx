@@ -52,18 +52,38 @@ const transformToCumulativeData = (volumeData: any, providersInfo: any[], visibl
   
   const sortedDates = Array.from(allDates).sort();
   
+  // Create date -> volume maps for each provider for O(1) lookups
+  const providerVolumesByDate = new Map<string, Map<string, number>>();
+  providersInfo.forEach(provider => {
+    if (!visibleProviders.has(provider.id)) return;
+    
+    const volumeMap = new Map<string, number>();
+    const providerVolumes = volumeData.data[provider.id] || [];
+    
+    providerVolumes.forEach((dv: any) => {
+      volumeMap.set(dv.date, dv.volumeUsd);
+    });
+    
+    providerVolumesByDate.set(provider.id, volumeMap);
+  });
+  
+  // Calculate cumulative volumes in a single pass
+  const cumulativesByProvider = new Map<string, number>();
+  
   const chartData = sortedDates.map(date => {
     const dataPoint: any = { name: formatDate(date) };
     
     providersInfo.forEach(provider => {
       if (!visibleProviders.has(provider.id)) return;
       
-      const providerVolumes = volumeData.data[provider.id] || [];
-      const volumesUpToDate = providerVolumes
-        .filter((dv: any) => dv.date <= date)
-        .reduce((sum: number, dv: any) => sum + dv.volumeUsd, 0);
+      const volumeMap = providerVolumesByDate.get(provider.id);
+      const todayVolume = volumeMap?.get(date) || 0;
       
-      dataPoint[provider.label] = volumesUpToDate / 1_000_000_000;
+      const currentCumulative = cumulativesByProvider.get(provider.id) || 0;
+      const newCumulative = currentCumulative + todayVolume;
+      
+      cumulativesByProvider.set(provider.id, newCumulative);
+      dataPoint[provider.label] = newCumulative / 1_000_000_000;
     });
     
     return dataPoint;
@@ -117,21 +137,22 @@ export const VolumeChartSection = ({
   }, []);
 
   const filteredProviders = useMemo(() => {
-    if (selectedCategories.length === 0 || selectedCategories.includes('All')) {
-      return providerTotals;
+    const nearIntents = providerTotals.find(p => p.id === 'near_intents');
+    
+    let filtered = providerTotals.filter(p => p.id !== 'near_intents');
+    
+    if (selectedCategories.length > 0 && !selectedCategories.includes('All')) {
+      const categoriesToFilter: string[] = [];
+      selectedCategories.forEach(group => {
+        const cats = categoryGroups.get(group);
+        if (cats && cats.length > 0) {
+          categoriesToFilter.push(...cats);
+        }
+      });
+      filtered = filtered.filter(p => categoriesToFilter.includes(p.category));
     }
     
-    const categoriesToFilter: string[] = [];
-    selectedCategories.forEach(group => {
-      const cats = categoryGroups.get(group);
-      if (cats && cats.length > 0) {
-        categoriesToFilter.push(...cats);
-      }
-    });
-    
-    return providerTotals.filter(p => 
-      categoriesToFilter.includes(p.category)
-    );
+    return nearIntents ? [nearIntents, ...filtered] : filtered;
   }, [providerTotals, selectedCategories, categoryGroups]);
 
   const displayedProviders = useMemo(() => {
@@ -146,7 +167,11 @@ export const VolumeChartSection = ({
   const protocolColors = useMemo(() => {
     const colors: { [key: string]: string } = {};
     displayedProviders.forEach(provider => {
-      colors[provider.label] = generateProviderColor(provider.id);
+      if (provider.id === 'near_intents') {
+        colors[provider.label] = '#3ffa90';
+      } else {
+        colors[provider.label] = generateProviderColor(provider.id);
+      }
     });
     return colors;
   }, [displayedProviders]);
@@ -155,10 +180,11 @@ export const VolumeChartSection = ({
     displayedProviders.map(provider => ({
       id: provider.id,
       label: provider.label,
-      color: generateProviderColor(provider.id),
+      color: provider.id === 'near_intents' ? '#3ffa90' : generateProviderColor(provider.id),
       visible: visibleProviders.has(provider.id),
       totalVolume: provider.totalVolume,
       category: provider.category,
+      isNearIntents: provider.id === 'near_intents',
     })),
     [displayedProviders, visibleProviders]
   );
@@ -389,15 +415,17 @@ export const VolumeChartSection = ({
             {legendItems.map((item, index) => (
               <div
                 key={`legend-${item.id}`}
-                className="flex items-center gap-2 w-full cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
+                className={`flex items-center gap-2 w-full cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors ${
+                  item.isNearIntents ? 'border-l-2 border-[#3ffa90] pl-2' : ''
+                }`}
                 onClick={() => onToggleProvider(item.id)}
               >
                 <div 
-                  className="w-4 h-4 rounded flex-shrink-0"
+                  className={`${item.isNearIntents ? 'w-5 h-5' : 'w-4 h-4'} rounded flex-shrink-0`}
                   style={{ backgroundColor: item.color, opacity: item.visible ? 1 : 0.3 }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className={`text-xs font-normal truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
+                  <div className={`text-xs ${item.isNearIntents ? 'font-semibold' : 'font-normal'} truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
                     {item.label}
                   </div>
                   <div className="text-[10px] text-gray-400">
@@ -483,15 +511,17 @@ export const VolumeChartSection = ({
               {legendItems.map((item) => (
                 <div
                   key={`legend-mobile-${item.id}`}
-                  className="flex items-center gap-1.5 w-full cursor-pointer hover:opacity-80 transition-opacity"
+                  className={`flex items-center gap-1.5 w-full cursor-pointer hover:opacity-80 transition-opacity ${
+                    item.isNearIntents ? 'border-l-2 border-[#3ffa90] pl-1' : ''
+                  }`}
                   onClick={() => onToggleProvider(item.id)}
                 >
                   <div 
-                    className="w-3 h-3 rounded flex-shrink-0"
+                    className={`${item.isNearIntents ? 'w-4 h-4' : 'w-3 h-3'} rounded flex-shrink-0`}
                     style={{ backgroundColor: item.color, opacity: item.visible ? 1 : 0.3 }}
                   />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-[10px] truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
+                    <div className={`text-[10px] ${item.isNearIntents ? 'font-semibold' : 'font-normal'} truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
                       {item.label}
                     </div>
                     <div className="text-[8px] text-gray-400">

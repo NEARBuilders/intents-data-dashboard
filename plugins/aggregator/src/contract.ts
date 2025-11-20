@@ -163,7 +163,7 @@ export const contract = oc.router({
           .default(["near_intents"])
           .describe("Filter by specific providers. Returns all providers if omitted."),
 
-        startDate: IsoDate.optional().or(z.literal("")).transform(val => val || undefined).default("2025-11-01").describe("Start date for volume data (YYYY-MM-DD format)."),
+        startDate: IsoDate.optional().or(z.literal("")).transform(val => val || undefined).default("2024-01-01").describe("Start date for volume data (YYYY-MM-DD format)."),
         endDate: IsoDate.optional().or(z.literal("")).transform(val => val || undefined).describe("End date for volume data (YYYY-MM-DD format)."),
         route: z
           .object({ source: Asset, destination: Asset })
