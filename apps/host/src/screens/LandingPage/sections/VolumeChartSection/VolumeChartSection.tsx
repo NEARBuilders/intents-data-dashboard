@@ -1,6 +1,13 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -10,97 +17,173 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { generateProviderColor } from "@/utils/colors";
 
-const legendItems = [
-  { color: "bg-[#3ffa90]", label: "NEAR Intents" },
-  { color: "bg-[#0066ff]", label: "LayerZero" },
-  { color: "bg-[#7f1dff]", label: "WormHole" },
-  { color: "bg-[#ff262a]", label: "CCTP" },
-  { color: "bg-[#fa00ff]", label: "Across Protocol" },
-  { color: "bg-[#e9ff02]", label: "deBridge" },
-  { color: "bg-[#ff8d23]", label: "Axelar" },
-  { color: "bg-[#49ffef]", label: "Li.Fi" },
-  { color: "bg-[#dfdfdf]", label: "cBridge" },
-];
+interface VolumeChartSectionProps {
+  volumeData?: any
+  providersInfo: any[]
+  loading: boolean
+  selectedPeriod: string
+  onPeriodChange: (period: string) => void
+  visibleProviders: Set<string>
+  onToggleProvider: (id: string) => void
+}
 
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+};
 
-const xAxisLabels = [
-  "Nov 2024",
-  "Dec 2024",
-  "Jan 2025",
-  "Mar 2025",
-  "Apr 2025",
-  "Jun 2025",
-  "Jul 2025",
-  "Aug 2025",
-  "Oct 2025",
-  "Nov 2025",
-];
+const transformToCumulativeData = (volumeData: any, providersInfo: any[], visibleProviders: Set<string>) => {
+  if (!volumeData?.data) return [];
 
-// Pre-generated static data with different levels for each protocol
-const generateStaticChartData = () => {
-  // Different starting levels and growth patterns for each protocol
-  const protocolData: { [key: string]: { start: number; growth: number; pattern: number[] } } = {
-    "NEAR Intents": { start: 0.2, growth: 0.45, pattern: [0.2, 0.8, 1.5, 2.3, 3.2, 4.1, 4.8, 5.2, 5.4, 5.4] },
-    "LayerZero": { start: 0.3, growth: 0.38, pattern: [0.3, 0.9, 1.6, 2.4, 3.1, 3.8, 4.3, 4.6, 4.8, 4.9] },
-    "WormHole": { start: 0.25, growth: 0.32, pattern: [0.25, 0.7, 1.3, 2.0, 2.6, 3.2, 3.7, 4.0, 4.2, 4.3] },
-    "CCTP": { start: 0.2, growth: 0.28, pattern: [0.2, 0.6, 1.1, 1.7, 2.2, 2.7, 3.1, 3.4, 3.6, 3.7] },
-    "Across Protocol": { start: 0.18, growth: 0.30, pattern: [0.18, 0.65, 1.2, 1.8, 2.4, 3.0, 3.5, 3.8, 4.0, 4.1] },
-    "deBridge": { start: 0.15, growth: 0.24, pattern: [0.15, 0.5, 0.9, 1.4, 1.9, 2.3, 2.7, 3.0, 3.2, 3.3] },
-    "Axelar": { start: 0.12, growth: 0.20, pattern: [0.12, 0.4, 0.7, 1.1, 1.5, 1.9, 2.2, 2.4, 2.6, 2.7] },
-    "Li.Fi": { start: 0.1, growth: 0.18, pattern: [0.1, 0.35, 0.6, 0.9, 1.2, 1.5, 1.8, 2.0, 2.1, 2.2] },
-    "cBridge": { start: 0.08, growth: 0.15, pattern: [0.08, 0.3, 0.5, 0.8, 1.0, 1.3, 1.5, 1.7, 1.8, 1.9] },
-  };
+  console.log('Volume Data Debug:', {
+    providers: volumeData.providers,
+    sampleNearIntents: volumeData.data['near_intents']?.slice(0, 3),
+    totalNearIntents: volumeData.data['near_intents']?.reduce((sum: number, dv: any) => sum + dv.volumeUsd, 0),
+  });
 
-  return xAxisLabels.map((label, index) => {
-    const dataPoint: { [key: string]: any } = { name: label };
-    Object.keys(protocolData).forEach((protocol) => {
-      const data = protocolData[protocol];
-      // Use pattern if available, otherwise calculate
-      const value = data.pattern[index] || (data.start * (1 + data.growth * index));
-      dataPoint[protocol] = Math.max(0, Math.min(value, 5.5));
+  const allDates = new Set<string>();
+  Object.values(volumeData.data).forEach((dailyVolumes: any) => {
+    if (Array.isArray(dailyVolumes)) {
+      dailyVolumes.forEach((dv: any) => allDates.add(dv.date));
+    }
+  });
+  
+  const sortedDates = Array.from(allDates).sort();
+  
+  const chartData = sortedDates.map(date => {
+    const dataPoint: any = { name: formatDate(date) };
+    
+    providersInfo.forEach(provider => {
+      if (!visibleProviders.has(provider.id)) return;
+      
+      const providerVolumes = volumeData.data[provider.id] || [];
+      const volumesUpToDate = providerVolumes
+        .filter((dv: any) => dv.date <= date)
+        .reduce((sum: number, dv: any) => sum + dv.volumeUsd, 0);
+      
+      dataPoint[provider.label] = volumesUpToDate / 1_000_000_000;
     });
+    
     return dataPoint;
   });
-};
-
-// Chart data for each protocol - generating realistic cumulative volume data
-const generateChartData = (period: string) => {
-  const baseData = generateStaticChartData();
-
-  // Adjust data based on period
-  if (period === "7D") {
-    return baseData.slice(-2);
-  } else if (period === "30D") {
-    return baseData.slice(-3);
-  } else if (period === "90D") {
-    return baseData.slice(-4);
-  }
-  return baseData;
-};
-
-const protocolColors: { [key: string]: string } = {
-  "NEAR Intents": "#3ffa90",
-  "LayerZero": "#0066ff",
-  "WormHole": "#7f1dff",
-  "CCTP": "#ff262a",
-  "Across Protocol": "#fa00ff",
-  "deBridge": "#e9ff02",
-  "Axelar": "#ff8d23",
-  "Li.Fi": "#49ffef",
-  "cBridge": "#dfdfdf",
+  
+  return chartData;
 };
 
 const periods = ["7D", "30D", "90D", "ALL"];
 
-export const VolumeChartSection = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState("ALL");
+export const VolumeChartSection = ({
+  volumeData,
+  providersInfo,
+  loading,
+  selectedPeriod,
+  onPeriodChange,
+  visibleProviders,
+  onToggleProvider,
+}: VolumeChartSectionProps) => {
   const [hoveredData, setHoveredData] = useState<any>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [showAllProviders, setShowAllProviders] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const hoverTimeoutRef = useRef<number | null>(null);
 
-  const chartData = useMemo(() => generateChartData(selectedPeriod), [selectedPeriod]);
+  const providerTotals = useMemo(() => {
+    if (!volumeData?.data) return [];
+    
+    return providersInfo.map(provider => {
+      const volumes = volumeData.data[provider.id] || [];
+      const total = volumes.reduce((sum: number, dv: any) => sum + dv.volumeUsd, 0);
+      return { ...provider, totalVolume: total };
+    })
+    .sort((a, b) => {
+      if (a.id === 'near_intents') return -1;
+      if (b.id === 'near_intents') return 1;
+      return b.totalVolume - a.totalVolume;
+    });
+  }, [volumeData, providersInfo]);
+
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    groups.set('All', []);
+    groups.set('Aggregators', ['Bridge Aggregator']);
+    groups.set('Bridges', ['Pool-based Bridge', 'Other Bridge']);
+    groups.set('Clearing', ['Clearing Protocol']);
+    groups.set('GMP', ['GMP']);
+    groups.set('Intent-based', ['Intent-based Bridge']);
+    return groups;
+  }, []);
+
+  const filteredProviders = useMemo(() => {
+    if (selectedCategories.length === 0 || selectedCategories.includes('All')) {
+      return providerTotals;
+    }
+    
+    const categoriesToFilter: string[] = [];
+    selectedCategories.forEach(group => {
+      const cats = categoryGroups.get(group);
+      if (cats && cats.length > 0) {
+        categoriesToFilter.push(...cats);
+      }
+    });
+    
+    return providerTotals.filter(p => 
+      categoriesToFilter.includes(p.category)
+    );
+  }, [providerTotals, selectedCategories, categoryGroups]);
+
+  const displayedProviders = useMemo(() => {
+    return showAllProviders ? filteredProviders : filteredProviders.slice(0, 6);
+  }, [filteredProviders, showAllProviders]);
+
+  const chartData = useMemo(() => 
+    transformToCumulativeData(volumeData, displayedProviders, visibleProviders),
+    [volumeData, displayedProviders, visibleProviders]
+  );
+
+  const protocolColors = useMemo(() => {
+    const colors: { [key: string]: string } = {};
+    displayedProviders.forEach(provider => {
+      colors[provider.label] = generateProviderColor(provider.id);
+    });
+    return colors;
+  }, [displayedProviders]);
+
+  const legendItems = useMemo(() => 
+    displayedProviders.map(provider => ({
+      id: provider.id,
+      label: provider.label,
+      color: generateProviderColor(provider.id),
+      visible: visibleProviders.has(provider.id),
+      totalVolume: provider.totalVolume,
+      category: provider.category,
+    })),
+    [displayedProviders, visibleProviders]
+  );
+
+  const maxVolume = useMemo(() => {
+    if (chartData.length === 0) return 5.5;
+    let max = 0;
+    chartData.forEach(dataPoint => {
+      Object.keys(dataPoint).forEach(key => {
+        if (key !== 'name' && typeof dataPoint[key] === 'number') {
+          max = Math.max(max, dataPoint[key]);
+        }
+      });
+    });
+    return Math.ceil(max * 1.1);
+  }, [chartData]);
+
+  const nearIntentsTotal = useMemo(() => {
+    if (!chartData.length) return "$0B";
+    const lastDataPoint = chartData[chartData.length - 1];
+    const nearIntentsProvider = providersInfo.find(p => p.id === "near_intents");
+    if (!nearIntentsProvider) return "$0B";
+    const value = lastDataPoint[nearIntentsProvider.label] || 0;
+    return `$${value.toFixed(1)}B`;
+  }, [chartData, providersInfo]);
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -210,6 +293,21 @@ export const VolumeChartSection = () => {
     return `${Math.round(value * 1000)}M`;
   };
 
+  if (loading) {
+    return (
+      <section className="w-full flex flex-col py-6 md:py-12 lg:py-20 px-4 md:px-8 lg:px-[135px]">
+        <h1 className="w-full max-w-[766px] font-bold text-white text-2xl md:text-3xl lg:text-[43px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.29px] leading-[normal]">
+          NEAR Intents Competitor Comparison
+        </h1>
+        <Card className="w-full max-w-[1170px] mt-4 md:mt-6 lg:mt-[37px] bg-[#0e0e0e] rounded-[18px] border border-solid border-[#343434]">
+          <CardContent className="h-[500px] md:h-[550px] lg:h-[666px] flex items-center justify-center">
+            <span className="text-white text-lg">Loading volume data...</span>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
   return (
     <section className="w-full flex flex-col py-6 md:py-12 lg:py-20 px-4 md:px-8 lg:px-[135px]">
       <h1 className="w-full max-w-[766px] font-bold text-white text-2xl md:text-3xl lg:text-[43px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.29px] leading-[normal]">
@@ -229,7 +327,7 @@ export const VolumeChartSection = () => {
           </div>
 
           <div className="absolute top-8 md:top-12 lg:top-[65px] left-4 md:left-6 lg:left-[30px] w-auto md:w-auto lg:w-[304px] font-medium text-white text-2xl md:text-3xl lg:text-[50px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.50px] leading-[normal]">
-            $5.4B
+            {nearIntentsTotal}
           </div>
 
           <div className="absolute top-20 md:top-24 lg:top-[154px] left-0 md:left-4 lg:left-10 w-[calc(100%-0.25rem)] md:w-[calc(100%-2rem)] lg:w-[844px] h-[380px] md:h-[420px] lg:h-[475px] overflow-visible">
@@ -260,23 +358,25 @@ export const VolumeChartSection = () => {
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={formatYAxis}
-                  domain={[0, 5.5]}
-                  ticks={[0, 1, 2, 3, 4, 5]}
+                  domain={[0, maxVolume]}
+                  ticks={Array.from({ length: Math.ceil(maxVolume) + 1 }, (_, i) => i)}
                   width={30}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                {Object.keys(protocolColors).map((protocol) => (
-                  <Line
-                    key={protocol}
-                    type="monotone"
-                    dataKey={protocol}
-                    stroke={protocolColors[protocol]}
-                    strokeWidth={1.5}
-                    dot={false}
-                    activeDot={{ r: 3 }}
-                    isAnimationActive={false}
-                />
-              ))}
+                {providersInfo
+                  .filter(provider => visibleProviders.has(provider.id))
+                  .map((provider) => (
+                    <Line
+                      key={provider.id}
+                      type="monotone"
+                      dataKey={provider.label}
+                      stroke={protocolColors[provider.label]}
+                      strokeWidth={1.5}
+                      dot={false}
+                      activeDot={{ r: 3 }}
+                      isAnimationActive={false}
+                    />
+                  ))}
               </LineChart>
             </ResponsiveContainer>
 
@@ -285,49 +385,175 @@ export const VolumeChartSection = () => {
             </div>
           </div>
 
-          <div className="hidden lg:flex flex-col w-[150px] items-start gap-[15px] absolute top-[164px] left-[900px]">
+          <div className="hidden lg:flex flex-col w-[200px] items-start gap-2 absolute top-[164px] left-[900px] max-h-[400px] overflow-y-auto pr-2">
             {legendItems.map((item, index) => (
               <div
-                key={`legend-${index}`}
-                className={`flex items-center gap-[5px] relative ${index === 0 ? "self-stretch w-full" : ""} flex-[0_0_auto] ${index === 4 ? "mr-[-18.00px]" : ""}`}
+                key={`legend-${item.id}`}
+                className="flex items-center gap-2 w-full cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
+                onClick={() => onToggleProvider(item.id)}
               >
-                <div className={`w-5 h-5 ${item.color} relative rounded`} />
-                <div className="relative w-fit mt-[-1.00px] font-normal text-white text-base tracking-[-0.48px] leading-[normal]">
-                  {item.label}
+                <div 
+                  className="w-4 h-4 rounded flex-shrink-0"
+                  style={{ backgroundColor: item.color, opacity: item.visible ? 1 : 0.3 }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-normal truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
+                    {item.label}
+                  </div>
+                  <div className="text-[10px] text-gray-400">
+                    ${(item.totalVolume / 1_000_000_000).toFixed(2)}B
+                  </div>
                 </div>
               </div>
             ))}
+            
+            {!showAllProviders && filteredProviders.length > 6 && (
+              <button
+                onClick={() => setShowAllProviders(true)}
+                className="w-full text-xs text-blue-400 hover:text-blue-300 py-2 text-center border-t border-[#343434] mt-2"
+              >
+                + Show {filteredProviders.length - 6} More Providers
+              </button>
+            )}
+            
+            {showAllProviders && filteredProviders.length > 6 && (
+              <button
+                onClick={() => setShowAllProviders(false)}
+                className="w-full text-xs text-blue-400 hover:text-blue-300 py-2 text-center border-t border-[#343434] mt-2"
+              >
+                - Show Less
+              </button>
+            )}
           </div>
 
-          <div className="lg:hidden absolute bottom-4 left-4 right-4">
-            <div className="grid grid-cols-3 gap-2 md:gap-3 justify-items-start">
-              {legendItems.map((item, index) => (
-                <div
-                  key={`legend-mobile-${index}`}
-                  className="flex items-center gap-1.5 justify-start w-full"
+          <div className="flex lg:hidden flex-wrap items-center gap-2 absolute top-4 right-4 left-4">
+            <span className="text-white text-xs font-normal w-full mb-1">Category:</span>
+            
+            {Array.from(categoryGroups.keys()).map((group) => {
+              const isSelected = selectedCategories.includes(group) || (group === 'All' && selectedCategories.length === 0);
+              return (
+                <Button
+                  key={group}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (group === 'All') {
+                      setSelectedCategories([]);
+                    } else {
+                      setSelectedCategories([group]);
+                    }
+                  }}
+                  className={`px-2 py-1 text-xs transition-colors ${
+                    isSelected
+                      ? "!bg-[#4a4a4a] !text-white border-[#5a5a5a]"
+                      : "!bg-[#242424] !text-white border-[#343434]"
+                  }`}
                 >
-                  <div className={`w-3 h-3 ${item.color} relative rounded flex-shrink-0`} />
-                  <div className="relative w-fit font-normal text-white text-xs md:text-sm tracking-[-0.36px] md:tracking-[-0.42px] leading-[normal] truncate">
-                    {item.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-2 absolute top-4 md:top-6 lg:top-[30px] right-4 md:right-6 lg:right-[30px]">
+                  {group}
+                </Button>
+              );
+            })}
+            
+            <div className="h-px w-full bg-[#343434] my-1" />
+            
             {periods.map((period) => {
               const isSelected = selectedPeriod === period;
               return (
               <Button
                 key={period}
-                  variant="outline"
+                variant="outline"
                 size="sm"
-                onClick={() => setSelectedPeriod(period)}
-                  className={`px-2 md:px-2.5 lg:px-3 py-1 md:py-1.5 rounded-md text-xs md:text-sm transition-colors ${
+                onClick={() => onPeriodChange(period)}
+                className={`px-2 py-1 text-xs transition-colors ${
+                  isSelected
+                    ? "!bg-white !text-black border-white hover:!bg-white hover:!text-black"
+                    : "!bg-[#292929] !text-white border-[#343434] hover:!bg-[#343434] hover:!text-white"
+                }`}
+              >
+                <span className="font-normal text-center tracking-[-0.36px] leading-[normal]">
+                  {period}
+                </span>
+              </Button>
+              );
+            })}
+          </div>
+
+          <div className="lg:hidden absolute bottom-4 left-4 right-4">
+            <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto">
+              {legendItems.map((item) => (
+                <div
+                  key={`legend-mobile-${item.id}`}
+                  className="flex items-center gap-1.5 w-full cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => onToggleProvider(item.id)}
+                >
+                  <div 
+                    className="w-3 h-3 rounded flex-shrink-0"
+                    style={{ backgroundColor: item.color, opacity: item.visible ? 1 : 0.3 }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[10px] truncate ${item.visible ? 'text-white' : 'text-gray-500'}`}>
+                      {item.label}
+                    </div>
+                    <div className="text-[8px] text-gray-400">
+                      ${(item.totalVolume / 1_000_000_000).toFixed(1)}B
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {!showAllProviders && filteredProviders.length > 6 && (
+              <button
+                onClick={() => setShowAllProviders(true)}
+                className="w-full text-xs text-blue-400 py-2 text-center border-t border-[#343434] mt-2"
+              >
+                + Show {filteredProviders.length - 6} More
+              </button>
+            )}
+          </div>
+
+          <div className="hidden lg:flex flex-wrap items-center gap-2 absolute top-4 md:top-6 lg:top-[30px] right-4 md:right-6 lg:right-[30px]">
+            <span className="text-white text-sm font-normal mr-1">Category:</span>
+            
+            {Array.from(categoryGroups.keys()).map((group) => {
+              const isSelected = selectedCategories.includes(group) || (group === 'All' && selectedCategories.length === 0);
+              return (
+                <Button
+                  key={group}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (group === 'All') {
+                      setSelectedCategories([]);
+                    } else {
+                      setSelectedCategories([group]);
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-xs transition-colors ${
                     isSelected
-                      ? "!bg-white !text-black border-white hover:!bg-white hover:!text-black"
-                      : "!bg-[#292929] !text-white border-[#343434] hover:!bg-[#343434] hover:!text-white"
+                      ? "!bg-[#4a4a4a] !text-white border-[#5a5a5a] hover:!bg-[#5a5a5a]"
+                      : "!bg-[#242424] !text-white border-[#343434] hover:!bg-[#343434]"
+                  }`}
+                >
+                  {group}
+                </Button>
+              );
+            })}
+            
+            <div className="h-6 w-px bg-[#343434]" />
+            
+            {periods.map((period) => {
+              const isSelected = selectedPeriod === period;
+              return (
+              <Button
+                key={period}
+                variant="outline"
+                size="sm"
+                onClick={() => onPeriodChange(period)}
+                className={`px-2 md:px-2.5 lg:px-3 py-1 md:py-1.5 rounded-md text-xs md:text-sm transition-colors ${
+                  isSelected
+                    ? "!bg-white !text-black border-white hover:!bg-white hover:!text-black"
+                    : "!bg-[#292929] !text-white border-[#343434] hover:!bg-[#343434] hover:!text-white"
                 }`}
               >
                 <span className="font-normal text-center tracking-[-0.36px] md:tracking-[-0.42px] leading-[normal]">
