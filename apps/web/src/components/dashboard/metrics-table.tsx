@@ -2,8 +2,15 @@ import { Fragment, useMemo } from "react";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
-import { client } from "@/utils/orpc";
+import type { Route, ProviderInfo } from "@/types/common";
+import { useRates, useLiquidity, useVolumes } from "@/hooks/useRouteMetrics";
+import {
+  calculateTrend,
+  getComparisonColor,
+  formatVolume,
+  formatCurrency,
+  formatPercentage,
+} from "@/utils/comparison";
 
 const TREND_ICON_SIZE = "w-5 h-5";
 const TREND_COLORS = {
@@ -13,77 +20,35 @@ const TREND_COLORS = {
 
 interface MetricsTableProps {
   selectedProvider: string;
-  providersInfo: any[];
+  providersInfo: ProviderInfo[];
   loading: boolean;
+  selectedRoute: Route | null;
 }
 
 export const MetricsTable = ({
   selectedProvider,
   providersInfo,
   loading: providersLoading,
+  selectedRoute,
 }: MetricsTableProps) => {
-  const { data: assetsData, isLoading: assetsLoading } = useQuery({
-    queryKey: ["assets", "near_intents", selectedProvider],
-    queryFn: () =>
-      client.getListedAssets({
-        providers: ["near_intents" as any, selectedProvider as any],
-      }),
-    enabled: !!selectedProvider,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: volumeData, isLoading: volumeLoading } = useQuery({
-    queryKey: ["volumes-metrics", "near_intents", selectedProvider],
-    queryFn: () =>
-      client.getVolumesAggregated({
-        period: "all",
-        providers: ["near_intents" as any, selectedProvider as any],
-      }),
-    enabled: !!selectedProvider,
-    refetchOnWindowFocus: false,
-  });
-
-  const nearIntentsAssets = useMemo(
-    () => assetsData?.data?.near_intents || [],
-    [assetsData]
+  const { data: ratesData, isLoading: ratesLoading } = useRates(
+    selectedRoute,
+    ["near_intents", selectedProvider],
+    !!selectedProvider
   );
 
-  const selectedProviderAssets = useMemo(
-    () => assetsData?.data?.[selectedProvider as any] || [],
-    [assetsData, selectedProvider]
+  const { data: liquidityData, isLoading: liquidityLoading } = useLiquidity(
+    selectedRoute,
+    ["near_intents", selectedProvider],
+    !!selectedProvider
   );
 
-  const nearIntentsChains = useMemo(() => {
-    const chains = new Set(nearIntentsAssets.map((a: any) => a.blockchain));
-    return chains.size;
-  }, [nearIntentsAssets]);
-
-  const selectedProviderChains = useMemo(() => {
-    const chains = new Set(selectedProviderAssets.map((a: any) => a.blockchain));
-    return chains.size;
-  }, [selectedProviderAssets]);
-
-  const isWrapped = (symbol: string) => {
-    return (
-      symbol.startsWith("W") ||
-      symbol.includes(".e") ||
-      symbol.toLowerCase().includes("wrapped")
-    );
-  };
-
-  const nearIntentsRatio = useMemo(() => {
-    if (nearIntentsAssets.length === 0) return "0:0";
-    const wrapped = nearIntentsAssets.filter((a: any) => isWrapped(a.symbol)).length;
-    const native = nearIntentsAssets.length - wrapped;
-    return `${native}:${wrapped}`;
-  }, [nearIntentsAssets]);
-
-  const selectedProviderRatio = useMemo(() => {
-    if (selectedProviderAssets.length === 0) return "0:0";
-    const wrapped = selectedProviderAssets.filter((a: any) => isWrapped(a.symbol)).length;
-    const native = selectedProviderAssets.length - wrapped;
-    return `${native}:${wrapped}`;
-  }, [selectedProviderAssets]);
+  const { data: volumeData, isLoading: volumeLoading } = useVolumes(
+    selectedRoute,
+    ["near_intents", selectedProvider],
+    "all",
+    !!selectedProvider
+  );
 
   const nearIntentsVolume = useMemo(() => {
     const data = volumeData?.data?.near_intents;
@@ -103,153 +68,70 @@ export const MetricsTable = ({
     };
   }, [volumeData, selectedProvider]);
 
-  const formatVolume = (value: number) => {
-    if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
-    if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
-    if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
-    return `$${value.toFixed(0)}`;
-  };
+  const nearIntentsRate = ratesData?.data?.near_intents?.[0];
+  const selectedProviderRate = ratesData?.data?.[selectedProvider]?.[0];
+  
+  const nearIntentsLiquidity = liquidityData?.data?.near_intents?.[0];
+  const selectedProviderLiquidity = liquidityData?.data?.[selectedProvider]?.[0];
 
   const dataRows = useMemo(() => {
+    if (!selectedRoute) return [];
+    
+    const nearCost = nearIntentsRate?.totalFeesUsd;
+    const competitorCost = selectedProviderRate?.totalFeesUsd;
+    const nearLiq = nearIntentsLiquidity?.thresholds?.[0]?.slippageBps;
+    const competitorLiq = selectedProviderLiquidity?.thresholds?.[0]?.slippageBps;
+    
     return [
       {
-        label: "Assets",
-        nearValue: nearIntentsAssets.length.toString(),
-        nearColor:
-          nearIntentsAssets.length > selectedProviderAssets.length
-            ? "text-[#aeffed]"
-            : nearIntentsAssets.length < selectedProviderAssets.length
-            ? "text-[#ffcccc]"
-            : "text-white",
-        nearTrend:
-          nearIntentsAssets.length > selectedProviderAssets.length
-            ? "up"
-            : nearIntentsAssets.length < selectedProviderAssets.length
-            ? "down"
-            : null,
-        competitorValue: selectedProviderAssets.length.toString(),
-        competitorColor:
-          selectedProviderAssets.length > nearIntentsAssets.length
-            ? "text-[#aeffed]"
-            : selectedProviderAssets.length < nearIntentsAssets.length
-            ? "text-[#ffcccc]"
-            : "text-white",
-        competitorTrend:
-          selectedProviderAssets.length > nearIntentsAssets.length
-            ? "up"
-            : selectedProviderAssets.length < nearIntentsAssets.length
-            ? "down"
-            : null,
+        label: "Estimated Cost",
+        nearValue: formatCurrency(nearCost),
+        nearColor: getComparisonColor(nearCost, competitorCost, true),
+        nearTrend: calculateTrend(nearCost, competitorCost, true),
+        competitorValue: formatCurrency(competitorCost),
+        competitorColor: getComparisonColor(competitorCost, nearCost, true),
+        competitorTrend: calculateTrend(competitorCost, nearCost, true),
       },
       {
-        label: "Chains",
-        nearValue: nearIntentsChains.toString(),
-        nearColor:
-          nearIntentsChains > selectedProviderChains
-            ? "text-[#aeffed]"
-            : nearIntentsChains < selectedProviderChains
-            ? "text-[#ffcccc]"
-            : "text-white",
-        nearTrend:
-          nearIntentsChains > selectedProviderChains
-            ? "up"
-            : nearIntentsChains < selectedProviderChains
-            ? "down"
-            : null,
-        competitorValue: selectedProviderChains.toString(),
-        competitorColor:
-          selectedProviderChains > nearIntentsChains
-            ? "text-[#aeffed]"
-            : selectedProviderChains < nearIntentsChains
-            ? "text-[#ffcccc]"
-            : "text-white",
-        competitorTrend:
-          selectedProviderChains > nearIntentsChains
-            ? "up"
-            : selectedProviderChains < nearIntentsChains
-            ? "down"
-            : null,
-      },
-      {
-        label: "Native / Wrapped Assets Ratio",
-        nearValue: nearIntentsRatio,
-        nearColor: "text-white",
-        nearTrend: null,
-        competitorValue: selectedProviderRatio,
-        competitorColor: "text-white",
-        competitorTrend: null,
+        label: "Liquidity Depth",
+        nearValue: formatPercentage(nearLiq),
+        nearColor: getComparisonColor(nearLiq, competitorLiq, true),
+        nearTrend: calculateTrend(nearLiq, competitorLiq, true),
+        competitorValue: formatPercentage(competitorLiq),
+        competitorColor: getComparisonColor(competitorLiq, nearLiq, true),
+        competitorTrend: calculateTrend(competitorLiq, nearLiq, true),
       },
       {
         label: "1D Volume",
         nearValue: formatVolume(nearIntentsVolume.latest),
-        nearColor:
-          nearIntentsVolume.latest > selectedProviderVolume.latest
-            ? "text-[#aeffed]"
-            : nearIntentsVolume.latest < selectedProviderVolume.latest
-            ? "text-[#ffcccc]"
-            : "text-white",
-        nearTrend:
-          nearIntentsVolume.latest > selectedProviderVolume.latest
-            ? "up"
-            : nearIntentsVolume.latest < selectedProviderVolume.latest
-            ? "down"
-            : null,
+        nearColor: getComparisonColor(nearIntentsVolume.latest, selectedProviderVolume.latest, false),
+        nearTrend: calculateTrend(nearIntentsVolume.latest, selectedProviderVolume.latest, false),
         competitorValue: formatVolume(selectedProviderVolume.latest),
-        competitorColor:
-          selectedProviderVolume.latest > nearIntentsVolume.latest
-            ? "text-[#aeffed]"
-            : selectedProviderVolume.latest < nearIntentsVolume.latest
-            ? "text-[#ffcccc]"
-            : "text-white",
-        competitorTrend:
-          selectedProviderVolume.latest > nearIntentsVolume.latest
-            ? "up"
-            : selectedProviderVolume.latest < nearIntentsVolume.latest
-            ? "down"
-            : null,
+        competitorColor: getComparisonColor(selectedProviderVolume.latest, nearIntentsVolume.latest, false),
+        competitorTrend: calculateTrend(selectedProviderVolume.latest, nearIntentsVolume.latest, false),
       },
       {
         label: "All-Time Volume",
         nearValue: formatVolume(nearIntentsVolume.total),
-        nearColor:
-          nearIntentsVolume.total > selectedProviderVolume.total
-            ? "text-[#aeffed]"
-            : nearIntentsVolume.total < selectedProviderVolume.total
-            ? "text-[#ffcccc]"
-            : "text-white",
-        nearTrend:
-          nearIntentsVolume.total > selectedProviderVolume.total
-            ? "up"
-            : nearIntentsVolume.total < selectedProviderVolume.total
-            ? "down"
-            : null,
+        nearColor: getComparisonColor(nearIntentsVolume.total, selectedProviderVolume.total, false),
+        nearTrend: calculateTrend(nearIntentsVolume.total, selectedProviderVolume.total, false),
         competitorValue: formatVolume(selectedProviderVolume.total),
-        competitorColor:
-          selectedProviderVolume.total > nearIntentsVolume.total
-            ? "text-[#aeffed]"
-            : selectedProviderVolume.total < nearIntentsVolume.total
-            ? "text-[#ffcccc]"
-            : "text-white",
-        competitorTrend:
-          selectedProviderVolume.total > nearIntentsVolume.total
-            ? "up"
-            : selectedProviderVolume.total < nearIntentsVolume.total
-            ? "down"
-            : null,
+        competitorColor: getComparisonColor(selectedProviderVolume.total, nearIntentsVolume.total, false),
+        competitorTrend: calculateTrend(selectedProviderVolume.total, nearIntentsVolume.total, false),
       },
     ];
   }, [
-    nearIntentsAssets.length,
-    selectedProviderAssets.length,
-    nearIntentsChains,
-    selectedProviderChains,
-    nearIntentsRatio,
-    selectedProviderRatio,
+    nearIntentsRate,
+    selectedProviderRate,
+    nearIntentsLiquidity,
+    selectedProviderLiquidity,
     nearIntentsVolume,
     selectedProviderVolume,
+    selectedRoute,
   ]);
 
-  const loading = providersLoading || assetsLoading || volumeLoading;
+  const loading = providersLoading || ratesLoading || liquidityLoading || volumeLoading;
+
   const selectedProviderLabel = useMemo(
     () =>
       providersInfo.find((p) => p.id === selectedProvider)?.label ||

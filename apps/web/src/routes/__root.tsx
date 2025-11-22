@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/sonner'
 import { orpc, queryClient } from '@/utils/orpc'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 import appCss from '../styles.css?url'
 
@@ -14,6 +15,7 @@ export interface RouterAppContext {
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
+  errorComponent: ErrorBoundary,
   head: () => ({
     meta: [
       {

@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { client } from '@/utils/orpc'
 import { useState, useMemo, useEffect } from 'react'
 import { VolumeChart } from '@/components/dashboard/volume-chart'
+import { SwapPairSelector } from '@/components/dashboard/swap-pair-selector'
 import { ComparisonTable } from '@/components/dashboard/comparison-table'
 import { MetricsTable } from '@/components/dashboard/metrics-table'
 import { Footer } from '@/components/footer'
+import type { Asset, Route as RouteType } from '@/types/common'
 
 export const Route = createFileRoute('/')({
   component: LandingPage,
@@ -19,6 +21,7 @@ function LandingPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("ALL")
   const [visibleProviders, setVisibleProviders] = useState<Set<string>>(new Set())
   const [selectedProvider, setSelectedProvider] = useState("")
+  const [selectedRoute, setSelectedRoute] = useState<RouteType | null>(null)
 
   const { data: providersData, isLoading: providersLoading } = useQuery({
     queryKey: ["providers"],
@@ -84,16 +87,23 @@ function LandingPage() {
         visibleProviders={visibleProviders}
         onToggleProvider={handleToggleProvider}
       />
+      <SwapPairSelector
+        onPairChange={(source, destination) => {
+          setSelectedRoute({ source, destination })
+        }}
+      />
       <ComparisonTable 
         selectedProvider={selectedProvider}
         onProviderChange={setSelectedProvider}
         providersInfo={providersData?.providers || []}
         loading={providersLoading}
+        selectedRoute={selectedRoute}
       />
       <MetricsTable 
         selectedProvider={selectedProvider}
         providersInfo={providersData?.providers || []}
         loading={providersLoading}
+        selectedRoute={selectedRoute}
       />
       <Footer />
     </div>

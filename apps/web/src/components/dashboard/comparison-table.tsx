@@ -6,9 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
-import { client } from "@/utils/orpc";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
+import type { Route, ProviderInfo } from "@/types/common";
+import { useRates, useLiquidity } from "@/hooks/useRouteMetrics";
+import { formatRate, formatCurrency, formatPercentage } from "@/utils/comparison";
 
 const selectItemClassName =
   "text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white";
@@ -16,8 +17,9 @@ const selectItemClassName =
 interface ComparisonTableProps {
   selectedProvider: string;
   onProviderChange: (provider: string) => void;
-  providersInfo: any[];
+  providersInfo: ProviderInfo[];
   loading: boolean;
+  selectedRoute: Route | null;
 }
 
 const GradientBlur = ({ className }: { className: string }) => (
@@ -29,6 +31,7 @@ export const ComparisonTable = ({
   onProviderChange,
   providersInfo,
   loading: providersLoading,
+  selectedRoute,
 }: ComparisonTableProps) => {
   const platforms = useMemo(
     () =>
@@ -40,27 +43,19 @@ export const ComparisonTable = ({
     [providersInfo]
   );
 
-  const { data: assetsData, isLoading: assetsLoading } = useQuery({
-    queryKey: ["assets", "near_intents", selectedProvider],
-    queryFn: () =>
-      client.getListedAssets({
-        providers: ["near_intents" as any, selectedProvider as any],
-      }),
-    enabled: !!selectedProvider,
-    refetchOnWindowFocus: false,
-  });
-
-  const nearIntentsAssets = useMemo(
-    () => assetsData?.data?.near_intents || [],
-    [assetsData]
+  const { data: ratesData, isLoading: ratesLoading } = useRates(
+    selectedRoute,
+    ["near_intents", selectedProvider],
+    !!selectedProvider
   );
 
-  const selectedProviderAssets = useMemo(
-    () => assetsData?.data?.[selectedProvider as any] || [],
-    [assetsData, selectedProvider]
+  const { data: liquidityData, isLoading: liquidityLoading } = useLiquidity(
+    selectedRoute,
+    ["near_intents", selectedProvider],
+    !!selectedProvider
   );
 
-  const loading = providersLoading || assetsLoading;
+  const loading = providersLoading || ratesLoading || liquidityLoading;
 
   if (providersLoading) {
     return (
@@ -125,140 +120,96 @@ export const ComparisonTable = ({
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-[16px]">
-          <Card className="bg-[#0e0e0e] border-[#343434] rounded-[14px] overflow-hidden">
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 border-b border-[#343434]">
-                <h3 className="font-medium text-xl md:text-2xl tracking-[-0.60px] md:tracking-[-0.72px] text-white">
-                  NEAR Intents
-                </h3>
-                <span className="text-sm text-gray-400">
-                  {nearIntentsAssets.length} assets
-                </span>
-              </div>
+        {!selectedRoute ? (
+          <div className="text-center text-gray-400 p-8">
+            <p>Select a swap pair above to compare rates and liquidity</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-[16px]">
+            <Card className="bg-[#0e0e0e] border-[#343434] rounded-[14px] overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 border-b border-[#343434]">
+                  <h3 className="font-medium text-xl md:text-2xl tracking-[-0.60px] md:tracking-[-0.72px] text-white">
+                    NEAR Intents
+                  </h3>
+                </div>
 
-              <div className="divide-y divide-[#343434] max-h-[500px] overflow-y-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center h-12 px-[17px]">
-                    <span className="font-normal text-white text-sm">
-                      Loading...
-                    </span>
-                  </div>
-                ) : nearIntentsAssets.length === 0 ? (
-                  <div className="flex items-center justify-center h-12 px-[17px]">
-                    <span className="font-normal text-gray-400 text-sm">
-                      No assets available
-                    </span>
-                  </div>
-                ) : (
-                  nearIntentsAssets.map((asset: any, index: number) => (
-                    <div
-                      key={`near-${asset.assetId}-${index}`}
-                      className="flex items-center h-12 px-[17px] bg-[#0e0e0e] border-b border-[#343434]"
-                    >
-                      <div className="flex items-center gap-2 md:gap-2.5 flex-1 min-w-0">
-                        <div className="w-5 h-5 md:w-6 md:h-6 bg-[#756f6f] rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
-                          {asset.iconUrl ? (
-                            <img
-                              className="w-5 h-5 md:w-6 md:h-6 object-cover"
-                              alt={asset.symbol}
-                              src={asset.iconUrl}
-                              onError={(e) => {
-                                const img = e.currentTarget;
-                                img.style.display = "none";
-                              }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <span className="text-xs text-white font-medium">
-                              {asset.symbol.slice(0, 2)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 md:gap-2.5 min-w-0">
-                          <span className="font-medium text-white text-sm md:text-base tracking-[-0.42px] md:tracking-[-0.48px] truncate">
-                            {asset.symbol}
-                          </span>
-                          <span className="font-medium text-[#8b8b8b] text-xs md:text-[13px] tracking-[-0.36px] md:tracking-[-0.39px] flex-shrink-0">
-                            {asset.blockchain}
-                          </span>
+                <div className="divide-y divide-[#343434]">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-32 px-[17px]">
+                      <span className="font-normal text-white text-sm">
+                        Loading...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Exchange Rate</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatRate(ratesData?.data?.near_intents?.[0]?.effectiveRate)}
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-[#0e0e0e] border-[#343434] rounded-[14px] overflow-hidden">
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between p-4 border-b border-[#343434]">
-                <h3 className="font-medium text-xl md:text-2xl tracking-[-0.60px] md:tracking-[-0.72px] text-white">
-                  {platforms.find((p) => p.value === selectedProvider)?.label ||
-                    "Provider"}
-                </h3>
-                <span className="text-sm text-gray-400">
-                  {selectedProviderAssets.length} assets
-                </span>
-              </div>
-
-              <div className="divide-y divide-[#343434] max-h-[500px] overflow-y-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center h-12 px-[17px]">
-                    <span className="font-normal text-white text-sm">
-                      Loading...
-                    </span>
-                  </div>
-                ) : selectedProviderAssets.length === 0 ? (
-                  <div className="flex items-center justify-center h-12 px-[17px]">
-                    <span className="font-normal text-gray-400 text-sm">
-                      No assets available
-                    </span>
-                  </div>
-                ) : (
-                  selectedProviderAssets.map((asset: any, index: number) => (
-                    <div
-                      key={`selected-${asset.assetId}-${index}`}
-                      className="flex items-center h-12 px-[17px] bg-[#0e0e0e] border-b border-[#343434]"
-                    >
-                      <div className="flex items-center gap-2 md:gap-2.5 flex-1 min-w-0">
-                        <div className="w-5 h-5 md:w-6 md:h-6 bg-[#756f6f] rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
-                          {asset.iconUrl ? (
-                            <img
-                              className="w-5 h-5 md:w-6 md:h-6 object-cover"
-                              alt={asset.symbol}
-                              src={asset.iconUrl}
-                              onError={(e) => {
-                                const img = e.currentTarget;
-                                img.style.display = "none";
-                              }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <span className="text-xs text-white font-medium">
-                              {asset.symbol.slice(0, 2)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 md:gap-2.5 min-w-0">
-                          <span className="font-medium text-white text-sm md:text-base tracking-[-0.42px] md:tracking-[-0.48px] truncate">
-                            {asset.symbol}
-                          </span>
-                          <span className="font-medium text-[#8b8b8b] text-xs md:text-[13px] tracking-[-0.36px] md:tracking-[-0.39px] flex-shrink-0">
-                            {asset.blockchain}
-                          </span>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Estimated Cost</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatCurrency(ratesData?.data?.near_intents?.[0]?.totalFeesUsd)}
                         </div>
                       </div>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Liquidity Depth</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatPercentage(liquidityData?.data?.near_intents?.[0]?.thresholds?.[0]?.slippageBps)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-[#0e0e0e] border-[#343434] rounded-[14px] overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between p-4 border-b border-[#343434]">
+                  <h3 className="font-medium text-xl md:text-2xl tracking-[-0.60px] md:tracking-[-0.72px] text-white">
+                    {platforms.find((p) => p.value === selectedProvider)?.label ||
+                      "Provider"}
+                  </h3>
+                </div>
+
+                <div className="divide-y divide-[#343434]">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-32 px-[17px]">
+                      <span className="font-normal text-white text-sm">
+                        Loading...
+                      </span>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                  ) : (
+                    <>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Exchange Rate</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatRate(ratesData?.data?.[selectedProvider]?.[0]?.effectiveRate)}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Estimated Cost</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatCurrency(ratesData?.data?.[selectedProvider]?.[0]?.totalFeesUsd)}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="text-sm text-gray-400 mb-2">Liquidity Depth</div>
+                        <div className="text-xl text-white font-medium">
+                          {formatPercentage(liquidityData?.data?.[selectedProvider]?.[0]?.thresholds?.[0]?.slippageBps)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </section>
   );
