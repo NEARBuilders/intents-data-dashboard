@@ -2,19 +2,20 @@ import { DuneClient } from "@duneanalytics/client-sdk";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
+import { PluginClient  } from "@data-provider/shared-contract";
 
 import { contract } from "./contract";
 import { DataAggregatorService } from "./service";
-import { initializeProviderRuntime } from "./plugins";
 import { RedisService } from "./services/redis";
 import { IconResolverService } from "./services/icon-resolver";
 
 export default createPlugin({
-  variables: z.object({}),
+  variables: z.object({
+    providers: z.custom<Record<string, PluginClient>>(),
+  }),
 
   secrets: z.object({
     DUNE_API_KEY: z.string(),
-    NEAR_INTENTS_API_KEY: z.string(),
     REDIS_URL: z.string().default("redis://localhost:6379"),
     COINMARKETCAP_API_KEY: z.string().optional()
   }),
@@ -30,17 +31,15 @@ export default createPlugin({
       const redis = new RedisService(config.secrets.REDIS_URL);
       yield* redis.healthCheck();
 
-      const { runtime, providers } = yield* initializeProviderRuntime({
-        NEAR_INTENTS_API_KEY: config.secrets.NEAR_INTENTS_API_KEY
-      });
+      const providers = config.variables.providers;
 
       const iconResolver = new IconResolverService(redis, config.secrets.COINMARKETCAP_API_KEY);
 
       const service = new DataAggregatorService(dune, providers, redis, iconResolver);
 
-      console.log("Aggregator plugin initialized with provider plugins, Redis, and icon resolver");
+      console.log("Aggregator plugin initialized with injected providers, Redis, and icon resolver");
 
-      return { service, runtime, providers, redis, iconResolver };
+      return { service, providers, redis, iconResolver };
     }),
 
   shutdown: () => Effect.void,

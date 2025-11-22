@@ -3,8 +3,11 @@ import { MetricsTable } from "@/components/dashboard/metrics-table";
 import { SwapPairSelector } from "@/components/dashboard/swap-pair-selector";
 import { parse1csToAsset } from "@/lib/1cs-utils";
 import { useQueryErrorResetBoundary } from "@tanstack/react-query";
-import { createFileRoute, useRouter, ErrorComponent } from "@tanstack/react-router";
-import { useEffect, useMemo, Suspense } from "react";
+import {
+  createFileRoute,
+  useRouter
+} from "@tanstack/react-router";
+import { Suspense, useEffect, useMemo } from "react";
 import { z } from "zod";
 
 const searchSchema = z
@@ -23,7 +26,7 @@ export const Route = createFileRoute("/_layout/swaps")({
   loader: async ({ context }) => {
     const providersQuery = context.orpc.getProviders.queryOptions();
     const providers = await context.queryClient.ensureQueryData(providersQuery);
-    return { providers: providers as any };
+    return { providers: providers };
   },
   pendingComponent: () => (
     <div className="relative w-full min-h-screen flex items-center justify-center">
@@ -62,7 +65,7 @@ function SwapsPage() {
   const navigate = Route.useNavigate();
   const loaderData = Route.useLoaderData();
 
-  const providersData = loaderData.providers as any;
+  const providersData = loaderData.providers;
 
   const assetProviders = useMemo(
     () =>

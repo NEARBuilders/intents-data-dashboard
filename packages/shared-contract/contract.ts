@@ -1,5 +1,5 @@
 import { CommonPluginErrors } from "every-plugin";
-import { oc } from "every-plugin/orpc";
+import { oc, type ContractRouterClient } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 
 const TimeWindowEnumDefine = z.enum(["24h", "7d", "30d", "cumulative"]);
@@ -140,3 +140,6 @@ export const contract = oc.router({
     }))
     .errors(CommonPluginErrors),
 });
+
+
+export type PluginClient = ContractRouterClient<typeof contract>

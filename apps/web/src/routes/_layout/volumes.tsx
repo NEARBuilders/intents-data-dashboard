@@ -17,7 +17,7 @@ export const Route = createFileRoute('/_layout/volumes')({
     const providersQuery = context.orpc.getProviders.queryOptions()
     const providers = await context.queryClient.ensureQueryData(providersQuery)
 
-    const volumeProviders = (providers as any).providers.filter((p: any) => 
+    const volumeProviders = providers.providers.filter((p) => 
       p.supportedData.includes("volumes")
     )
 
@@ -25,13 +25,13 @@ export const Route = createFileRoute('/_layout/volumes')({
       const volumesQuery = context.orpc.getVolumesAggregated.queryOptions({
         input: {
           period: "all",
-          providers: volumeProviders.map((p: any) => p.id as any),
+          providers: volumeProviders.map((p) => p.id),
         }
       })
       await context.queryClient.ensureQueryData(volumesQuery)
     }
 
-    return { providers: providers as any[] }
+    return { providers }
   },
   pendingComponent: () => (
     <div className="relative w-full min-h-screen flex items-center justify-center">

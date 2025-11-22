@@ -6,7 +6,7 @@ import {
   VolumeWindow
 } from './contract';
 
-export { Asset, contract, LiquidityDepth, LiquidityDepthPoint, ListedAssets, Rate, Route, Snapshot, TimeWindowEnum, VolumeWindow } from './contract';
+export * from './contract';
 
 export type AssetType = z.infer<typeof Asset>;
 export type RateType<TAsset = AssetType> = {

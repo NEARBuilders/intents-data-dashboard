@@ -1,5 +1,6 @@
-import { oc } from "every-plugin/orpc";
+import { oc, type InferContractRouterInputs, type InferContractRouterOutputs } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
+import { Asset as SharedAsset, Rate as SharedRate, LiquidityDepth as SharedLiquidityDepth } from "@data-provider/shared-contract";
 
 export const ProviderIdentifierEnum = z.enum([
   "across", "axelar", "cashmere", "ccip", "celer", "chainflip",
@@ -333,4 +334,6 @@ export const contract = oc.router({
         status: 500,
       },
     }),
-;
+});
+
+export type ContractInputs = InferContractRouterInputs<typeof contract>;

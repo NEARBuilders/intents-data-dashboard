@@ -15,9 +15,9 @@
     "build": "tsdown"
   },
   "devDependencies": {
+    "@data-provider/across": "workspace:*",
     "@data-provider/aggregator": "workspace:*",
-    "@data-provider/template": "workspace:*",
-    "@data-provider/shared-contract": "workspace:*",
+    "@data-provider/near-intents": "workspace:*",
     "@types/node": "^24.10.0",
     "tsdown": "^0.15.5"
   },

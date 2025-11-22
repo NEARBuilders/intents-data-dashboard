@@ -19,17 +19,18 @@ import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
 import { RedisService } from "./services/redis";
 import { IconResolverService } from "./services/icon-resolver";
+import { PluginClient } from "@data-provider/shared-contract";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
   private dune: DuneClient;
-  private providers: Partial<Record<ProviderIdentifier, any>>;
+  private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private redis?: RedisService;
   private iconResolver?: IconResolverService;
 
   constructor(
     dune: DuneClient,
-    providers: Partial<Record<ProviderIdentifier, any>>,
+    providers: Partial<Record<ProviderIdentifier, PluginClient>>,
     redis?: RedisService,
     iconResolver?: IconResolverService
   ) {

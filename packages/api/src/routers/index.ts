@@ -9,7 +9,6 @@ export function createRouter(plugins: Plugins) {
 			.handler(() => {
 				return "OK";
 			}),
-			// @ts-ignore
 		...plugins.aggregator.router
 	} as const;
 }
