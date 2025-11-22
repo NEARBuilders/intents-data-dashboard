@@ -57,9 +57,6 @@ export const ComparisonTable = ({
 
   return (
     <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-20 overflow-hidden">
-      <GradientBlur className="top-[461px] left-[-85px] w-52 h-[376px] rounded-[104.12px/187.83px] rotate-[146.01deg] [background:radial-gradient(50%_50%_at_78%_27%,rgba(117,98,228,1)_0%,rgba(199,107,107,1)_100%)]" />
-      <GradientBlur className="top-[155px] left-[-213px] w-[330px] h-[445px] rounded-[165.07px/222.48px] rotate-[175.81deg] [background:radial-gradient(50%_50%_at_78%_27%,rgba(117,98,228,1)_0%,rgba(189,146,65,1)_100%)]" />
-
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
         <header className="mb-8 md:mb-12 lg:mb-[70px]">
           <h2 className="font-bold text-white text-2xl md:text-3xl lg:text-[43px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.29px] leading-normal mb-2 md:mb-3 lg:mb-[14px]">

@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteImport } from './routes/_layout'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutVolumesRouteImport } from './routes/_layout/volumes'
 import { Route as LayoutSwapsRouteImport } from './routes/_layout/swaps'
 import { Route as LayoutAssetsRouteImport } from './routes/_layout/assets'
@@ -20,10 +20,10 @@ const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const LayoutIndexRoute = LayoutIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutVolumesRoute = LayoutVolumesRouteImport.update({
   id: '/volumes',
@@ -47,45 +47,44 @@ const ApiAnalyticsEventsRoute = ApiAnalyticsEventsRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/assets': typeof LayoutAssetsRoute
   '/swaps': typeof LayoutSwapsRoute
   '/volumes': typeof LayoutVolumesRoute
+  '/': typeof LayoutIndexRoute
   '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/assets': typeof LayoutAssetsRoute
   '/swaps': typeof LayoutSwapsRoute
   '/volumes': typeof LayoutVolumesRoute
+  '/': typeof LayoutIndexRoute
   '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/_layout': typeof LayoutRouteWithChildren
   '/_layout/assets': typeof LayoutAssetsRoute
   '/_layout/swaps': typeof LayoutSwapsRoute
   '/_layout/volumes': typeof LayoutVolumesRoute
+  '/_layout/': typeof LayoutIndexRoute
   '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/assets' | '/swaps' | '/volumes' | '/api/analytics/events'
+  fullPaths: '/assets' | '/swaps' | '/volumes' | '/' | '/api/analytics/events'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/assets' | '/swaps' | '/volumes' | '/api/analytics/events'
+  to: '/assets' | '/swaps' | '/volumes' | '/' | '/api/analytics/events'
   id:
     | '__root__'
-    | '/'
     | '/_layout'
     | '/_layout/assets'
     | '/_layout/swaps'
     | '/_layout/volumes'
+    | '/_layout/'
     | '/api/analytics/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   LayoutRoute: typeof LayoutRouteWithChildren
   ApiAnalyticsEventsRoute: typeof ApiAnalyticsEventsRoute
 }
@@ -99,12 +98,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_layout/': {
+      id: '/_layout/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof LayoutIndexRouteImport
+      parentRoute: typeof LayoutRoute
     }
     '/_layout/volumes': {
       id: '/_layout/volumes'
@@ -141,19 +140,20 @@ interface LayoutRouteChildren {
   LayoutAssetsRoute: typeof LayoutAssetsRoute
   LayoutSwapsRoute: typeof LayoutSwapsRoute
   LayoutVolumesRoute: typeof LayoutVolumesRoute
+  LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAssetsRoute: LayoutAssetsRoute,
   LayoutSwapsRoute: LayoutSwapsRoute,
   LayoutVolumesRoute: LayoutVolumesRoute,
+  LayoutIndexRoute: LayoutIndexRoute,
 }
 
 const LayoutRouteWithChildren =
   LayoutRoute._addFileChildren(LayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   LayoutRoute: LayoutRouteWithChildren,
   ApiAnalyticsEventsRoute: ApiAnalyticsEventsRoute,
 }
