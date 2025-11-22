@@ -21,7 +21,7 @@ import { DataProviderService } from "./service";
  *
  * 2. **Layer Separation**:
  *    - Service Layer: Business logic in provider format, calls external APIs
- *    - Router Layer: Transformation between formats, middleware for route handling
+ *    - ZRouter Layer: Transformation between formats, middleware for route handling
  *
  * 3. **Middleware Pattern**: oRPC middleware automatically transforms routes for certain endpoints
  *    - getRates, getLiquidity, getSnapshot: Use middleware (accept NEAR Intents, transform to provider)
