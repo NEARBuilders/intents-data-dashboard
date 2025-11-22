@@ -11,7 +11,7 @@ export * from "./methods";
 
 export default createPlugin({
   variables: z.object({
-    nearNetwork: z.enum(["mainnet", "testnet"]).default("testnet"),
+    network: z.enum(["mainnet", "testnet"]).default("testnet"),
   }),
 
   secrets: z.object({
@@ -24,7 +24,7 @@ export default createPlugin({
   initialize: (config) =>
     Effect.gen(function* () {
       const near = new Near({
-        network: config.variables.nearNetwork,
+        network: config.variables.network,
         privateKey: config.secrets.relayerPrivateKey as `ed25519:${string}`,
         defaultSignerId: config.secrets.relayerAccountId,
       });

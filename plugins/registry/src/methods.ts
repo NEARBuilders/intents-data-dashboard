@@ -56,25 +56,29 @@ export function serializeRegistryForFastFS(
     },
   };
 
-  const mutableSchema = {
-    FastfsFileContent: {
-      struct: {
-        mimeType: "string",
-        content: { array: { type: "u8" } },
-      },
-    },
-    SimpleFastfs: {
-      struct: {
-        relativePath: "string",
-        content: { option: "FastfsFileContent" },
-      },
-    },
-    FastfsData: {
-      enum: [{ struct: { simple: "SimpleFastfs" } }],
-    },
+  const fastfsSchema = {
+    enum: [
+      {
+        struct: {
+          simple: {
+            struct: {
+              relativePath: "string",
+              content: {
+                option: {
+                  struct: {
+                    mimeType: "string",
+                    content: { array: { type: "u8" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
   };
 
-  const serialized = borshSerialize(mutableSchema.FastfsData, fastfsData);
+  const serialized = borshSerialize(fastfsSchema, fastfsData);
   return new Uint8Array(serialized);
 }
 
@@ -85,7 +89,17 @@ export async function createUpdateTx(
 ) {
   const { accountId, contractId = "fastfs.near", relativePath = "registry.json" } = config;
 
-  const currentRegistry = await fetchRegistry(config);
+  let currentRegistry: Registry;
+  try {
+    currentRegistry = await fetchRegistry(config);
+  } catch (error) {
+    console.log('Registry not found, initializing new registry...');
+    currentRegistry = {
+      items: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   const updatedRegistry = updatePluginInRegistry(currentRegistry, pluginUpdate);
   const serializedData = serializeRegistryForFastFS(updatedRegistry, relativePath);
 
