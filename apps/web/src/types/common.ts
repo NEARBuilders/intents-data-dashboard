@@ -2,8 +2,8 @@ export interface Asset {
   blockchain: string;
   assetId: string;
   symbol: string;
-  decimals: number;
-  contractAddress: string;
+  decimals?: number;
+  contractAddress?: string;
   iconUrl?: string;
 }
 

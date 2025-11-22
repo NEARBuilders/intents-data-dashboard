@@ -1,28 +1,15 @@
 import { createServerFn } from '@tanstack/react-start'
-import type { CoinGeckoPlatform, CoinGeckoTokenListResponse, CoinGeckoTokenListToken } from './types'
+import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions'
+import type { CoinGeckoPlatform, CoinGeckoMarketCoin, CoinGeckoListCoin, EnrichedAsset } from './types'
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
 const CACHE_DURATION = 3600_000
 const MAX_RETRIES = 3
 const INITIAL_BACKOFF = 1000
 
-const SUPPORTED_TOKEN_LIST_PLATFORMS = new Set<string>([
-  'ethereum',
-  'arbitrum-one',
-  'polygon-pos',
-  'binance-smart-chain',
-  'base',
-  'avalanche',
-  'fantom',
-  'optimism',
-  'gnosis',
-  'celo',
-])
-
-const TOKEN_LIST_PLATFORM_ID_MAP: Record<string, string> = {}
-
 let platformsCache: { data: CoinGeckoPlatform[]; timestamp: number } | null = null
-const tokensCache: Map<string, { data: CoinGeckoTokenListToken[]; timestamp: number }> = new Map()
+let marketCoinsCache: { data: CoinGeckoMarketCoin[]; timestamp: number } | null = null
+let globalCoinsCache: { data: CoinGeckoListCoin[]; timestamp: number } | null = null
 
 async function coingeckoFetch(path: string): Promise<Response> {
   const apiKey = process.env.COINGECKO_API_KEY
@@ -64,46 +51,149 @@ export const getCoinGeckoPlatforms = createServerFn().handler(async () => {
 
   const allPlatforms: CoinGeckoPlatform[] = await response.json()
   const valid = allPlatforms.filter(
-    (p) => p.id && p.id.trim() !== '' && p.name && SUPPORTED_TOKEN_LIST_PLATFORMS.has(p.id),
-  )
+    (p) => p.id && p.id.trim() !== '' && p.name
+  ).sort((a, b) => a.name.localeCompare(b.name))
 
   platformsCache = { data: valid, timestamp: now }
   return valid
 })
 
-export const getCoinGeckoTokensByPlatform = createServerFn()
+interface StaticAssetsData {
+  platforms: CoinGeckoPlatform[]
+  assets: EnrichedAsset[]
+  generated_at: string
+}
+
+export const getStaticAssetsData = createServerFn({ method: 'GET' })
+  .middleware([staticFunctionMiddleware as any])
+  .handler(async (): Promise<StaticAssetsData> => {
+    const [platforms, topAssets, globalAssets] = await Promise.all([
+      (async () => {
+        const response = await coingeckoFetch('/asset_platforms')
+        if (!response.ok) throw new Error(`CoinGecko API error: ${response.status}`)
+        const allPlatforms: CoinGeckoPlatform[] = await response.json()
+        return allPlatforms.filter(
+          (p) => p.id && p.id.trim() !== '' && p.name
+        ).sort((a, b) => a.name.localeCompare(b.name))
+      })(),
+      (async () => {
+        const response = await coingeckoFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false')
+        if (!response.ok) throw new Error(`CoinGecko API error: ${response.status}`)
+        return await response.json() as CoinGeckoMarketCoin[]
+      })(),
+      (async () => {
+        const response = await coingeckoFetch('/coins/list?include_platform=true')
+        if (!response.ok) throw new Error(`CoinGecko API error: ${response.status}`)
+        return await response.json() as CoinGeckoListCoin[]
+      })(),
+    ])
+
+    const globalMap = new Map(globalAssets.map((coin) => [coin.id, coin]))
+    const enrichedAssets: EnrichedAsset[] = topAssets.map((asset) => {
+      const globalCoin = globalMap.get(asset.id)
+      return {
+        ...asset,
+        platforms: globalCoin?.platforms || {},
+      }
+    })
+
+    return {
+      platforms,
+      assets: enrichedAssets,
+      generated_at: new Date().toISOString(),
+    }
+  })
+
+export const getCoinGeckoTopAssets = createServerFn().handler(async () => {
+  const now = Date.now()
+  if (marketCoinsCache && now - marketCoinsCache.timestamp < CACHE_DURATION) {
+    return marketCoinsCache.data
+  }
+
+  const response = await coingeckoFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false')
+  if (!response.ok) {
+    throw new Error(`CoinGecko API error: ${response.status}`)
+  }
+
+  const coins: CoinGeckoMarketCoin[] = await response.json()
+  marketCoinsCache = { data: coins, timestamp: now }
+  return coins
+})
+
+export const getTopAssetsForPlatform = createServerFn()
   .inputValidator((data: { platformId: string }) => data)
   .handler(async ({ data }) => {
-    const rawId = data.platformId?.trim()
-    if (!rawId) {
-      return []
-    }
+    const [topAssets, globalAssets] = await Promise.all([
+      (async () => {
+        const now = Date.now()
+        if (marketCoinsCache && now - marketCoinsCache.timestamp < CACHE_DURATION) {
+          return marketCoinsCache.data
+        }
+        const response = await coingeckoFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false')
+        if (!response.ok) throw new Error(`CoinGecko API error: ${response.status}`)
+        const coins: CoinGeckoMarketCoin[] = await response.json()
+        marketCoinsCache = { data: coins, timestamp: now }
+        return coins
+      })(),
+      getGlobalAssetsInternal(),
+    ])
 
-    const platformId = TOKEN_LIST_PLATFORM_ID_MAP[rawId] ?? rawId
-
-    const now = Date.now()
-
-    const cached = tokensCache.get(platformId)
-    if (cached && now - cached.timestamp < CACHE_DURATION) {
-      return cached.data
-    }
-
-    const response = await coingeckoFetch(`/token_lists/${platformId}/all.json`)
+    const platformId = data.platformId
     
-    if (response.status === 400 || response.status === 404) {
-      console.warn('Unsupported token_list platform', { rawId, platformId, status: response.status })
-      tokensCache.set(platformId, { data: [], timestamp: now })
+    return topAssets.filter((topAsset) => {
+      const globalCoin = globalAssets.find((c) => c.id === topAsset.id)
+      return globalCoin?.platforms && platformId in globalCoin.platforms
+    })
+  })
+
+async function getGlobalAssetsInternal(): Promise<CoinGeckoListCoin[]> {
+  const now = Date.now()
+  if (globalCoinsCache && now - globalCoinsCache.timestamp < CACHE_DURATION) {
+    return globalCoinsCache.data
+  }
+
+  const response = await coingeckoFetch('/coins/list?include_platform=true')
+  if (!response.ok) {
+    throw new Error(`CoinGecko API error: ${response.status}`)
+  }
+
+  const coins: CoinGeckoListCoin[] = await response.json()
+  globalCoinsCache = { data: coins, timestamp: now }
+  return coins
+}
+
+export const searchGlobalAssets = createServerFn()
+  .inputValidator((data: { query: string; platformId?: string }) => data)
+  .handler(async ({ data }) => {
+    const globalCoins = await getGlobalAssetsInternal()
+    const query = data.query?.toLowerCase().trim() || ''
+    
+    if (!query) {
       return []
     }
 
-    if (!response.ok) {
-      console.warn('getCoinGeckoTokensByPlatform failed', { rawId, platformId, status: response.status })
-      throw new Error(`CoinGecko API error: ${response.status}`)
-    }
+    const matches = globalCoins.filter((coin) => {
+      const matchesQuery = 
+        coin.name.toLowerCase().includes(query) ||
+        coin.symbol.toLowerCase().includes(query) ||
+        coin.id.toLowerCase().includes(query)
+      
+      if (!matchesQuery) return false
+      
+      if (data.platformId) {
+        return coin.platforms && data.platformId in coin.platforms
+      }
+      
+      return true
+    })
 
-    const result: CoinGeckoTokenListResponse = await response.json()
-    const tokens = result.tokens.filter((t) => t.symbol && t.name && t.address)
+    return matches.slice(0, 100)
+  })
 
-    tokensCache.set(platformId, { data: tokens, timestamp: now })
-    return tokens
+export const getAssetPlatforms = createServerFn()
+  .inputValidator((data: { assetId: string }) => data)
+  .handler(async ({ data }) => {
+    const globalCoins = await getGlobalAssetsInternal()
+    const coin = globalCoins.find((c) => c.id === data.assetId)
+    return coin?.platforms || {}
   })

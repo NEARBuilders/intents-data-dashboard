@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select";
 import { useMemo } from "react";
 import type { Route, ProviderInfo } from "@/types/common";
-import { useRates, useLiquidity } from "@/hooks/useRouteMetrics";
+import { useRates, useLiquidity } from "@/hooks/use-route-metrics";
 import { formatRate, formatCurrency, formatPercentage } from "@/utils/comparison";
 
 const selectItemClassName =
@@ -18,7 +18,6 @@ interface ComparisonTableProps {
   selectedProvider: string;
   onProviderChange: (provider: string) => void;
   providersInfo: ProviderInfo[];
-  loading: boolean;
   selectedRoute: Route | null;
 }
 
@@ -30,7 +29,6 @@ export const ComparisonTable = ({
   selectedProvider,
   onProviderChange,
   providersInfo,
-  loading: providersLoading,
   selectedRoute,
 }: ComparisonTableProps) => {
   const platforms = useMemo(
@@ -55,24 +53,7 @@ export const ComparisonTable = ({
     !!selectedProvider
   );
 
-  const loading = providersLoading || ratesLoading || liquidityLoading;
-
-  if (providersLoading) {
-    return (
-      <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-20 overflow-hidden">
-        <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
-          <header className="mb-8 md:mb-12 lg:mb-[70px]">
-            <h2 className="font-bold text-white text-2xl md:text-3xl lg:text-[43px] tracking-[-0.72px] md:tracking-[-0.90px] lg:tracking-[-1.29px] leading-normal mb-2 md:mb-3 lg:mb-[14px]">
-              Head to Head Comparisons
-            </h2>
-            <p className="font-normal text-white text-sm md:text-base lg:text-lg tracking-[-0.42px] md:tracking-[-0.48px] lg:tracking-[-0.54px] leading-normal">
-              Loading providers...
-            </p>
-          </header>
-        </div>
-      </section>
-    );
-  }
+  const loading = ratesLoading || liquidityLoading;
 
   return (
     <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-20 overflow-hidden">

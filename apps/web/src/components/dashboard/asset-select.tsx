@@ -1,4 +1,3 @@
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -8,32 +7,21 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useMemo, useState, useEffect } from "react";
-import type { Asset } from "@/types/common";
-import type { CoinGeckoTokenListToken } from "@/lib/coingecko/types";
 import { logEvent } from "@/lib/analytics";
+import type { CoinGeckoMarketCoin } from "@/lib/coingecko/types";
 import { cn } from "@/lib/utils";
-
-const BLUE_CHIP_SYMBOLS = [
-  "ETH",
-  "WETH",
-  "WBTC",
-  "BTC",
-  "USDC",
-  "USDT",
-  "DAI",
-  "BUSD",
-];
+import type { Asset } from "@/types/common";
+import { useEffect, useMemo, useState } from "react";
 
 interface AssetSections {
-  blueChips: Asset[];
+  popular: Asset[];
   topByMarketCap: Asset[];
-  others: Asset[];
 }
 
 interface AssetSelectProps {
@@ -41,7 +29,7 @@ interface AssetSelectProps {
   value?: string;
   onChange: (assetId: string) => void;
   assets: Asset[];
-  tokens?: CoinGeckoTokenListToken[];
+  tokens?: CoinGeckoMarketCoin[];
   networkId?: string;
   direction: "source" | "destination";
   disabled?: boolean;
@@ -63,38 +51,18 @@ export const AssetSelect = ({
   const [query, setQuery] = useState("");
 
   const sections = useMemo((): AssetSections => {
-    if (!tokens || tokens.length === 0) {
+    if (assets.length === 0) {
       return {
-        blueChips: [],
+        popular: [],
         topByMarketCap: [],
-        others: assets,
       };
     }
 
-    const tokenById = new Map(tokens.map((t) => [t.symbol.toLowerCase(), t]));
+    const popular = assets.slice(0, 10);
+    const topByMarketCap = assets.slice(10);
 
-    const blueChips: Asset[] = [];
-    const topByMarketCap: Asset[] = [];
-    const others: Asset[] = [];
-
-    for (const asset of assets) {
-      if (BLUE_CHIP_SYMBOLS.includes(asset.symbol.toUpperCase())) {
-        blueChips.push(asset);
-        continue;
-      }
-
-      const tokenKey = asset.symbol.toLowerCase();
-      const token = tokenById.get(tokenKey);
-
-      if (token) {
-        topByMarketCap.push(asset);
-      } else {
-        others.push(asset);
-      }
-    }
-
-    return { blueChips, topByMarketCap, others };
-  }, [assets, tokens]);
+    return { popular, topByMarketCap };
+  }, [assets]);
 
   const filteredSections = useMemo((): AssetSections => {
     if (!query.trim()) return sections;
@@ -109,9 +77,8 @@ export const AssetSelect = ({
       );
 
     return {
-      blueChips: filterList(sections.blueChips),
+      popular: filterList(sections.popular),
       topByMarketCap: filterList(sections.topByMarketCap),
-      others: filterList(sections.others),
     };
   }, [sections, query]);
 
@@ -119,9 +86,7 @@ export const AssetSelect = ({
     if (!query.trim()) return;
 
     const totalAssets =
-      filteredSections.blueChips.length +
-      filteredSections.topByMarketCap.length +
-      filteredSections.others.length;
+      filteredSections.popular.length + filteredSections.topByMarketCap.length;
 
     if (totalAssets === 0) {
       logEvent({
@@ -154,8 +119,8 @@ export const AssetSelect = ({
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
                 {selectedAsset?.iconUrl ? (
-                  <img 
-                    src={selectedAsset.iconUrl} 
+                  <img
+                    src={selectedAsset.iconUrl}
                     alt={selectedAsset.symbol}
                     className="h-full w-full object-cover"
                     loading="lazy"
@@ -177,13 +142,23 @@ export const AssetSelect = ({
               <span className="text-[8px] leading-2.5 tracking-[-0.03em] uppercase">
                 Asset
               </span>
-              <svg width="5" height="9" viewBox="0 0 5 9" className="text-[#B7B7B7]">
-                <path d="M1 1L4 4.5L1 8" stroke="currentColor" strokeWidth="1" fill="none"/>
+              <svg
+                width="5"
+                height="9"
+                viewBox="0 0 5 9"
+                className="text-[#B7B7B7]"
+              >
+                <path
+                  d="M1 1L4 4.5L1 8"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  fill="none"
+                />
               </svg>
             </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent 
+        <PopoverContent
           side="bottom"
           align="start"
           sideOffset={4}
@@ -204,9 +179,28 @@ export const AssetSelect = ({
                 </span>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-[#101015] border border-white/5 px-2.5 py-1.5">
-                <svg width="14" height="14" viewBox="0 0 16 16" className="h-3.5 w-3.5 text-white/35">
-                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" fill="none" strokeWidth="1"/>
-                  <line x1="11" y1="11" x2="14" y2="14" stroke="currentColor" strokeWidth="1"/>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  className="h-3.5 w-3.5 text-white/35"
+                >
+                  <circle
+                    cx="7"
+                    cy="7"
+                    r="5.5"
+                    stroke="currentColor"
+                    fill="none"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1="11"
+                    y1="11"
+                    x2="14"
+                    y2="14"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                  />
                 </svg>
                 <CommandInput
                   placeholder="Search tokens..."
@@ -221,12 +215,15 @@ export const AssetSelect = ({
                 No assets found.
               </CommandEmpty>
 
-              {filteredSections.blueChips.length > 0 && (
+              {filteredSections.popular.length > 0 && (
                 <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  {filteredSections.blueChips.map((asset) => (
+                  <div className="px-2.5 pb-1.5 text-[10px] uppercase tracking-[0.1em] text-white/40">
+                    Popular
+                  </div>
+                  {filteredSections.popular.map((asset) => (
                     <CommandItem
                       key={asset.assetId}
-                      value={asset.symbol}
+                      value={`${asset.symbol} ${asset.assetId}`}
                       onSelect={() => {
                         onChange(asset.assetId);
                         setOpen(false);
@@ -235,8 +232,8 @@ export const AssetSelect = ({
                     >
                       <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
                         {asset.iconUrl ? (
-                          <img 
-                            src={asset.iconUrl} 
+                          <img
+                            src={asset.iconUrl}
                             alt={asset.symbol}
                             className="h-full w-full object-cover"
                             loading="lazy"
@@ -247,7 +244,9 @@ export const AssetSelect = ({
                       </div>
                       <span className="truncate">{asset.symbol}</span>
                       {value === asset.assetId && (
-                        <span className="ml-auto text-xs text-green-400">✓</span>
+                        <span className="ml-auto text-xs text-green-400">
+                          ✓
+                        </span>
                       )}
                     </CommandItem>
                   ))}
@@ -256,10 +255,13 @@ export const AssetSelect = ({
 
               {filteredSections.topByMarketCap.length > 0 && (
                 <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
+                  <div className="px-2.5 pb-1.5 text-[10px] uppercase tracking-[0.1em] text-white/40">
+                    Top by Market Cap
+                  </div>
                   {filteredSections.topByMarketCap.map((asset) => (
                     <CommandItem
                       key={asset.assetId}
-                      value={asset.symbol}
+                      value={`${asset.symbol} ${asset.assetId}`}
                       onSelect={() => {
                         onChange(asset.assetId);
                         setOpen(false);
@@ -268,8 +270,8 @@ export const AssetSelect = ({
                     >
                       <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
                         {asset.iconUrl ? (
-                          <img 
-                            src={asset.iconUrl} 
+                          <img
+                            src={asset.iconUrl}
                             alt={asset.symbol}
                             className="h-full w-full object-cover"
                             loading="lazy"
@@ -280,40 +282,9 @@ export const AssetSelect = ({
                       </div>
                       <span className="truncate">{asset.symbol}</span>
                       {value === asset.assetId && (
-                        <span className="ml-auto text-xs text-green-400">✓</span>
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-
-              {filteredSections.others.length > 0 && (
-                <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  {filteredSections.others.map((asset) => (
-                    <CommandItem
-                      key={asset.assetId}
-                      value={asset.symbol}
-                      onSelect={() => {
-                        onChange(asset.assetId);
-                        setOpen(false);
-                      }}
-                      className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] text-white/80 data-[selected=true]:bg-white/6 data-[selected=true]:text-white hover:bg-white/4 transition-colors"
-                    >
-                      <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                        {asset.iconUrl ? (
-                          <img 
-                            src={asset.iconUrl} 
-                            alt={asset.symbol}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-[#202027]" />
-                        )}
-                      </div>
-                      <span className="truncate">{asset.symbol}</span>
-                      {value === asset.assetId && (
-                        <span className="ml-auto text-xs text-green-400">✓</span>
+                        <span className="ml-auto text-xs text-green-400">
+                          ✓
+                        </span>
                       )}
                     </CommandItem>
                   ))}

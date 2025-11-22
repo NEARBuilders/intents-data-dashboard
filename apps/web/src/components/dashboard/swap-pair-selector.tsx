@@ -1,129 +1,135 @@
-import { usePlatformsQuery, useTokensQuery } from "@/lib/coingecko/client";
-import { tokenToAsset } from "@/lib/coingecko/assets";
+import { usePlatforms, useTopAssetsForPlatform } from "@/hooks/use-static-assets";
 import type { Asset } from "@/types/common";
-import { useEffect, useMemo, useState } from "react";
+import type { EnrichedAsset } from "@/lib/coingecko/types";
+import { useMemo, useState, useEffect } from "react";
 import { NetworkSelect } from "./network-select";
 import { AssetSelect } from "./asset-select";
 import { logEvent } from "@/lib/analytics";
+import { Route } from "@/routes/_layout/swaps";
+import { assetTo1cs, parse1csToAsset } from "@/lib/1cs-utils";
+import { getDefaultSourceNetwork, getDefaultDestNetwork } from "@/store/swap";
 
-interface SwapPairSelectorProps {
-  onPairChange: (source: Asset, destination: Asset) => void;
-}
+export const SwapPairSelector = () => {
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  
+  const { data: platforms, isLoading: platformsLoading } = usePlatforms();
+  
+  const sourceFrom1cs = search.source ? parse1csToAsset(search.source) : null;
+  const destFrom1cs = search.destination ? parse1csToAsset(search.destination) : null;
+  
+  const [manualSourceNetwork, setManualSourceNetwork] = useState<string | undefined>(undefined);
+  const [manualDestNetwork, setManualDestNetwork] = useState<string | undefined>(undefined);
 
-export const SwapPairSelector = ({ onPairChange }: SwapPairSelectorProps) => {
-  const [sourceNetwork, setSourceNetwork] = useState<string | undefined>(
-    undefined
-  );
-  const [sourceAsset, setSourceAsset] = useState<Asset | null>(null);
-  const [destNetwork, setDestNetwork] = useState<string | undefined>(undefined);
-  const [destAsset, setDestAsset] = useState<Asset | null>(null);
+  useEffect(() => {
+    if (sourceFrom1cs?.blockchain) {
+      setManualSourceNetwork(undefined);
+    }
+  }, [sourceFrom1cs?.blockchain]);
 
-  const { data: platforms, isLoading: platformsLoading } = usePlatformsQuery();
-  const { data: sourceTokens, isLoading: sourceTokensLoading } = useTokensQuery(sourceNetwork);
-  const { data: destTokens, isLoading: destTokensLoading } = useTokensQuery(destNetwork);
+  useEffect(() => {
+    if (destFrom1cs?.blockchain) {
+      setManualDestNetwork(undefined);
+    }
+  }, [destFrom1cs?.blockchain]);
+  
+  const effectiveSourceNetwork = manualSourceNetwork ?? sourceFrom1cs?.blockchain ?? getDefaultSourceNetwork(platforms);
+  const effectiveDestNetwork = manualDestNetwork ?? destFrom1cs?.blockchain ?? getDefaultDestNetwork(platforms);
+
+  const { data: sourceTopAssets, isLoading: sourceAssetsLoading } = useTopAssetsForPlatform(effectiveSourceNetwork);
+  const { data: destTopAssets, isLoading: destAssetsLoading } = useTopAssetsForPlatform(effectiveDestNetwork);
+
+  const marketCoinToAsset = (coin: EnrichedAsset, blockchainId: string): Asset | null => {
+    const contractAddress = coin.platforms[blockchainId];
+    
+    return {
+      blockchain: blockchainId,
+      assetId: coin.id,
+      symbol: coin.symbol.toUpperCase(),
+      decimals: undefined,
+      contractAddress: contractAddress || undefined,
+      iconUrl: coin.image,
+    };
+  };
 
   const sourceAssets = useMemo(() => {
-    if (!sourceTokens || !sourceNetwork) return [];
-    return sourceTokens
-      .slice(0, 50)
-      .map((token) => tokenToAsset(token, sourceNetwork))
-      .filter((asset): asset is Asset => asset !== null);
-  }, [sourceTokens, sourceNetwork]);
+    if (!sourceTopAssets || !effectiveSourceNetwork) return [];
+    return sourceTopAssets.map((coin: EnrichedAsset) => marketCoinToAsset(coin, effectiveSourceNetwork)).filter((a): a is Asset => a !== null);
+  }, [sourceTopAssets, effectiveSourceNetwork]);
 
   const destAssets = useMemo(() => {
-    if (!destTokens || !destNetwork) return [];
-    return destTokens
-      .slice(0, 50)
-      .map((token) => tokenToAsset(token, destNetwork))
-      .filter((asset): asset is Asset => asset !== null);
-  }, [destTokens, destNetwork]);
+    if (!destTopAssets || !effectiveDestNetwork) return [];
+    return destTopAssets.map((coin: EnrichedAsset) => marketCoinToAsset(coin, effectiveDestNetwork)).filter((a): a is Asset => a !== null);
+  }, [destTopAssets, effectiveDestNetwork]);
 
-  useEffect(() => {
-    if (platforms && platforms.length > 0 && !sourceNetwork) {
-      const ethereum = platforms.find((p) => p.id === "ethereum");
-      if (ethereum) {
-        setSourceNetwork(ethereum.id);
-      } else {
-        setSourceNetwork(platforms[0].id);
-      }
+  const effectiveSourceAsset = useMemo(() => {
+    if (sourceFrom1cs?.assetId) {
+      const found = sourceAssets.find(a => assetTo1cs(a) === sourceFrom1cs.assetId);
+      if (found) return found;
     }
-  }, [platforms, sourceNetwork]);
+    return sourceAssets[0] ?? null;
+  }, [sourceAssets, sourceFrom1cs]);
 
-  useEffect(() => {
-    if (platforms && platforms.length > 0 && !destNetwork) {
-      const arbitrum = platforms.find((p) => p.id === "arbitrum-one");
-      if (arbitrum) {
-        setDestNetwork(arbitrum.id);
-      } else if (platforms.length > 1) {
-        setDestNetwork(platforms[1].id);
-      }
+  const effectiveDestAsset = useMemo(() => {
+    if (destFrom1cs?.assetId) {
+      const found = destAssets.find(a => assetTo1cs(a) === destFrom1cs.assetId);
+      if (found) return found;
     }
-  }, [platforms, destNetwork]);
-
-  useEffect(() => {
-    if (sourceAssets.length > 0 && !sourceAsset) {
-      const usdc = sourceAssets.find(
-        (a) => a.symbol === "USDC" || a.symbol.includes("USD")
-      );
-      const asset = usdc || sourceAssets[0];
-      setSourceAsset(asset);
-    }
-  }, [sourceAssets, sourceAsset]);
-
-  useEffect(() => {
-    if (destAssets.length > 0 && !destAsset) {
-      const usdc = destAssets.find(
-        (a) => a.symbol === "USDC" || a.symbol.includes("USD")
-      );
-      const asset = usdc || destAssets[0];
-      setDestAsset(asset);
-    }
-  }, [destAssets, destAsset]);
-
-  useEffect(() => {
-    if (sourceAsset && destAsset) {
-      onPairChange(sourceAsset, destAsset);
-    }
-  }, [sourceAsset, destAsset, onPairChange]);
+    return destAssets[0] ?? null;
+  }, [destAssets, destFrom1cs]);
 
   const handleSourceNetworkChange = (networkId: string) => {
-    setSourceNetwork(networkId);
-    setSourceAsset(null);
+    setManualSourceNetwork(networkId);
+    navigate({
+      search: (prev) => ({ ...prev, source: undefined })
+    });
   };
 
   const handleSourceAssetChange = (assetId: string) => {
     if (!assetId || assetId.trim() === '') return;
-    const asset = sourceAssets.find((a) => a.assetId === assetId);
+    const asset = sourceAssets.find((a: Asset) => a.assetId === assetId);
     if (asset) {
-      setSourceAsset(asset);
+      const id1cs = assetTo1cs(asset);
+      navigate({
+        search: (prev) => ({ ...prev, source: id1cs })
+      });
+      if (asset && effectiveDestAsset) {
+        logEvent({
+          type: "route_selected",
+          source: asset,
+          destination: effectiveDestAsset,
+        });
+      }
     }
   };
 
   const handleDestNetworkChange = (networkId: string) => {
-    setDestNetwork(networkId);
-    setDestAsset(null);
+    setManualDestNetwork(networkId);
+    navigate({
+      search: (prev) => ({ ...prev, destination: undefined })
+    });
   };
 
   const handleDestAssetChange = (assetId: string) => {
     if (!assetId || assetId.trim() === '') return;
-    const asset = destAssets.find((a) => a.assetId === assetId);
+    const asset = destAssets.find((a: Asset) => a.assetId === assetId);
     if (asset) {
-      setDestAsset(asset);
+      const id1cs = assetTo1cs(asset);
+      navigate({
+        search: (prev) => ({ ...prev, destination: id1cs })
+      });
+      if (effectiveSourceAsset && asset) {
+        logEvent({
+          type: "route_selected",
+          source: effectiveSourceAsset,
+          destination: asset,
+        });
+      }
     }
   };
 
-  useEffect(() => {
-    if (sourceAsset && destAsset) {
-      logEvent({
-        type: "route_selected",
-        source: sourceAsset,
-        destination: destAsset,
-      });
-    }
-  }, [sourceAsset, destAsset]);
-
-  const selectedSourcePlatform = platforms?.find((p) => p.id === sourceNetwork);
-  const selectedDestPlatform = platforms?.find((p) => p.id === destNetwork);
+  const selectedSourcePlatform = platforms?.find((p) => p.id === effectiveSourceNetwork);
+  const selectedDestPlatform = platforms?.find((p) => p.id === effectiveDestNetwork);
 
   if (platformsLoading) {
     return (
@@ -149,20 +155,20 @@ export const SwapPairSelector = ({ onPairChange }: SwapPairSelectorProps) => {
           <div className="space-y-4">
             <NetworkSelect
               label="SWAP FROM"
-              value={sourceNetwork}
+              value={effectiveSourceNetwork}
               onChange={handleSourceNetworkChange}
               platforms={platforms}
             />
 
             <AssetSelect
               label=""
-              value={sourceAsset?.assetId}
+              value={effectiveSourceAsset?.assetId}
               onChange={handleSourceAssetChange}
               assets={sourceAssets}
-              tokens={sourceTokens}
-              networkId={sourceNetwork}
+              tokens={sourceTopAssets}
+              networkId={effectiveSourceNetwork}
               direction="source"
-              loading={sourceTokensLoading}
+              loading={sourceAssetsLoading}
               disabled={sourceAssets.length === 0}
             />
           </div>
@@ -170,32 +176,32 @@ export const SwapPairSelector = ({ onPairChange }: SwapPairSelectorProps) => {
           <div className="space-y-4">
             <NetworkSelect
               label="SWAP TO"
-              value={destNetwork}
+              value={effectiveDestNetwork}
               onChange={handleDestNetworkChange}
               platforms={platforms}
             />
 
             <AssetSelect
               label=""
-              value={destAsset?.assetId}
+              value={effectiveDestAsset?.assetId}
               onChange={handleDestAssetChange}
               assets={destAssets}
-              tokens={destTokens}
-              networkId={destNetwork}
+              tokens={destTopAssets}
+              networkId={effectiveDestNetwork}
               direction="destination"
-              loading={destTokensLoading}
+              loading={destAssetsLoading}
               disabled={destAssets.length === 0}
             />
           </div>
         </div>
 
-        {sourceAsset && destAsset && (
+        {effectiveSourceAsset && effectiveDestAsset && (
           <div className="mt-6 p-4 bg-[#1a1a1a] rounded-lg border border-[#343434]">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">Selected Route:</span>
               <span className="text-white font-medium">
-                {sourceAsset.symbol} on {selectedSourcePlatform?.name} →{" "}
-                {destAsset.symbol} on {selectedDestPlatform?.name}
+                {effectiveSourceAsset.symbol} on {selectedSourcePlatform?.name} →{" "}
+                {effectiveDestAsset.symbol} on {selectedDestPlatform?.name}
               </span>
             </div>
           </div>

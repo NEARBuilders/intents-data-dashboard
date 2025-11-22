@@ -3,7 +3,7 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { Route, ProviderInfo } from "@/types/common";
-import { useRates, useLiquidity, useVolumes } from "@/hooks/useRouteMetrics";
+import { useRates, useLiquidity, useVolumes } from "@/hooks/use-route-metrics";
 import {
   calculateTrend,
   getComparisonColor,
@@ -21,14 +21,12 @@ const TREND_COLORS = {
 interface MetricsTableProps {
   selectedProvider: string;
   providersInfo: ProviderInfo[];
-  loading: boolean;
   selectedRoute: Route | null;
 }
 
 export const MetricsTable = ({
   selectedProvider,
   providersInfo,
-  loading: providersLoading,
   selectedRoute,
 }: MetricsTableProps) => {
   const { data: ratesData, isLoading: ratesLoading } = useRates(
@@ -130,7 +128,7 @@ export const MetricsTable = ({
     selectedRoute,
   ]);
 
-  const loading = providersLoading || ratesLoading || liquidityLoading || volumeLoading;
+  const loading = ratesLoading || liquidityLoading || volumeLoading;
 
   const selectedProviderLabel = useMemo(
     () =>

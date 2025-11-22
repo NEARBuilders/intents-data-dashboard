@@ -19,26 +19,18 @@ import { cn } from "@/lib/utils";
 
 const PINNED_NETWORK_IDS = [
   "ethereum",
-  "binance-smart-chain",
-  "polygon-pos",
+  "bitcoin",
+  "near-protocol",
+  "sui",
+  "zcash",
+  "base",
   "avalanche",
+  "polygon-pos",
+  "binance-smart-chain",
   "arbitrum-one",
   "optimistic-ethereum",
-  "base",
-  "near-protocol",
   "solana",
-  "cardano",
-  "tron",
-  "polkadot",
-  "internet-computer",
-  "xrp",
-  "dogecoin",
-  "litecoin",
-  "cosmos",
-  "zcash",
   "fantom",
-  "cronos",
-  "sui"
 ];
 
 interface NetworkSelectProps {
@@ -125,13 +117,13 @@ export const NetworkSelect = ({
                 )}
               </div>
               <span className="text-[12px] leading-[15px] tracking-[-0.03em] font-medium text-white/90 truncate">
-                {selectedPlatform ? selectedPlatform.name : "Select network"}
+                {selectedPlatform ? selectedPlatform.name : "Select blockchain"}
               </span>
             </div>
 
             <div className="flex items-center gap-1.5 bg-[#3A3A3A] rounded-[2px] px-1 py-1">
               <span className="text-[8px] leading-[10px] tracking-[-0.03em] uppercase">
-                Network
+                Blockchain
               </span>
               <svg width="5" height="9" viewBox="0 0 5 9" className="text-[#B7B7B7]">
                 <path d="M1 1L4 4.5L1 8" stroke="currentColor" strokeWidth="1" fill="none"/>
@@ -156,7 +148,7 @@ export const NetworkSelect = ({
             <div className="px-3.5 pt-3 pb-2 border-b border-white/5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] uppercase tracking-[0.14em] text-white/60">
-                  Select Network
+                  Select Blockchain
                 </span>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-[#101015] border border-white/5 px-2.5 py-1.5">
@@ -165,7 +157,7 @@ export const NetworkSelect = ({
                   <line x1="11" y1="11" x2="14" y2="14" stroke="currentColor" strokeWidth="1"/>
                 </svg>
                 <CommandInput
-                  placeholder="Search networks..."
+                  placeholder="Search blockchains..."
                   value={query}
                   onValueChange={setQuery}
                   className="flex-1 bg-transparent text-[12px] text-white placeholder:text-white/35 focus:outline-none border-0 p-0"
@@ -174,7 +166,7 @@ export const NetworkSelect = ({
             </div>
             <CommandList className="max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
               <CommandEmpty className="px-3.5 py-4 text-[12px] text-white/40">
-                No networks found.
+                No blockchains found.
               </CommandEmpty>
 
               {filteredPlatforms.pinned.length > 0 && (
@@ -182,7 +174,7 @@ export const NetworkSelect = ({
                   {filteredPlatforms.pinned.map((platform) => (
                     <CommandItem
                       key={platform.id}
-                      value={platform.name}
+                      value={`${platform.name} ${platform.id} ${platform.shortname || ''}`}
                       onSelect={() => {
                         onChange(platform.id);
                         setOpen(false);
@@ -215,7 +207,7 @@ export const NetworkSelect = ({
                   {filteredPlatforms.remaining.map((platform) => (
                     <CommandItem
                       key={platform.id}
-                      value={platform.name}
+                      value={`${platform.name} ${platform.id} ${platform.shortname || ''}`}
                       onSelect={() => {
                         onChange(platform.id);
                         setOpen(false);
