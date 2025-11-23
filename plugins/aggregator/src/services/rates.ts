@@ -1,4 +1,5 @@
-import type { AssetType, ProviderIdentifier, RateType } from "../contract";
+import type { AssetType, RateType } from "@data-provider/shared-contract";
+import type { ProviderIdentifier } from "../contract";
 import { getProvidersForRoute } from "./assets";
 
 export async function aggregateRates(
@@ -14,12 +15,12 @@ export async function aggregateRates(
   data: Record<ProviderIdentifier, RateType[]>;
 }> {
   const providerRouteMap = new Map<ProviderIdentifier, typeof input.routes>();
-  
+
   for (const route of input.routes) {
     const supportingProviders = getProvidersForRoute(route, assetSupportIndex);
-    
+
     const filteredProviders = input.targetProviders.filter(p => supportingProviders.includes(p));
-    
+
     for (const providerId of filteredProviders) {
       if (!providerRouteMap.has(providerId)) {
         providerRouteMap.set(providerId, []);

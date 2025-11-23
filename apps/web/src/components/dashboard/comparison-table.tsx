@@ -10,6 +10,8 @@ import { useMemo } from "react";
 import type { Route, ProviderInfo } from "@/types/common";
 import { useRates, useLiquidity } from "@/hooks/use-route-metrics";
 import { formatRate, formatCurrency, formatPercentage } from "@/utils/comparison";
+import { useStaticAssets } from "@/hooks/use-static-assets";
+import { calculateEstimatedFee } from "@/utils/fees";
 
 const selectItemClassName =
   "text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white";
@@ -20,10 +22,6 @@ interface ComparisonTableProps {
   providersInfo: ProviderInfo[];
   selectedRoute: Route | null;
 }
-
-const GradientBlur = ({ className }: { className: string }) => (
-  <div className={`absolute blur-[60.4px] opacity-30 ${className}`} />
-);
 
 export const ComparisonTable = ({
   selectedProvider,
@@ -52,6 +50,20 @@ export const ComparisonTable = ({
     ["near_intents", selectedProvider],
     !!selectedProvider
   );
+
+  const { data: staticAssets } = useStaticAssets();
+
+  const nearIntentsFee = useMemo(() => {
+    const rate = ratesData?.data?.near_intents?.[0];
+    if (!rate) return null;
+    return calculateEstimatedFee(rate, staticAssets?.assets);
+  }, [ratesData, staticAssets]);
+
+  const providerFee = useMemo(() => {
+    const rate = ratesData?.data?.[selectedProvider]?.[0];
+    if (!rate) return null;
+    return calculateEstimatedFee(rate, staticAssets?.assets);
+  }, [ratesData, selectedProvider, staticAssets]);
 
   const loading = ratesLoading || liquidityLoading;
 
@@ -128,9 +140,9 @@ export const ComparisonTable = ({
                         </div>
                       </div>
                       <div className="p-4">
-                        <div className="text-sm text-gray-400 mb-2">Estimated Cost</div>
+                        <div className="text-sm text-gray-400 mb-2">Estimated Fee</div>
                         <div className="text-xl text-white font-medium">
-                          {formatCurrency(ratesData?.data?.near_intents?.[0]?.totalFeesUsd)}
+                          {formatCurrency(nearIntentsFee ?? undefined)}
                         </div>
                       </div>
                       <div className="p-4">
@@ -170,9 +182,9 @@ export const ComparisonTable = ({
                         </div>
                       </div>
                       <div className="p-4">
-                        <div className="text-sm text-gray-400 mb-2">Estimated Cost</div>
+                        <div className="text-sm text-gray-400 mb-2">Estimated Fee</div>
                         <div className="text-xl text-white font-medium">
-                          {formatCurrency(ratesData?.data?.[selectedProvider]?.[0]?.totalFeesUsd)}
+                          {formatCurrency(providerFee ?? undefined)}
                         </div>
                       </div>
                       <div className="p-4">

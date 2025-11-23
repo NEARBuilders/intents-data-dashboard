@@ -2,22 +2,21 @@ import { DuneClient } from "@duneanalytics/client-sdk";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
-import { PluginClient  } from "@data-provider/shared-contract";
 
 import { contract } from "./contract";
+import { getPluginRuntime } from "./plugins";
 import { DataAggregatorService } from "./service";
 import { RedisService } from "./services/redis";
-import { IconResolverService } from "./services/icon-resolver";
 
 export default createPlugin({
   variables: z.object({
-    providers: z.custom<Record<string, PluginClient>>(),
+    isDevelopment: z.boolean().optional().default(false),
   }),
 
   secrets: z.object({
     DUNE_API_KEY: z.string(),
     REDIS_URL: z.string().default("redis://localhost:6379"),
-    COINMARKETCAP_API_KEY: z.string().optional()
+    NEAR_INTENTS_API_KEY: z.string(),
   }),
 
   contract,
@@ -31,15 +30,14 @@ export default createPlugin({
       const redis = new RedisService(config.secrets.REDIS_URL);
       yield* redis.healthCheck();
 
-      const providers = config.variables.providers;
+      const { providers } = yield* getPluginRuntime({
+        isDevelopment: config.variables.isDevelopment,
+        secrets: config.secrets,
+      });
 
-      const iconResolver = new IconResolverService(redis, config.secrets.COINMARKETCAP_API_KEY);
+      const service = new DataAggregatorService(dune, providers, redis);
 
-      const service = new DataAggregatorService(dune, providers, redis, iconResolver);
-
-      console.log("Aggregator plugin initialized with injected providers, Redis, and icon resolver");
-
-      return { service, providers, redis, iconResolver };
+      return { service, providers, redis };
     }),
 
   shutdown: () => Effect.void,
@@ -55,31 +53,31 @@ export default createPlugin({
 
       sync: builder.sync.handler(async ({ input }) => {
         await service.startSync(input.datasets);
-        
+
         const cleared: string[] = [];
-        
+
         if (!input.datasets || input.datasets.includes('volumes')) {
           const count = await Effect.runPromise(redis.clear('volumes:*'));
           cleared.push(`volumes (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('rates')) {
           const count = await Effect.runPromise(redis.clear('rates:*'));
           cleared.push(`rates (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('liquidity')) {
           const count = await Effect.runPromise(redis.clear('liquidity:*'));
           cleared.push(`liquidity (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('assets')) {
           const count = await Effect.runPromise(redis.clear('assets:*'));
           cleared.push(`assets (${count} keys)`);
         }
-        
+
         console.log('Cache cleared:', cleared.join(', '));
-        
+
         return {
           status: "sync_initiated" as const,
           timestamp: new Date().toISOString(),

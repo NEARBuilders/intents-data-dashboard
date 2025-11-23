@@ -1,6 +1,6 @@
+import type { AssetType, PluginClient } from "@data-provider/shared-contract";
 import { Effect } from "every-plugin/effect";
-import type { AssetType, ProviderIdentifier } from "../contract";
-import type { IconResolverService } from "./icon-resolver";
+import type { ProviderIdentifier } from "../contract";
 import type { RedisService } from "./redis";
 
 export async function buildAssetSupportIndex(
@@ -53,7 +53,6 @@ export function getProvidersForRoute(
 export async function aggregateListedAssets(
   providers: Partial<Record<ProviderIdentifier, any>>,
   targetProviders: ProviderIdentifier[],
-  iconResolver?: IconResolverService,
   redis?: RedisService
 ): Promise<{
   providers: ProviderIdentifier[];
@@ -95,7 +94,7 @@ export async function aggregateListedAssets(
 
   const results = await Promise.allSettled(
     providersToFetch.map(async (providerId) => {
-      const client = providers[providerId];
+      const client = providers[providerId] as PluginClient;
       if (!client) {
         console.warn(`[Aggregator] Provider ${providerId} not available`);
         return null;
@@ -116,12 +115,8 @@ export async function aggregateListedAssets(
     const providerId = providersToFetch[i]!;
 
     if (result?.status === 'fulfilled' && result.value) {
-      let assets = result.value.assets;
-      
-      if (iconResolver) {
-        assets = await iconResolver.enrichAssetsWithIcons(assets);
-      }
-      
+      const assets = result.value.assets;
+
       data[providerId] = assets;
       successfulProviders.push(providerId);
 

@@ -1,6 +1,10 @@
-import { oc, type InferContractRouterInputs, type InferContractRouterOutputs } from "every-plugin/orpc";
+import {
+  Asset,
+  LiquidityDepth,
+  Rate
+} from "@data-provider/shared-contract";
+import { oc, type InferContractRouterInputs } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
-import { Asset as SharedAsset, Rate as SharedRate, LiquidityDepth as SharedLiquidityDepth } from "@data-provider/shared-contract";
 
 export const ProviderIdentifierEnum = z.enum([
   "across", "axelar", "cashmere", "ccip", "celer", "chainflip",
@@ -25,16 +29,6 @@ export const IsoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
-export const Asset = z.object({
-  blockchain: z.string(),
-  assetId: z.string(),
-  symbol: z.string(),
-  decimals: z.number().int().min(0),
-  contractAddress: z.string().optional(),
-  iconUrl: z.string().url().optional(),
-});
-export type AssetType = z.infer<typeof Asset>;
-
 export const ProviderInfo = z.object({
   id: ProviderIdentifierEnum,
   label: z.string().describe("Human-friendly display name, e.g., 'NEAR Intents'"),
@@ -46,29 +40,6 @@ export const ProviderInfo = z.object({
 });
 export type ProviderInfoType = z.infer<typeof ProviderInfo>;
 
-export const Rate = z.object({
-  source: Asset,
-  destination: Asset,
-  amountIn: z.string(),
-  amountOut: z.string(),
-  effectiveRate: z.number(),
-  totalFeesUsd: z.number().nullable(),
-  quotedAt: z.iso.datetime(),
-});
-export type RateType = z.infer<typeof Rate>;
-
-export const LiquidityDepthPoint = z.object({
-  maxAmountIn: z.string(),
-  slippageBps: z.number(),
-});
-export type LiquidityDepthPointType = z.infer<typeof LiquidityDepthPoint>;
-
-export const LiquidityDepth = z.object({
-  route: z.object({ source: Asset, destination: Asset }),
-  thresholds: z.array(LiquidityDepthPoint),
-  measuredAt: z.iso.datetime(),
-});
-export type LiquidityDepthType = z.infer<typeof LiquidityDepth>;
 
 export const DailyVolume = z.object({
   date: IsoDate,

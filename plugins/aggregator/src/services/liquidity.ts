@@ -1,4 +1,5 @@
-import type { AssetType, LiquidityDepthType, ProviderIdentifier } from "../contract";
+import type { AssetType, LiquidityDepthType } from "@data-provider/shared-contract";
+import type { ProviderIdentifier } from "../contract";
 import { getProvidersForRoute } from "./assets";
 
 export async function aggregateLiquidity(
@@ -13,12 +14,12 @@ export async function aggregateLiquidity(
   data: Record<ProviderIdentifier, LiquidityDepthType[]>;
 }> {
   const providerRouteMap = new Map<ProviderIdentifier, typeof input.routes>();
-  
+
   for (const route of input.routes) {
     const supportingProviders = getProvidersForRoute(route, assetSupportIndex);
-    
+
     const filteredProviders = input.targetProviders.filter(p => supportingProviders.includes(p));
-    
+
     for (const providerId of filteredProviders) {
       if (!providerRouteMap.has(providerId)) {
         providerRouteMap.set(providerId, []);

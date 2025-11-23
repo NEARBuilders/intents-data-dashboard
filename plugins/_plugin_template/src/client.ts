@@ -1,4 +1,5 @@
 import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
+import { z } from 'every-plugin/zod';
 
 /**
  * HTTP Client Layer for Data Provider APIs
@@ -11,7 +12,7 @@ import { createHttpClient, createRateLimiter, type HttpClient } from '@data-prov
  * - Consistent error handling and logging
  *
  * The client works with provider-specific request/response formats.
- * Transformation to/from NEAR Intents format happens in the router layer.
+ * Transformation to/from canonical 1cs_v1 format happens in the router layer.
  */
 
 /**
@@ -27,49 +28,33 @@ export interface VolumeResponse {
   }>;
 }
 
+export const ProviderAsset = z.object({
+  chainId: z.string(), // Standard chain ID (e.g., "1" for Ethereum, "137" for Polygon)
+  address: z.string().optional(), // Contract address, undefined for native tokens
+  symbol: z.string().optional(), // Token symbol (e.g., "ETH", "USDC") - optional when derived from canonical ID
+  decimals: z.number().optional() // Token decimals for amount calculations - optional when derived from canonical ID
+});
+
+export type ProviderAssetType = z.infer<typeof ProviderAsset>;
+
 export interface AssetsResponse {
-  assets: Array<{
-    symbol: string;
-    decimals: number;
-    address?: string;
-    chainId: string;
-  }>;
+  assets: Array<ProviderAssetType>;
   measuredAt: string;
 }
 
 export interface QuoteRequest {
-  routes: Array<{
-    source: {
-      chainId: string;
-      address?: string;
-      symbol: string;
-      decimals: number;
-    };
-    destination: {
-      chainId: string;
-      address?: string;
-      symbol: string;
-      decimals: number;
-    };
-  }>;
+  route: {
+    source: ProviderAssetType;
+    destination: ProviderAssetType;
+  };
   amounts: string[];
 }
 
 export interface QuoteResponse {
   quotes: Array<{
     route: {
-      source: {
-        chainId: string;
-        address?: string;
-        symbol: string;
-        decimals: number;
-      };
-      destination: {
-        chainId: string;
-        address?: string;
-        symbol: string;
-        decimals: number;
-      };
+      source: ProviderAssetType;
+      destination: ProviderAssetType;
     };
     amount: string;
     price: string;
@@ -78,37 +63,17 @@ export interface QuoteResponse {
 }
 
 export interface LiquidityRequest {
-  routes: Array<{
-    source: {
-      chainId: string;
-      address?: string;
-      symbol: string;
-      decimals: number;
-    };
-    destination: {
-      chainId: string;
-      address?: string;
-      symbol: string;
-      decimals: number;
-    };
-  }>;
+  route: {
+    source: ProviderAssetType;
+    destination: ProviderAssetType;
+  };
 }
 
 export interface LiquidityResponse {
   liquidity: Array<{
     route: {
-      source: {
-        chainId: string;
-        address?: string;
-        symbol: string;
-        decimals: number;
-      };
-      destination: {
-        chainId: string;
-        address?: string;
-        symbol: string;
-        decimals: number;
-      };
+      source: ProviderAssetType;
+      destination: ProviderAssetType;
     };
     depth50bps: string;
     depth100bps: string;

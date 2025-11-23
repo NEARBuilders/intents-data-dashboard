@@ -9,6 +9,9 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@data-provider/across": "workspace:*",
+    "@data-provider/near-intents": "workspace:*",
+    "@data-provider/shared-contract": "workspace:*",
     "@data-provider/template": "workspace:*",
     "@effect/language-service": "^0.41.1",
     "@module-federation/node": "^2.7.17",

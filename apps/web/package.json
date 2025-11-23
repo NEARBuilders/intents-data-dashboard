@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@data-provider/api": "workspace:*",
+    "@data-provider/shared-contract": "workspace:*",
     "@tanstack/devtools-vite": "^0.3.11",
     "@tanstack/nitro-v2-vite-plugin": "^1.133.19",
     "@testing-library/dom": "^10.4.0",

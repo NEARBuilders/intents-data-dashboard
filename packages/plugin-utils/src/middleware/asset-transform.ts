@@ -1,33 +1,31 @@
 import { os } from "every-plugin/orpc";
 
 /**
- * Creates a typed oRPC middleware that transforms NEAR Intents routes to provider format.
- * Builds routes by transforming individual source/destination assets.
+ * Creates a typed oRPC middleware that transforms NEAR Intents route to provider format.
+ * Transforms individual source/destination assets of a single route.
  */
-export function createTransformRoutesMiddleware<TInputAsset, TOutputAsset>(
+export function createTransformRouteMiddleware<TInputAsset, TOutputAsset>(
   transformAsset: (asset: TInputAsset) => Promise<TOutputAsset>
 ) {
   return os.middleware(async ({ context, next }, input: {
-    routes?: Array<{ source: TInputAsset; destination: TInputAsset }>;
+    route?: { source: TInputAsset; destination: TInputAsset };
   }) => {
-    // Transform routes by transforming individual assets
-    const transformedRoutes: Array<{ source: TOutputAsset; destination: TOutputAsset }> = [];
+    // Transform route by transforming individual assets
+    let transformedRoute: { source: TOutputAsset; destination: TOutputAsset } | undefined;
 
-    if (input.routes?.length) {
-      for (const route of input.routes) {
-        const [source, destination] = await Promise.all([
-          transformAsset(route.source),
-          transformAsset(route.destination)
-        ]);
-        transformedRoutes.push({ source, destination });
-      }
+    if (input.route) {
+      const [source, destination] = await Promise.all([
+        transformAsset(input.route.source),
+        transformAsset(input.route.destination)
+      ]);
+      transformedRoute = { source, destination };
     }
 
-    // Add transformed routes to context (middleware updates context, not input)
+    // Add transformed route to context (middleware updates context, not input)
     return next({
       context: {
         ...context,
-        routes: transformedRoutes
+        route: transformedRoute
       }
     });
   });

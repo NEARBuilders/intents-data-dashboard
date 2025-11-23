@@ -1,16 +1,4 @@
-export interface Asset {
-  blockchain: string;
-  assetId: string;
-  symbol: string;
-  decimals?: number;
-  contractAddress?: string;
-  iconUrl?: string;
-}
-
-export interface Route {
-  source: Asset;
-  destination: Asset;
-}
+export type { AssetType as Asset, RouteType as Route } from '@data-provider/shared-contract';
 
 export interface ProviderInfo {
   id: string;

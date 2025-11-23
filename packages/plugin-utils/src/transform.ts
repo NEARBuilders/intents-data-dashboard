@@ -6,7 +6,7 @@ import type {
 } from '@data-provider/shared-contract';
 
 /**
- * Transform a rate from provider format to NEAR Intents format.
+ * Transform a rate from provider format to canonical 1cs_v1 format.
  * Handles nested asset transformations while preserving rate data.
  */
 export async function transformRate<TProviderAsset>(
@@ -30,7 +30,7 @@ export async function transformRate<TProviderAsset>(
 }
 
 /**
- * Transform liquidity depth from provider format to NEAR Intents format.
+ * Transform liquidity depth from provider format to canonical 1cs_v1 format.
  * Handles nested route and asset transformations.
  */
 export async function transformLiquidity<TProviderAsset>(
@@ -50,7 +50,7 @@ export async function transformLiquidity<TProviderAsset>(
 }
 
 /**
- * Transform a simple route object from provider format to NEAR Intents format.
+ * Transform a simple route object from provider format to canonical 1cs_v1 format.
  */
 export async function transformRoute<TProviderAsset>(
   route: RouteType<TProviderAsset>,

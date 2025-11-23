@@ -1,33 +1,68 @@
-import { DataProviderService as BaseDataProviderService, calculateEffectiveRate } from "@data-provider/plugin-utils";
-import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
-import { ProviderApiClient } from "./client";
+import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, getChainNamespace } from "@data-provider/plugin-utils";
 import type {
-  LiquidityDepthType,
-  ProviderAssetType,
+  AssetType, LiquidityDepthType,
   RateType,
   RouteType,
-  SnapshotType,
   TimeWindow,
   VolumeWindowType
-} from "./contract";
+} from "@data-provider/shared-contract";
+import { parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
+import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
+import { IntentsAssetType, IntentsClient } from "./client";
 
-/**
- * Service Layer for Data Provider Business Logic
- *
- * This layer implements the core business logic for interacting with data provider APIs.
- * Key characteristics:
- * - Works exclusively in provider-specific format (ProviderAssetType, ProviderRouteType)
- * - No knowledge of NEAR Intents format - that's handled by the router layer
- * - Each method maps directly to a provider API endpoint
- * - Returns standardized internal types with generic provider asset types
- *
- * Architecture Flow:
- * Client Input (NEAR Intents) → Router (transformRoute) → Service (Provider format) → API Response
- * API Response → Service (standardize) → Router (transformAsset) → Client Output (NEAR Intents)
- */
-export class DataProviderService extends BaseDataProviderService<ProviderAssetType> {
-  constructor(private readonly client: ProviderApiClient) {
+export class IntentsService extends BaseDataProviderService<IntentsAssetType> {
+  constructor(private readonly client: IntentsClient) {
     super();
+  }
+
+  /**
+   * Transform canonical AssetType to provider-specific format.
+   * Simply converts the canonical asset (which now includes symbol/decimals) to provider format.
+   */
+  async transformAssetToProvider(asset: AssetType): Promise<IntentsAssetType> {
+    const parsed = parse1cs(asset.assetId);
+
+    return {
+      blockchain: parsed.chain,
+      assetId: asset.assetId,
+      symbol: asset.symbol,
+      decimals: asset.decimals,
+      contractAddress: parsed.reference,
+    };
+  }
+
+  /**
+   * Transform provider-specific asset to canonical AssetType format.
+   * Converts to 1cs_v1 format when possible.
+   */
+  async transformAssetFromProvider(asset: IntentsAssetType): Promise<AssetType> {
+    try {
+      let canonical: string;
+
+      if (asset.assetId.startsWith('1cs_v1:')) {
+        canonical = asset.assetId;
+      } else {
+        const { namespace, reference } = getChainNamespace(
+          asset.blockchain,
+          asset.contractAddress
+        );
+        canonical = stringify1cs({
+          version: 'v1',
+          chain: asset.blockchain,
+          namespace,
+          reference: reference.toLowerCase()
+        });
+      }
+
+      return {
+        assetId: canonical,
+        decimals: asset.decimals,
+        symbol: asset.symbol
+      };
+    } catch (error) {
+      console.warn(`[NEAR Intents] Failed to convert asset ${asset.symbol} (blockchain: ${asset.blockchain}):`, error);
+      throw error;
+    }
   }
 
   /**
@@ -53,7 +88,7 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
           case "30d":
             volumeUsd = summary.total30d ?? 0;
             break;
-          case "cumulative":
+          case "all":
             volumeUsd = summary.totalAllTime ?? 0;
             break;
         }
@@ -77,13 +112,13 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   /**
    * Fetch list of assets supported by NEAR Intents using 1Click API.
    */
-  async getListedAssets(): Promise<ProviderAssetType[]> {
+  async getListedAssets(): Promise<IntentsAssetType[]> {
     try {
       const tokens = await this.client.fetchTokens();
 
-      // Map 1Click TokenResponse to ProviderAssetType
+      // Map 1Click TokenResponse to IntentsAssetType
       // Deduplicate by (blockchain, assetId) to avoid duplicates
-      const assetMap = new Map<string, ProviderAssetType>();
+      const assetMap = new Map<string, IntentsAssetType>();
 
       for (const token of tokens) {
         const key = `${token.blockchain}:${token.assetId}`;
@@ -113,76 +148,66 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   /**
    * Fetch rate quotes for route/notional combinations using 1Click API.
    */
-  async getRates(routes: RouteType<ProviderAssetType>[], notionals: string[]): Promise<RateType<ProviderAssetType>[]> {
-    const rates: RateType<ProviderAssetType>[] = [];
+  async getRates(route: RouteType<IntentsAssetType>, notionals: string[]): Promise<RateType<IntentsAssetType>[]> {
+    const rates: RateType<IntentsAssetType>[] = [];
 
-    for (const route of routes) {
-      // Skip routes where source and destination are the same asset
-      if (route.source.assetId === route.destination.assetId) {
-        console.log(`[NEAR Intents] Skipping same-asset route: ${route.source.assetId}`);
-        continue;
-      }
+    // Skip routes where source and destination are the same asset
+    if (route.source.assetId === route.destination.assetId) {
+      console.log(`[NEAR Intents] Skipping same-asset route: ${route.source.assetId}`);
+      return rates;
+    }
 
-      for (const notional of notionals) {
-        try {
-          // Build quote request for dry-run mode
-          const quoteRequest: QuoteRequest = {
-            dry: true,
-            swapType: QuoteRequest.swapType.EXACT_INPUT,
-            slippageTolerance: 100, // 1%
-            originAsset: route.source.assetId,
-            depositType: QuoteRequest.depositType.INTENTS,
-            destinationAsset: route.destination.assetId,
-            amount: notional,
-            refundTo: 'recipient.near', // dummy valid recipient
-            refundType: QuoteRequest.refundType.INTENTS,
-            recipient: 'recipient.near',
-            recipientType: QuoteRequest.recipientType.INTENTS,
-            deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-          };
+    for (const notional of notionals) {
+      try {
+        // Build quote request for dry-run mode
+        const quoteRequest: QuoteRequest = {
+          dry: true,
+          swapType: QuoteRequest.swapType.EXACT_INPUT,
+          slippageTolerance: 100, // 1%
+          originAsset: route.source.assetId,
+          depositType: QuoteRequest.depositType.INTENTS,
+          destinationAsset: route.destination.assetId,
+          amount: notional,
+          refundTo: 'recipient.near', // dummy valid recipient
+          refundType: QuoteRequest.refundType.INTENTS,
+          recipient: 'recipient.near',
+          recipientType: QuoteRequest.recipientType.INTENTS,
+          deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+        };
 
-          const response = await this.client.fetchQuote(quoteRequest);
+        const response = await this.client.fetchQuote(quoteRequest);
 
-          // Extract quote data
-          const quote = response.quote;
-          const amountIn = quote.amountIn;
-          const amountOut = quote.amountOut;
-          const amountInUsd = quote.amountInUsd;
-          const amountOutUsd = quote.amountOutUsd;
+        // Extract quote data
+        const quote = response.quote;
+        const amountIn = quote.amountIn;
+        const amountOut = quote.amountOut;
 
-          // Calculate effective rate and fees
-          const effectiveRate = calculateEffectiveRate(
-            amountIn,
-            amountOut,
-            route.source.decimals,
-            route.destination.decimals
-          );
+        const effectiveRate = calculateEffectiveRate(
+          amountIn,
+          amountOut,
+          route.source.decimals,
+          route.destination.decimals
+        );
 
-          const totalFeesUsd = (amountInUsd && amountOutUsd)
-            ? Math.max(0, parseFloat(amountInUsd) - parseFloat(amountOutUsd))
-            : null;
-
-          rates.push({
-            source: route.source,
-            destination: route.destination,
-            amountIn,
-            amountOut,
-            effectiveRate,
-            totalFeesUsd,
-            quotedAt: response.timestamp || new Date().toISOString(),
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(
-            `[NEAR Intents] Failed to get rate for ${route.source.symbol} (${route.source.assetId}) -> ` +
-            `${route.destination.symbol} (${route.destination.assetId}) with amount ${notional}: ${errorMessage}`
-          );
-          // Skip this route/notional pair but continue with others
-        }
+        rates.push({
+          source: route.source,
+          destination: route.destination,
+          amountIn,
+          amountOut,
+          effectiveRate,
+          quotedAt: response.timestamp || new Date().toISOString(),
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(
+          `[NEAR Intents] Failed to get rate for ${route.source.symbol} (${route.source.assetId}) -> ` +
+          `${route.destination.symbol} (${route.destination.assetId}) with amount ${notional}: ${errorMessage}`
+        );
+        // Skip this notional but continue with others
       }
     }
 
-    console.log(`[NEAR Intents] Successfully fetched ${rates.length} rates for ${routes.length} routes`);
+    console.log(`[NEAR Intents] Successfully fetched ${rates.length} rates for route`);
     return rates;
   }
 
@@ -190,147 +215,117 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
    * Fetch liquidity depth at 50bps and 100bps thresholds.
    * Estimates depth by requesting quotes at various notional sizes and measuring slippage.
    */
-  async getLiquidityDepth(routes: RouteType<ProviderAssetType>[]): Promise<LiquidityDepthType<ProviderAssetType>[]> {
-    const liquidity: LiquidityDepthType<ProviderAssetType>[] = [];
+  async getLiquidityDepth(route: RouteType<IntentsAssetType>): Promise<LiquidityDepthType<IntentsAssetType>[]> {
+    const liquidity: LiquidityDepthType<IntentsAssetType>[] = [];
 
-    for (const route of routes) {
-      try {
-        // Define candidate notionals to test for liquidity
-        // Use a range similar to testNotionals but extended
-        const candidateNotionals = [
-          '100000000',      // $100 for 6-decimal tokens
-          '1000000000',     // $1K
-          '10000000000',    // $10K
-          '100000000000',   // $100K
-          '1000000000000',  // $1M
-        ];
+    try {
+      // Define candidate notionals to test for liquidity
+      // Use a range similar to testNotionals but extended
+      const candidateNotionals = [
+        '100000000',      // $100 for 6-decimal tokens
+        '1000000000',     // $1K
+        '10000000000',    // $10K
+        '100000000000',   // $100K
+        '1000000000000',  // $1M
+      ];
 
-        // Get baseline rate from smallest notional
-        const baselineAmount = candidateNotionals[0]!;
-        const baselineResponse = await this.client.fetchQuote({
-          dry: true,
-          swapType: QuoteRequest.swapType.EXACT_INPUT,
-          slippageTolerance: 100, // 1%
-          originAsset: route.source.assetId,
-          depositType: QuoteRequest.depositType.INTENTS,
-          destinationAsset: route.destination.assetId,
-          amount: baselineAmount,
-          refundTo: 'recipient.near',
-          refundType: QuoteRequest.refundType.INTENTS,
-          recipient: 'recipient.near',
-          recipientType: QuoteRequest.recipientType.INTENTS,
-          deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-        });
+      // Get baseline rate from smallest notional
+      const baselineAmount = candidateNotionals[0]!;
+      const baselineResponse = await this.client.fetchQuote({
+        dry: true,
+        swapType: QuoteRequest.swapType.EXACT_INPUT,
+        slippageTolerance: 100, // 1%
+        originAsset: route.source.assetId,
+        depositType: QuoteRequest.depositType.INTENTS,
+        destinationAsset: route.destination.assetId,
+        amount: baselineAmount,
+        refundTo: 'recipient.near',
+        refundType: QuoteRequest.refundType.INTENTS,
+        recipient: 'recipient.near',
+        recipientType: QuoteRequest.recipientType.INTENTS,
+        deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      });
 
-        const baselineRate = calculateEffectiveRate(
-          baselineResponse.quote.amountIn,
-          baselineResponse.quote.amountOut,
-          route.source.decimals,
-          route.destination.decimals
-        );
+      const baselineRate = calculateEffectiveRate(
+        baselineResponse.quote.amountIn,
+        baselineResponse.quote.amountOut,
+        route.source.decimals,
+        route.destination.decimals
+      );
 
-        // Find max amounts at 50bps and 100bps slippage
-        let maxAmount50bps: string | undefined;
-        let maxAmount100bps: string | undefined;
+      // Find max amounts at 50bps and 100bps slippage
+      let maxAmount50bps: string | undefined;
+      let maxAmount100bps: string | undefined;
 
-        for (const notional of candidateNotionals) {
-          try {
-            const response = await this.client.fetchQuote({
-              dry: true,
-              swapType: QuoteRequest.swapType.EXACT_INPUT,
-              slippageTolerance: 100, // 1%
-              originAsset: route.source.assetId,
-              depositType: QuoteRequest.depositType.INTENTS,
-              destinationAsset: route.destination.assetId,
-              amount: notional,
-              refundTo: 'recipient.near',
-              refundType: QuoteRequest.refundType.INTENTS,
-              recipient: 'recipient.near',
-              recipientType: QuoteRequest.recipientType.INTENTS,
-              deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-            });
+      for (const notional of candidateNotionals) {
+        try {
+          const response = await this.client.fetchQuote({
+            dry: true,
+            swapType: QuoteRequest.swapType.EXACT_INPUT,
+            slippageTolerance: 100, // 1%
+            originAsset: route.source.assetId,
+            depositType: QuoteRequest.depositType.INTENTS,
+            destinationAsset: route.destination.assetId,
+            amount: notional,
+            refundTo: 'recipient.near',
+            refundType: QuoteRequest.refundType.INTENTS,
+            recipient: 'recipient.near',
+            recipientType: QuoteRequest.recipientType.INTENTS,
+            deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+          });
 
-            const currentRate = calculateEffectiveRate(
-              response.quote.amountIn,
-              response.quote.amountOut,
-              route.source.decimals,
-              route.destination.decimals
-            );
+          const currentRate = calculateEffectiveRate(
+            response.quote.amountIn,
+            response.quote.amountOut,
+            route.source.decimals,
+            route.destination.decimals
+          );
 
-            const slippageBps = Math.abs(currentRate / baselineRate - 1) * 10000;
+          const slippageBps = Math.abs(currentRate / baselineRate - 1) * 10000;
 
-            if (slippageBps <= 50 && (!maxAmount50bps || parseFloat(notional) > parseFloat(maxAmount50bps))) {
-              maxAmount50bps = notional;
-            }
-            if (slippageBps <= 100 && (!maxAmount100bps || parseFloat(notional) > parseFloat(maxAmount100bps))) {
-              maxAmount100bps = notional;
-            }
-          } catch (error) {
-            // Skip this notional size if quote fails
-            console.error(`[NEAR Intents] Quote failed for liquidity test at amount ${notional}:`, error);
+          if (slippageBps <= 50 && (!maxAmount50bps || parseFloat(notional) > parseFloat(maxAmount50bps))) {
+            maxAmount50bps = notional;
           }
+          if (slippageBps <= 100 && (!maxAmount100bps || parseFloat(notional) > parseFloat(maxAmount100bps))) {
+            maxAmount100bps = notional;
+          }
+        } catch (error) {
+          // Skip this notional size if quote fails
+          console.error(`[NEAR Intents] Quote failed for liquidity test at amount ${notional}:`, error);
         }
+      }
 
-        // Build thresholds array - may be empty if no quotes succeeded
-        const thresholds = [];
-        if (maxAmount50bps) {
-          thresholds.push({
-            maxAmountIn: maxAmount50bps,
-            slippageBps: 50,
-          });
-        }
-        if (maxAmount100bps) {
-          thresholds.push({
-            maxAmountIn: maxAmount100bps,
-            slippageBps: 100,
-          });
-        }
-
-        liquidity.push({
-          route,
-          thresholds,
-          measuredAt: new Date().toISOString(),
-        });
-      } catch (error) {
-        console.error(`[NEAR Intents] Failed to fetch liquidity for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
-        // Still add an entry with empty thresholds to maintain structure
-        liquidity.push({
-          route,
-          thresholds: [],
-          measuredAt: new Date().toISOString(),
+      // Build thresholds array - may be empty if no quotes succeeded
+      const thresholds = [];
+      if (maxAmount50bps) {
+        thresholds.push({
+          maxAmountIn: maxAmount50bps,
+          slippageBps: 50,
         });
       }
+      if (maxAmount100bps) {
+        thresholds.push({
+          maxAmountIn: maxAmount100bps,
+          slippageBps: 100,
+        });
+      }
+
+      liquidity.push({
+        route,
+        thresholds,
+        measuredAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error(`[NEAR Intents] Failed to fetch liquidity for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
+      // Still add an entry with empty thresholds to maintain structure
+      liquidity.push({
+        route,
+        thresholds: [],
+        measuredAt: new Date().toISOString(),
+      });
     }
 
-    console.log(`[NEAR Intents] Successfully measured liquidity for ${liquidity.length} routes`);
+    console.log(`[NEAR Intents] Successfully measured liquidity for route`);
     return liquidity;
-  }
-
-  /**
- * Get complete snapshot of provider data for given provider-formatted routes and notionals.
- * This is a coordinator method that calls the individual methods.
- * Returns provider format - transformation to NEAR Intents happens in router layer.
- */
-  async getSnapshot(params: {
-    routes: RouteType<ProviderAssetType>[];
-    notionals?: string[];
-    includeWindows?: TimeWindow[];
-  }): Promise<SnapshotType<ProviderAssetType>> {
-    const [volumes, listedAssets, rates, liquidity] = await Promise.all([
-      this.getVolumes(params.includeWindows || ["24h"]),
-      this.getListedAssets(),
-      params.notionals ? this.getRates(params.routes, params.notionals) : Promise.resolve([]),
-      this.getLiquidityDepth(params.routes)
-    ]);
-
-    return {
-      volumes,
-      listedAssets: {
-        assets: listedAssets,
-        measuredAt: new Date().toISOString()
-      },
-      ...(rates.length > 0 && { rates }),
-      ...(liquidity.length > 0 && { liquidity }),
-    };
   }
 }

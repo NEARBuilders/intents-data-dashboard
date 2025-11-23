@@ -1,8 +1,8 @@
-# Multi-Route + Middleware Migration Guide
+# Single-Route + Middleware Migration Guide
 
 ## Overview
 
-This guide documents the migration from the monolithic `getSnapshot` approach to the new multi-route + middleware architecture for data provider plugins. The pattern has been successfully implemented in `plugins/across` and should be applied to all remaining plugins.
+This guide documents the migration to the single-route + middleware architecture for data provider plugins. Each API call for rates/liquidity now accepts a single route instead of arrays of routes, simplifying the API surface and making it easier to implement and test. The pattern has been successfully implemented in `plugins/across`, `plugins/near-intents`, and `plugins/_plugin_template`.
 
 ## Architecture: 4-Layer Pattern
 
@@ -26,9 +26,9 @@ This guide documents the migration from the monolithic `getSnapshot` approach to
 
 ### 4. Middleware Layer (built-in)
 - **Purpose**: Automatic NEAR Intents ⇄ Provider route transformation
-- **Created by**: `createTransformRoutesMiddleware`
-- **Applied to**: `getRates`, `getLiquidity`, `getSnapshot`
-- **Provides**: `context.routes` in transformed provider format
+- **Created by**: `createTransformRouteMiddleware`
+- **Applied to**: `getRates`, `getLiquidity`
+- **Provides**: `context.route` (singular) in transformed provider format
 
 ---
 
@@ -39,6 +39,7 @@ This guide documents the migration from the monolithic `getSnapshot` approach to
 **1. Create `src/client.ts`**
 ```typescript
 import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
+import { z } from 'every-plugin/zod';
 
 export interface {Provider}VolumeResponse {{
   volumes: Array<{{
@@ -48,13 +49,15 @@ export interface {Provider}VolumeResponse {{
   }}>;
 }}
 
-export interface {Provider}Asset {{
-  chainId: number;
-  address: string;
-  symbol: string;
-  decimals: number;
-  priceUsd?: string;
-}}
+export const {Provider}Asset = z.object({{
+  chainId: z.number(),
+  address: z.string(),
+  symbol: z.string(),
+  decimals: z.number(),
+  priceUsd: z.string().optional(),
+}});
+
+export type {Provider}AssetType = z.infer<typeof {Provider}Asset>;
 
 export class {Provider}ApiClient {{
   private readonly http: HttpClient;
@@ -97,40 +100,21 @@ export class {Provider}ApiClient {{
 
 ---
 
-### Phase 2: Create Contract Layer
+### Phase 2: Provider Types
 
-**Update `src/contract.ts`**
-```typescript
-import {{ z }} from 'every-plugin/zod';
-
-// Provider-specific schemas - customize based on actual API
-export const {Provider}Asset = z.object({{
-  // Standard chainId (most providers)
-  chainId: z.number(),
-  address: z.string(),
-  symbol: z.string(),
-  decimals: z.number(),
-  // Add provider-specific fields as needed
-  priceUsd: z.string().optional()
-}});
-
-export const {Provider}Route = z.object({{
-  source: {Provider}Asset,
-  destination: {Provider}Asset
-}});
-
-export type {Provider}AssetType = z.infer<typeof {Provider}Asset>;
-export type {Provider}RouteType = z.infer<typeof {Provider}Route>;
-
-// Re-export shared contract
-export {{ contract }} from '@data-provider/shared-contract';
-export * from '@data-provider/shared-contract';
-```
+**Note**: With the updated pattern, provider asset types are defined using Zod schemas directly in `client.ts` (see Phase 1). This provides runtime validation of API responses and serves as the source of truth for provider-specific formats.
 
 **Custom ChainId Formats:**
 - **Standard (Across, cBridge, deBridge, LiFi)**: `chainId: z.number()`
 - **Axelar**: `chainName: z.string()`
 - **CCTP**: `domainId: z.string()`
+
+**Provider Type is defined in `client.ts` using Zod:**
+```typescript
+// Already defined in Phase 1 client.ts:
+export const {Provider}Asset = z.object({{ ... }});
+export type {Provider}AssetType = z.infer<typeof {Provider}Asset>;
+```
 
 ---
 
@@ -140,101 +124,99 @@ export * from '@data-provider/shared-contract';
 
 **✅ CORRECT Service Structure:**
 ```typescript
-import {{ DataProviderService as BaseDataProviderService }} from "@data-provider/plugin-utils";
-import {{ {Provider}ApiClient }} from "./client";
-import type {{
+import { DataProviderService as BaseDataProviderService } from "@data-provider/plugin-utils";
+import { {Provider}ApiClient, ProviderAssetType } from "./client";
+import type {
   LiquidityDepthType,
-  {Provider}AssetType,
   RateType,
   RouteType,
-  SnapshotType,
   TimeWindow,
   VolumeWindowType
-}} from "./contract";
+} from "@data-provider/shared-contract";
 
-export class {Provider}Service extends BaseDataProviderService<{Provider}AssetType> {{
-  constructor(private readonly client: {Provider}ApiClient) {{
+export class {Provider}Service extends BaseDataProviderService<ProviderAssetType> {
+  constructor(private readonly client: {Provider}ApiClient) {
     super();
-  }}
+  }
 
   // ✅ PUBLIC method, accepts standard TimeWindow[]
-  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {{
+  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {
     const response = await this.client.fetchVolumes(windows);
-    return response.volumes.map(v => ({{
+    return response.volumes.map(v => ({
       window: v.window as TimeWindow,
       volumeUsd: v.volumeUsd,
       measuredAt: v.measuredAt
-    }}));
-  }}
+    }));
+  }
 
-  // ✅ PUBLIC method, returns ProviderAssetType[] (not NEAR Intents format)
-  async getListedAssets(): Promise<{Provider}AssetType[]> {{
+  // ✅ PUBLIC method, returns ProviderAssetType[] (not canonical format)
+  async getListedAssets(): Promise<ProviderAssetType[]> {
     const response = await this.client.fetchTokens();
-    return response.map(asset => ({{
+    return response.map(asset => ({
       chainId: asset.chainId,
       address: asset.address,
       symbol: asset.symbol,
       decimals: asset.decimals,
       priceUsd: asset.priceUsd
-    }}));
-  }}
+    }));
+  }
 
-  // ✅ PUBLIC method, accepts RouteType<ProviderAssetType>[] (provider format)
+  // ✅ PUBLIC method, accepts SINGLE RouteType<ProviderAssetType> (provider format)
   async getRates(
-    routes: RouteType<{Provider}AssetType>[],
+    route: RouteType<ProviderAssetType>,
     notionals: string[]
-  ): Promise<RateType<{Provider}AssetType>[]> {{
-    // Business logic here - NO transformations to NEAR Intents format
-    // Return provider format assets in responses
-    return rates.map(rate => ({{
-      source: route.source,        // ProviderAssetType
-      destination: route.destination,  // ProviderAssetType
-      amountIn: rate.amountIn,
-      amountOut: rate.amountOut,
-      effectiveRate: rate.effectiveRate,
-      totalFeesUsd: rate.totalFeesUsd,
-      quotedAt: rate.quotedAt
-    }}));
-  }}
+  ): Promise<RateType<ProviderAssetType>[]> {
+    // Process single route with multiple notionals
+    // Business logic here - NO transformations to canonical format
+    const rates: RateType<ProviderAssetType>[] = [];
+    
+    for (const notional of notionals) {
+      const quote = await this.client.fetchQuote({
+        route,
+        amounts: [notional]
+      });
+      
+      rates.push({
+        source: route.source,        // ProviderAssetType
+        destination: route.destination,  // ProviderAssetType
+        amountIn: quote.amountIn,
+        amountOut: quote.amountOut,
+        effectiveRate: quote.effectiveRate,
+        quotedAt: quote.quotedAt
+      });
+    }
+    
+    return rates;
+  }
 
-  // Similar for getLiquidityDepth...
-
-  // Coordinator method
-  async getSnapshot(params: {{
-    routes: RouteType<{Provider}AssetType>[];
-    notionals?: string[];
-    includeWindows?: TimeWindow[];
-  }}): Promise<SnapshotType<{Provider}AssetType>> {{
-    const [volumes, listedAssets, rates, liquidity] = await Promise.all([
-      this.getVolumes(params.includeWindows || ["24h"]),
-      this.getListedAssets(),
-      params.notionals ? this.getRates(params.routes, params.notionals) : Promise.resolve([]),
-      this.getLiquidityDepth(params.routes)
-    ]);
-
-    return {{
-      volumes,
-      listedAssets: {{
-        assets: listedAssets,  // ProviderAssetType[] - NOT transformed
-        measuredAt: new Date().toISOString()
-      }},
-      ...(rates.length > 0 && {{ rates }}),
-      ...(liquidity.length > 0 && {{ liquidity }})
-    }};
-  }}
-}}
+  // ✅ PUBLIC method, accepts SINGLE RouteType<ProviderAssetType>
+  async getLiquidityDepth(
+    route: RouteType<ProviderAssetType>
+  ): Promise<LiquidityDepthType<ProviderAssetType>[]> {
+    const response = await this.client.fetchLiquidity({ route });
+    
+    return [{
+      route,
+      thresholds: response.thresholds,
+      measuredAt: new Date().toISOString()
+    }];
+  }
+}
 ```
 
 **❌ WRONG Anti-Patterns:**
 ```typescript
 // ❌ Wrong: Private methods (everything needs to be callable from router)
-private async getRates(...) {{ ... }}
+private async getRates(...) { ... }
 
-// ❌ Wrong: Accepts NEAR Intents AssetType (service only works with provider formats)
-async getRates(routes: RouteType<AssetType>[], ...) {{ ... }}
+// ❌ Wrong: Accepts canonical AssetType (service only works with provider formats)
+async getRates(route: RouteType<AssetType>, ...) { ... }
 
-// ❌ Wrong: Returns NEAR Intents format (transformations happen in router)
-async getListedAssets(): Promise<AssetType[]> {{ ... }}
+// ❌ Wrong: Returns canonical format (transformations happen in router)
+async getListedAssets(): Promise<AssetType[]> { ... }
+
+// ❌ Wrong: Accepts array of routes (now single route per call)
+async getRates(routes: RouteType<ProviderAssetType>[], ...) { ... }
 ```
 
 ---
@@ -357,9 +339,13 @@ export default createPlugin({{
         }};
       }}),
 
-      // WITH middleware - accepts NEAR Intents, transforms to provider format
+      // WITH middleware - accepts canonical route, transforms to provider format
+      // Middleware provides context.route (singular) in provider format
       getRates: builder.getRates.use(transformRoutesMiddleware).handler(async ({{ input, context }}) => {{
-        const providerRates = await service.getRates(context.routes, input.notionals);
+        if (!context.route) {{
+          return {{ rates: [] }};
+        }}
+        const providerRates = await service.getRates(context.route, input.notionals);
         const rates = await Promise.all(
           providerRates.map(r => transformRate(r, transformAssetFromProvider))
         );
@@ -367,40 +353,15 @@ export default createPlugin({{
       }}),
 
       getLiquidity: builder.getLiquidity.use(transformRoutesMiddleware).handler(async ({{ input, context }}) => {{
-        const providerLiquidity = await service.getLiquidityDepth(context.routes);
+        if (!context.route) {{
+          return {{ liquidity: [] }};
+        }}
+        const providerLiquidity = await service.getLiquidityDepth(context.route);
         const liquidity = await Promise.all(
           providerLiquidity.map(l => transformLiquidity(l, transformAssetFromProvider))
         );
         return {{ liquidity }};
       }}),
-
-      getSnapshot: builder.getSnapshot
-        .use(transformRoutesMiddleware)
-        .handler(async ({{ input, context }}) => {{
-          const providerSnapshot = await service.getSnapshot({{
-            routes: context.routes,
-            notionals: input.notionals,
-            includeWindows: input.includeWindows
-          }});
-
-          // Transform all nested provider types to NEAR Intents format
-          const [rates, liquidity, assets] = await Promise.all([
-            providerSnapshot.rates
-              ? Promise.all(providerSnapshot.rates.map(r => transformRate(r, transformAssetFromProvider)))
-              : undefined,
-            providerSnapshot.liquidity
-              ? Promise.all(providerSnapshot.liquidity.map(l => transformLiquidity(l, transformAssetFromProvider)))
-              : undefined,
-            Promise.all(providerSnapshot.listedAssets.assets.map(transformAssetFromProvider))
-          ]);
-
-          return {{
-            volumes: providerSnapshot.volumes,
-            listedAssets: {{ assets, measuredAt: providerSnapshot.listedAssets.measuredAt }},
-            ...(rates && {{ rates }}),
-            ...(liquidity && {{ liquidity }})
-          }};
-        }}),
 
       ping: builder.ping.handler(async () => ({{
         status: "ok" as const,
@@ -602,17 +563,18 @@ assetId: `nep141:${{address}}.omft.near`
 - [ ] Constructor injects client
 - [ ] **All methods are PUBLIC**
 - [ ] `getListedAssets()` returns `{Provider}AssetType[]`
-- [ ] `getRates()` accepts `RouteType<{Provider}AssetType>[]`
-- [ ] No NEAR Intents transformations
+- [ ] `getRates()` accepts single `RouteType<{Provider}AssetType>` (not array)
+- [ ] `getLiquidityDepth()` accepts single `RouteType<{Provider}AssetType>` (not array)
+- [ ] No canonical format transformations
 
 ### Router Layer
-- [ ] Has `transformAssetToProvider` function
-- [ ] Has `transformAssetFromProvider` function
-- [ ] Returns both functions from `initialize()`
-- [ ] Creates middleware with `createTransformRoutesMiddleware`
-- [ ] Routes without routes (`getVolumes`, `getListedAssets`) have no middleware
-- [ ] Routes with routes (`getRates`, `getLiquidity`, `getSnapshot`) have middleware
-- [ ] All responses are in NEAR Intents format
+- [ ] Uses `createProviderRouter` from `@data-provider/plugin-utils` (recommended)
+- [ ] OR manually implements transformation logic with Effect for reliability
+- [ ] Middleware created with `createTransformRouteMiddleware` provides `context.route`
+- [ ] Handlers check `if (!context.route)` and return empty arrays when route is missing
+- [ ] Routes without route param (`getVolumes`, `getListedAssets`) have no middleware
+- [ ] Routes with route param (`getRates`, `getLiquidity`) have middleware
+- [ ] All responses are in canonical format
 
 ### Testing
 - [ ] `npm test` passes (assuming tests already migrated)
@@ -627,17 +589,34 @@ Migration is complete when:
 - ✅ Plugin follows template structure exactly
 - ✅ Service methods call client, not HTTP directly
 - ✅ Service works in provider format only
-- ✅ Router handles all NEAR Intents transformations
-- ✅ Middleware provides `context.routes` in provider format
-- ✅ All endpoints return NEAR Intents format
+- ✅ Service methods accept single route (not arrays)
+- ✅ Router handles all canonical format transformations
+- ✅ Middleware provides `context.route` (singular) in provider format
+- ✅ All endpoints return canonical format
 - ✅ Tests pass and plugin loads successfully
 
 ---
 
 ## Reference
 
-See `plugins/across` for the canonical implementation of this pattern. All other plugins should match this structure exactly, customizing only:
-1. Provider-specific schemas in `contract.ts`
-2. API method implementations in `client.ts`
-3. Business logic in `service.ts` (within provider format)
-4. ChainId mappings in transformation functions
+See `plugins/_plugin_template`, `plugins/across`, and `plugins/near-intents` for canonical implementations of this pattern. All plugins should match this structure, customizing only:
+1. Provider-specific asset type in `client.ts` (exported as `ProviderAssetType`)
+2. API method implementations in `client.ts` 
+3. Business logic in `service.ts` (single route processing in provider format)
+4. ChainId or other identifier mappings in transformation functions
+
+## Key Differences from Previous Architecture
+
+**Before (Multi-Route):**
+- `getRates(routes: RouteType[], notionals: string[])`
+- `getLiquidity(routes: RouteType[])`
+- Middleware provided `context.routes` (array)
+- Service processed multiple routes per call
+
+**After (Single-Route):**
+- `getRates(route: RouteType, notionals: string[])`
+- `getLiquidity(route: RouteType)`
+- Middleware provides `context.route` (singular, optional)
+- Service processes one route per call
+- Simpler to implement and test
+- Better error isolation per route

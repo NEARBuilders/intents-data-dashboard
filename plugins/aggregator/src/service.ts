@@ -1,43 +1,41 @@
+import type {
+  AssetType,
+  LiquidityDepthType,
+  RateType,
+} from "@data-provider/shared-contract";
+import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import type {
-  AssetType,
+  AggregatedVolumeResultType,
   DailyVolumeType,
   DataType,
-  LiquidityDepthType,
   ProviderIdentifier,
   ProviderInfoType,
-  RateType,
   TimePeriod,
-  AggregatedVolumeResultType,
 } from "./contract";
-import { getVolumes, aggregateVolumes } from "./services/volumes";
-import { buildAssetSupportIndex, aggregateListedAssets } from "./services/assets";
-import { aggregateRates } from "./services/rates";
+import { aggregateListedAssets, buildAssetSupportIndex } from "./services/assets";
 import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
+import { aggregateRates } from "./services/rates";
 import { RedisService } from "./services/redis";
-import { IconResolverService } from "./services/icon-resolver";
-import { PluginClient } from "@data-provider/shared-contract";
+import { aggregateVolumes, getVolumes } from "./services/volumes";
 
 export class DataAggregatorService {
   private isSyncInProgress: boolean = false;
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private redis?: RedisService;
-  private iconResolver?: IconResolverService;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, PluginClient>>,
-    redis?: RedisService,
-    iconResolver?: IconResolverService
+    redis?: RedisService
   ) {
     this.dune = dune;
     this.providers = providers;
     this.redis = redis;
-    this.iconResolver = iconResolver;
   }
 
   getProviders(): ProviderInfoType[] {
@@ -133,7 +131,7 @@ export class DataAggregatorService {
     const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
-    const result = await aggregateListedAssets(this.providers, targetProviders, this.iconResolver, this.redis);
+    const result = await aggregateListedAssets(this.providers, targetProviders, this.redis);
     return { ...result, measuredAt: new Date().toISOString() };
   }
 

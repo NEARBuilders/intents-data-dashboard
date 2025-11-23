@@ -1,6 +1,12 @@
 import { parse1cs, stringify1cs } from '@defuse-protocol/crosschain-assetid'
 import type { Asset } from '@/types/common'
 
+export interface ParsedAsset {
+  blockchain: string;
+  assetId: string;
+  contractAddress?: string;
+}
+
 const CHAIN_MAPPING: Record<string, string> = {
   'eth': 'ethereum',
   'ethereum': 'ethereum',
@@ -47,7 +53,7 @@ export function getPlatformId(chain1cs: string): string {
   return CHAIN_MAPPING[chain1cs.toLowerCase()] || chain1cs
 }
 
-export function assetTo1cs(asset: Asset): string {
+export function assetTo1cs(asset: ParsedAsset): string {
   const chain = get1csChain(asset.blockchain)
   const namespace = getNamespaceForChain(asset.blockchain, asset.contractAddress)
   const reference = asset.contractAddress || 'coin'
@@ -60,7 +66,7 @@ export function assetTo1cs(asset: Asset): string {
   })
 }
 
-export function parse1csToAsset(id1cs: string): Partial<Asset> | null {
+export function parse1csToAsset(id1cs: string): ParsedAsset | null {
   try {
     const parsed = parse1cs(id1cs)
     const platformId = getPlatformId(parsed.chain)

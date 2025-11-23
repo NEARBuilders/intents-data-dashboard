@@ -11,6 +11,8 @@ import {
   formatCurrency,
   formatPercentage,
 } from "@/utils/comparison";
+import { useStaticAssets } from "@/hooks/use-static-assets";
+import { calculateEstimatedFee } from "@/utils/fees";
 
 const TREND_ICON_SIZE = "w-5 h-5";
 const TREND_COLORS = {
@@ -72,17 +74,29 @@ export const MetricsTable = ({
   const nearIntentsLiquidity = liquidityData?.data?.near_intents?.[0];
   const selectedProviderLiquidity = liquidityData?.data?.[selectedProvider]?.[0];
 
+  const { data: staticAssets } = useStaticAssets();
+
+  const nearIntentsFee = useMemo(() => {
+    if (!nearIntentsRate) return null;
+    return calculateEstimatedFee(nearIntentsRate, staticAssets?.assets);
+  }, [nearIntentsRate, staticAssets]);
+
+  const providerFee = useMemo(() => {
+    if (!selectedProviderRate) return null;
+    return calculateEstimatedFee(selectedProviderRate, staticAssets?.assets);
+  }, [selectedProviderRate, staticAssets]);
+
   const dataRows = useMemo(() => {
     if (!selectedRoute) return [];
     
-    const nearCost = nearIntentsRate?.totalFeesUsd;
-    const competitorCost = selectedProviderRate?.totalFeesUsd;
+    const nearCost = nearIntentsFee ?? undefined;
+    const competitorCost = providerFee ?? undefined;
     const nearLiq = nearIntentsLiquidity?.thresholds?.[0]?.slippageBps;
     const competitorLiq = selectedProviderLiquidity?.thresholds?.[0]?.slippageBps;
     
     return [
       {
-        label: "Estimated Cost",
+        label: "Estimated Fee",
         nearValue: formatCurrency(nearCost),
         nearColor: getComparisonColor(nearCost, competitorCost, true),
         nearTrend: calculateTrend(nearCost, competitorCost, true),

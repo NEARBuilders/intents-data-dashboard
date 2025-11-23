@@ -18,6 +18,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@defuse-protocol/crosschain-assetid": "^1.0.3",
     "every-plugin": "catalog:"
   },
   "devDependencies": {
