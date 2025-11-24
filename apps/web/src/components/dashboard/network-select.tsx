@@ -13,31 +13,37 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { CoinGeckoPlatform } from "@/lib/coingecko/types";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
-const PINNED_NETWORK_IDS = [
-  "ethereum",
-  "bitcoin",
-  "near-protocol",
-  "sui",
+export interface Network {
+  blockchain: string;
+  displayName: string;
+  symbol: string;
+  iconUrl?: string;
+}
+
+const PINNED_BLOCKCHAIN_SLUGS: string[] = [
+  "eth",
+  "btc",
+  "near",
+  "sol",
+  "arb",
+  "op",
   "zcash",
   "base",
-  "avalanche",
-  "polygon-pos",
-  "binance-smart-chain",
-  "arbitrum-one",
-  "optimistic-ethereum",
-  "solana",
-  "fantom",
+  "pol",
+  "bsc",
+  "avax",
+  "ftm",
+  "celo",
 ];
 
 interface NetworkSelectProps {
   label: string;
   value?: string;
-  onChange: (networkId: string) => void;
-  platforms?: CoinGeckoPlatform[];
+  onChange: (blockchain: string) => void;
+  networks?: Network[];
   disabled?: boolean;
 }
 
@@ -45,47 +51,47 @@ export const NetworkSelect = ({
   label,
   value,
   onChange,
-  platforms,
+  networks,
   disabled,
 }: NetworkSelectProps) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const sortedPlatforms = useMemo(() => {
-    if (!platforms) return { pinned: [], remaining: [] };
+  const sortedNetworks = useMemo(() => {
+    if (!networks) return { pinned: [], remaining: [] as Network[] };
 
-    const byId = new Map(platforms.map((p) => [p.id, p]));
+    const bySlug = new Map(networks.map((n) => [n.blockchain, n]));
 
-    const pinned = PINNED_NETWORK_IDS.map((id) => byId.get(id)).filter(
-      (p): p is CoinGeckoPlatform => !!p
-    );
+    const pinned = PINNED_BLOCKCHAIN_SLUGS
+      .map((slug) => bySlug.get(slug))
+      .filter((n): n is Network => !!n);
 
-    const remaining = platforms
-      .filter((p) => !PINNED_NETWORK_IDS.includes(p.id))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const remaining = networks
+      .filter((n) => !PINNED_BLOCKCHAIN_SLUGS.includes(n.blockchain))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return { pinned, remaining };
-  }, [platforms]);
+  }, [networks]);
 
-  const filteredPlatforms = useMemo(() => {
-    if (!query.trim()) return sortedPlatforms;
+  const filteredNetworks = useMemo(() => {
+    if (!query.trim()) return sortedNetworks;
 
     const q = query.toLowerCase();
-    const filter = (list: CoinGeckoPlatform[]) =>
+    const filter = (list: Network[]) =>
       list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.id.toLowerCase().includes(q) ||
-          p.shortname?.toLowerCase().includes(q)
+        (n) =>
+          n.displayName.toLowerCase().includes(q) ||
+          n.blockchain.toLowerCase().includes(q) ||
+          n.symbol.toLowerCase().includes(q)
       );
 
     return {
-      pinned: filter(sortedPlatforms.pinned),
-      remaining: filter(sortedPlatforms.remaining),
+      pinned: filter(sortedNetworks.pinned),
+      remaining: filter(sortedNetworks.remaining),
     };
-  }, [sortedPlatforms, query]);
+  }, [sortedNetworks, query]);
 
-  const selectedPlatform = platforms?.find((p) => p.id === value) ?? null;
+  const selectedNetwork = networks?.find((n) => n.blockchain === value) ?? null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -100,15 +106,15 @@ export const NetworkSelect = ({
             disabled={disabled}
             className={cn(
               "w-[251px] h-8 justify-between bg-[#252525] border border-[#343434] text-white hover:bg-[#2b2b2b] rounded-[5px] px-3 py-1",
-              !selectedPlatform && "text-gray-400"
+              !selectedNetwork && "text-gray-400"
             )}
           >
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                {selectedPlatform?.image?.thumb ? (
+                {selectedNetwork?.iconUrl ? (
                   <img 
-                    src={selectedPlatform.image.thumb} 
-                    alt={selectedPlatform.name}
+                    src={selectedNetwork.iconUrl} 
+                    alt={selectedNetwork.displayName}
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
@@ -117,7 +123,7 @@ export const NetworkSelect = ({
                 )}
               </div>
               <span className="text-[12px] leading-[15px] tracking-[-0.03em] font-medium text-white/90 truncate">
-                {selectedPlatform ? selectedPlatform.name : "Select blockchain"}
+                {selectedNetwork ? selectedNetwork.displayName : "Select blockchain"}
               </span>
             </div>
 
@@ -169,23 +175,23 @@ export const NetworkSelect = ({
                 No blockchains found.
               </CommandEmpty>
 
-              {filteredPlatforms.pinned.length > 0 && (
+              {filteredNetworks.pinned.length > 0 && (
                 <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  {filteredPlatforms.pinned.map((platform) => (
+                  {filteredNetworks.pinned.map((network) => (
                     <CommandItem
-                      key={platform.id}
-                      value={`${platform.name} ${platform.id} ${platform.shortname || ''}`}
+                      key={network.blockchain}
+                      value={`${network.displayName} ${network.blockchain} ${network.symbol}`}
                       onSelect={() => {
-                        onChange(platform.id);
+                        onChange(network.blockchain);
                         setOpen(false);
                       }}
                       className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] text-white/80 data-[selected=true]:bg-white/6 data-[selected=true]:text-white hover:bg-white/4 transition-colors"
                     >
                       <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                        {platform.image?.thumb ? (
+                        {network.iconUrl ? (
                           <img 
-                            src={platform.image.thumb} 
-                            alt={platform.name}
+                            src={network.iconUrl} 
+                            alt={network.displayName}
                             className="h-full w-full object-cover"
                             loading="lazy"
                           />
@@ -193,8 +199,8 @@ export const NetworkSelect = ({
                           <div className="h-full w-full bg-[#202027]" />
                         )}
                       </div>
-                      <span className="truncate">{platform.name}</span>
-                      {value === platform.id && (
+                      <span className="truncate">{network.displayName}</span>
+                      {value === network.blockchain && (
                         <span className="ml-auto text-xs text-green-400">✓</span>
                       )}
                     </CommandItem>
@@ -202,23 +208,23 @@ export const NetworkSelect = ({
                 </CommandGroup>
               )}
 
-              {filteredPlatforms.remaining.length > 0 && (
+              {filteredNetworks.remaining.length > 0 && (
                 <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  {filteredPlatforms.remaining.map((platform) => (
+                  {filteredNetworks.remaining.map((network) => (
                     <CommandItem
-                      key={platform.id}
-                      value={`${platform.name} ${platform.id} ${platform.shortname || ''}`}
+                      key={network.blockchain}
+                      value={`${network.displayName} ${network.blockchain} ${network.symbol}`}
                       onSelect={() => {
-                        onChange(platform.id);
+                        onChange(network.blockchain);
                         setOpen(false);
                       }}
                       className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] text-white/80 data-[selected=true]:bg-white/6 data-[selected=true]:text-white hover:bg-white/4 transition-colors"
                     >
                       <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                        {platform.image?.thumb ? (
+                        {network.iconUrl ? (
                           <img 
-                            src={platform.image.thumb} 
-                            alt={platform.name}
+                            src={network.iconUrl} 
+                            alt={network.displayName}
                             className="h-full w-full object-cover"
                             loading="lazy"
                           />
@@ -226,8 +232,8 @@ export const NetworkSelect = ({
                           <div className="h-full w-full bg-[#202027]" />
                         )}
                       </div>
-                      <span className="truncate">{platform.name}</span>
-                      {value === platform.id && (
+                      <span className="truncate">{network.displayName}</span>
+                      {value === network.blockchain && (
                         <span className="ml-auto text-xs text-green-400">✓</span>
                       )}
                     </CommandItem>

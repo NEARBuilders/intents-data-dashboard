@@ -1,103 +1,161 @@
-import { fromUniswapToken, parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
 import { Effect } from "every-plugin/effect";
-import { getChainNamespace } from "./chain-mapping";
-import type { AssetDetailsType, AssetInputType } from "./contract";
+import type { AssetType } from "@data-provider/shared-contract";
+import { 
+  assetToCanonicalIdentity,
+  canonicalToAsset,
+  getChainNamespace,
+  getChainId 
+} from "@data-provider/plugin-utils";
+import type { RegistryClient } from "./registries/types";
+import type { 
+  AssetDescriptorType, 
+  CanonicalIdComponentsType 
+} from "./contract";
 
 export class CanonicalAssetService {
+  constructor(private registry: RegistryClient) {}
 
-  /**
-   * Convert standard asset data to 1cs_v1 canonical format
-   */
-  toCanonical(input: AssetInputType): Effect.Effect<{ canonical: string }, Error> {
-    return Effect.try({
-      try: () => {
-        // For EVM tokens with chainId, use fromUniswapToken helper
-        if (input.chainId !== undefined && input.address) {
-          const canonical = fromUniswapToken({
-            chainId: input.chainId,
-            address: input.address
-          });
-          return { canonical };
-        }
+  normalize(descriptor: AssetDescriptorType): Effect.Effect<AssetType, Error> {
+    return Effect.gen(this, function* () {
+      const blockchain = descriptor.blockchain;
+      
+      let namespace = descriptor.namespace;
+      let reference = descriptor.reference;
 
-        // For all other cases (native EVM, non-EVM), use manual construction
-        const chainSlug = input.chain.toLowerCase();
-
-        const chainMapping = getChainNamespace(chainSlug, input.address);
-
-        const canonical = stringify1cs({
-          version: 'v1',
-          chain: chainSlug,
-          ...chainMapping
-        });
-
-        return { canonical };
-      },
-      catch: (error) => {
-        throw new Error(`Failed to create canonical ID: ${error}`);
+      if (!namespace || !reference) {
+        const chainNs = getChainNamespace(blockchain, descriptor.reference);
+        namespace = namespace || chainNs.namespace;
+        reference = reference || chainNs.reference;
       }
+
+      const identityEffect = Effect.promise(() => 
+        assetToCanonicalIdentity({ blockchain, namespace, reference })
+      );
+      const identity = yield* identityEffect;
+
+      let symbol = descriptor.symbol;
+      let decimals = descriptor.decimals;
+      let iconUrl: string | undefined;
+
+      const isNative = identity.reference === 'coin';
+
+      if (!symbol || !decimals) {
+        const metadataEffect = isNative 
+          ? Effect.promise(() => this.registry.getNativeCoin(identity.blockchain))
+          : Effect.promise(() => this.registry.findByReference(identity.blockchain, identity.reference));
+
+        const metadata = yield* metadataEffect;
+
+        if (metadata) {
+          symbol = symbol || metadata.symbol;
+          decimals = decimals ?? metadata.decimals;
+          iconUrl = metadata.iconUrl;
+        }
+      }
+
+      if (!symbol || decimals === undefined) {
+        return yield* Effect.fail(
+          new Error(`Cannot normalize asset: missing symbol or decimals for ${identity.assetId}`)
+        );
+      }
+
+      const chainIdEffect = Effect.promise(() => getChainId(identity.blockchain));
+      const resolvedChainId = yield* chainIdEffect;
+      const chainId = descriptor.chainId ?? resolvedChainId;
+
+      return canonicalToAsset(identity, {
+        symbol,
+        decimals,
+        iconUrl,
+        chainId: chainId ?? undefined,
+      });
     });
-
   }
 
-  /**
-   * Get chainId from slug using CAIP-2 registry reverse lookup
-   */
-  private getChainIdFromSlug(slug: string): number | undefined {
-    // Reverse lookup from CAIP-2 registry
-    const slugMappings: Record<string, number> = {
-      'eth': 1,
-      'optimism': 10,
-      'bsc': 56,
-      'gnosis': 100,
-      'polygon': 137,
-      'base': 8453,
-      'arbitrum': 42161,
-      'avalanche': 43114,
-      'berachain': 80085,
-      // Non-EVM (these don't have chainIds in same way)
-      // 'bitcoin', 'zcash', 'doge', 'near', 'sol', 'tron' etc.
-    };
+  fromCanonicalId(assetId: string): Effect.Effect<AssetType, Error> {
+    return Effect.gen(this, function* () {
+      const identityEffect = Effect.promise(() => 
+        assetToCanonicalIdentity({ assetId })
+      );
+      const identity = yield* identityEffect;
 
-    return slugMappings[slug];
-  }
+      const isNative = identity.reference === 'coin';
 
-  /**
-   * Parse 1cs_v1 canonical format to detailed asset information
-   */
-  fromCanonical(canonical: string): Effect.Effect<AssetDetailsType, Error> {
-    const self = this;
-    return Effect.try({
-      try: () => {
-        // Parse canonical ID using official library
-        const parsed = parse1cs(canonical);
+      const metadataEffect = isNative
+        ? Effect.promise(() => this.registry.getNativeCoin(identity.blockchain))
+        : Effect.promise(() => this.registry.findByReference(identity.blockchain, identity.reference));
 
-        // Validate parsed structure
-        if (!parsed.version || !parsed.chain || !parsed.namespace || !parsed.reference) {
-          throw new Error('Invalid 1cs_v1 format: missing required components');
-        }
+      const metadata = yield* metadataEffect;
 
-        // Fuzzy search for chainId
-        const chainId = self.getChainIdFromSlug(parsed.chain);
-
-        // Create details
-        const details: AssetDetailsType = {
-          version: 'v1',
-          chain: parsed.chain,
-          namespace: parsed.namespace,
-          reference: parsed.reference,
-          selector: parsed.selector,
-          ...(chainId !== undefined ? { chainId } : {})
-        };
-
-        return details;
-      },
-      catch: (error: unknown) => {
-        if (error instanceof Error && error.message.includes('Invalid 1cs_v1')) {
-          throw error;
-        }
-        throw new Error(`Failed to parse canonical ID: ${error instanceof Error ? error.message : String(error)}`);
+      if (!metadata || !metadata.symbol || metadata.decimals === undefined) {
+        return yield* Effect.fail(
+          new Error(`Cannot enrich asset ${assetId}: registry returned incomplete metadata`)
+        );
       }
+
+      const chainIdEffect = Effect.promise(() => getChainId(identity.blockchain));
+      const chainId = yield* chainIdEffect;
+
+      return canonicalToAsset(identity, {
+        symbol: metadata.symbol,
+        decimals: metadata.decimals,
+        iconUrl: metadata.iconUrl,
+        chainId: chainId ?? undefined,
+      });
+    });
+  }
+
+  toCanonicalId(
+    blockchain: string,
+    namespace: string,
+    reference: string
+  ): Effect.Effect<string, Error> {
+    return Effect.tryPromise(() => 
+      assetToCanonicalIdentity({ blockchain, namespace, reference })
+        .then(identity => identity.assetId)
+    );
+  }
+
+  getNetworks(): Effect.Effect<Array<{
+    blockchain: string;
+    displayName: string;
+    symbol: string;
+    iconUrl?: string;
+  }>, Error> {
+    return Effect.gen(this, function* () {
+      const BLOCKCHAIN_SLUGS = [
+        'eth', 'btc', 'sol', 'near', 'arb', 'op', 'base', 
+        'pol', 'bsc', 'ton', 'aptos', 'sui', 'avax', 'ftm', 'celo'
+      ];
+
+      const results: Array<{
+        blockchain: string;
+        displayName: string;
+        symbol: string;
+        iconUrl?: string;
+      }> = [];
+
+      for (const blockchain of BLOCKCHAIN_SLUGS) {
+        try {
+          const metadataEffect = Effect.promise(() => 
+            this.registry.getNativeCoin(blockchain)
+          );
+          const metadata = yield* metadataEffect;
+
+          if (metadata && metadata.symbol && metadata.name) {
+            results.push({
+              blockchain,
+              displayName: metadata.name,
+              symbol: metadata.symbol,
+              iconUrl: metadata.iconUrl,
+            });
+          }
+        } catch (error) {
+          console.warn(`[CanonicalAssetService] Failed to get network metadata for ${blockchain}:`, error);
+        }
+      }
+
+      return results;
     });
   }
 }

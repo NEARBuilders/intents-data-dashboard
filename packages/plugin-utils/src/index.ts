@@ -6,3 +6,4 @@ export * from './service';
 export * from './transform';
 export * from './asset-normalization';
 export * from './provider-router';
+export * from './canonical-asset-id';

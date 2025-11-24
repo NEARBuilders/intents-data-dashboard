@@ -15,9 +15,8 @@
     "build": "tsdown"
   },
   "devDependencies": {
-    "@data-provider/across": "workspace:*",
+    "@data-provider/canonical-asset-conversion": "workspace:*",
     "@data-provider/aggregator": "workspace:*",
-    "@data-provider/near-intents": "workspace:*",
     "@types/node": "^24.10.0",
     "tsdown": "^0.15.5"
   },

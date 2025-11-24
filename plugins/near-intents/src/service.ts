@@ -1,4 +1,4 @@
-import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, getChainNamespace } from "@data-provider/plugin-utils";
+import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, assetToCanonicalIdentity, canonicalToAsset, getChainNamespace } from "@data-provider/plugin-utils";
 import type {
   AssetType, LiquidityDepthType,
   RateType,
@@ -6,11 +6,12 @@ import type {
   TimeWindow,
   VolumeWindowType
 } from "@data-provider/shared-contract";
-import { parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
 import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
 import { IntentsAssetType, IntentsClient } from "./client";
 
 export class IntentsService extends BaseDataProviderService<IntentsAssetType> {
+  private canonicalToProvider = new Map<string, IntentsAssetType>();
+
   constructor(private readonly client: IntentsClient) {
     super();
   }
@@ -19,48 +20,67 @@ export class IntentsService extends BaseDataProviderService<IntentsAssetType> {
    * Transform canonical AssetType to provider-specific format.
    * Simply converts the canonical asset (which now includes symbol/decimals) to provider format.
    */
-  async transformAssetToProvider(asset: AssetType): Promise<IntentsAssetType> {
-    const parsed = parse1cs(asset.assetId);
+async transformAssetToProvider(asset: AssetType): Promise<IntentsAssetType> {
+    const identity = await assetToCanonicalIdentity(asset);
+    const key = identity.assetId.toLowerCase();
 
+    const existing = this.canonicalToProvider.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    // Fallback: synthetic asset... hopefully the above works
+    // but won't crash the pipeline
     return {
-      blockchain: parsed.chain,
-      assetId: asset.assetId,
+      blockchain: identity.blockchain,
+      assetId: identity.assetId, // 1cs_v1
       symbol: asset.symbol,
       decimals: asset.decimals,
-      contractAddress: parsed.reference,
+      contractAddress:
+        identity.reference === "coin" ? undefined : identity.reference,
     };
   }
 
   /**
    * Transform provider-specific asset to canonical AssetType format.
-   * Converts to 1cs_v1 format when possible.
    */
-  async transformAssetFromProvider(asset: IntentsAssetType): Promise<AssetType> {
+  async transformAssetFromProvider(
+    asset: IntentsAssetType,
+  ): Promise<AssetType> {
     try {
-      let canonical: string;
+      let identity;
 
-      if (asset.assetId.startsWith('1cs_v1:')) {
-        canonical = asset.assetId;
+      if (asset.assetId.startsWith("1cs_v1:")) {
+        // Already canonical: just parse
+        identity = await assetToCanonicalIdentity({ assetId: asset.assetId });
       } else {
+        // Derive namespace/reference from chain + contractAddress
         const { namespace, reference } = getChainNamespace(
           asset.blockchain,
-          asset.contractAddress
+          asset.contractAddress,
         );
-        canonical = stringify1cs({
-          version: 'v1',
-          chain: asset.blockchain,
+
+        identity = await assetToCanonicalIdentity({
+          blockchain: asset.blockchain,
           namespace,
-          reference: reference.toLowerCase()
-        });
+          reference,
+        } as any);
       }
 
-      return {
-        assetId: canonical,
+      const canonical = canonicalToAsset(identity, {
+        symbol: asset.symbol,
         decimals: asset.decimals,
-        symbol: asset.symbol
-      };
+      });
+
+      // Cache mapping for reverse lookup (canonical → provider)
+      this.canonicalToProvider.set(canonical.assetId.toLowerCase(), asset);
+
+      return canonical;
     } catch (error) {
-      console.warn(`[NEAR Intents] Failed to convert asset ${asset.symbol} (blockchain: ${asset.blockchain}):`, error);
+      console.warn(
+        `[NEAR Intents] Failed to convert asset ${asset.symbol} (blockchain: ${asset.blockchain}):`,
+        error,
+      );
       throw error;
     }
   }
@@ -170,7 +190,7 @@ export class IntentsService extends BaseDataProviderService<IntentsAssetType> {
           amount: notional,
           refundTo: 'recipient.near', // dummy valid recipient
           refundType: QuoteRequest.refundType.INTENTS,
-          recipient: 'recipient.near',
+          recipient: 'recipient.near', // TODO: this needs to match the target chain
           recipientType: QuoteRequest.recipientType.INTENTS,
           deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
         };

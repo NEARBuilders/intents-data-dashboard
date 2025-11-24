@@ -14,6 +14,7 @@ export default {
       DUNE_API_KEY: process.env.DUNE_API_KEY!,
       NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY!,
       REDIS_URL: process.env.REDIS_URL || "redis://localhost:6379",
+      COINGECKO_DEMO_API_KEY: process.env.COINGECKO_DEMO_API_KEY!
     }
   } satisfies PluginConfigInput<typeof Plugin>
 }

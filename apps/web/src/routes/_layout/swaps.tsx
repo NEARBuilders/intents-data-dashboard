@@ -1,7 +1,7 @@
 import { ComparisonTable } from "@/components/dashboard/comparison-table";
 import { MetricsTable } from "@/components/dashboard/metrics-table";
 import { SwapPairSelector } from "@/components/dashboard/swap-pair-selector";
-import { parse1csToAsset } from "@/lib/1cs-utils";
+import { useAggregatorAssets } from "@/lib/aggregator/hooks";
 import { useQueryErrorResetBoundary } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -66,6 +66,7 @@ function SwapsPage() {
   const loaderData = Route.useLoaderData();
 
   const providersData = loaderData.providers;
+  const { uniqueAssets } = useAggregatorAssets();
 
   const assetProviders = useMemo(
     () =>
@@ -79,30 +80,24 @@ function SwapsPage() {
   const selectedProvider =
     search.provider || (assetProviders.length > 0 ? assetProviders[0].id : "");
 
-  const selectedRoute = useMemo(() => {
-    if (search.source && search.destination) {
-      const sourcePartial = parse1csToAsset(search.source);
-      const destPartial = parse1csToAsset(search.destination);
+  const sourceAsset = useMemo(
+    () => uniqueAssets.find((a) => a.assetId === search.source) ?? null,
+    [uniqueAssets, search.source]
+  );
 
-      if (sourcePartial && destPartial) {
-        return {
-          source: {
-            blockchain: sourcePartial.blockchain!,
-            assetId: sourcePartial.assetId!,
-            symbol: "",
-            contractAddress: sourcePartial.contractAddress,
-          },
-          destination: {
-            blockchain: destPartial.blockchain!,
-            assetId: destPartial.assetId!,
-            symbol: "",
-            contractAddress: destPartial.contractAddress,
-          },
-        };
-      }
-    }
-    return null;
-  }, [search.source, search.destination]);
+  const destAsset = useMemo(
+    () => uniqueAssets.find((a) => a.assetId === search.destination) ?? null,
+    [uniqueAssets, search.destination]
+  );
+
+  const selectedRoute = useMemo(() => {
+    if (!sourceAsset || !destAsset) return null;
+
+    return {
+      source: sourceAsset,
+      destination: destAsset,
+    };
+  }, [sourceAsset, destAsset]);
 
   const handleProviderChange = (provider: string) => {
     navigate({
@@ -111,11 +106,19 @@ function SwapsPage() {
   };
 
   return (
-    <>
-      <Suspense fallback={<SwapPairSelectorSkeleton />}>
-        <SwapPairSelector />
-      </Suspense>
-      <Suspense fallback={<TableSkeleton />}>
+    <div className="w-full h-full">
+      <section className="relative w-full  pt-12">
+        <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] text-center">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 tracking-tight">
+            Head to Head Comparisons
+          </h1>
+          <p className="text-base md:text-lg text-gray-300">
+            Select a cross-chain swap platform to compare with NEAR Intents.
+          </p>
+        </div>
+      </section>
+
+      <Suspense fallback={<ComparisonTableSkeleton />}>
         <ComparisonTable
           selectedProvider={selectedProvider}
           onProviderChange={handleProviderChange}
@@ -123,14 +126,33 @@ function SwapsPage() {
           selectedRoute={selectedRoute}
         />
       </Suspense>
-      <Suspense fallback={<TableSkeleton />}>
+      
+      <Suspense fallback={<SwapPairSelectorSkeleton />}>
+        <SwapPairSelector />
+      </Suspense>
+      
+      <Suspense fallback={<MetricsTableSkeleton />}>
         <MetricsTable
           selectedProvider={selectedProvider}
           providersInfo={providersData?.providers || []}
           selectedRoute={selectedRoute}
         />
       </Suspense>
-    </>
+    </div>
+  );
+}
+
+function ComparisonTableSkeleton() {
+  return (
+    <section className="relative w-full py-10 md:py-12 lg:py-16">
+      <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
+        <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-8">
+          <div className="h-64 flex items-center justify-center">
+            <span className="text-white text-sm">Loading comparison...</span>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -146,14 +168,16 @@ function SwapPairSelectorSkeleton() {
   );
 }
 
-function TableSkeleton() {
+function MetricsTableSkeleton() {
   return (
-    <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
-      <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-6">
-        <div className="h-64 flex items-center justify-center">
-          <span className="text-white text-sm">Loading data...</span>
+    <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-16">
+      <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
+        <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-8">
+          <div className="h-64 flex items-center justify-center">
+            <span className="text-white text-sm">Loading metrics...</span>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

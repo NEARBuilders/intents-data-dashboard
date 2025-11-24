@@ -1,5 +1,4 @@
-import { DataProviderService as BaseDataProviderService, getBlockchainFromChainId, getChainId, getChainNamespace } from "@data-provider/plugin-utils";
-import { parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
+import { DataProviderService as BaseDataProviderService, assetToCanonicalIdentity, canonicalToAsset, getChainId } from "@data-provider/plugin-utils";
 import type { AssetType } from "@data-provider/shared-contract";
 import { ProviderApiClient, ProviderAssetType } from "./client";
 import type {
@@ -37,14 +36,14 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
    * Canonical 1cs_v1 → Provider (for middleware/requests)
    */
   async transformAssetToProvider(asset: AssetType): Promise<ProviderAssetType> {
-    const parsed = parse1cs(asset.assetId);
-    const chainId = await getChainId(parsed.chain);
+    const identity = await assetToCanonicalIdentity(asset);
+    const chainId = await getChainId(identity.blockchain);
     if (!chainId) {
-      throw new Error(`Unsupported chain: ${parsed.chain}`);
+      throw new Error(`Unsupported chain: ${identity.blockchain}`);
     }
     return {
       chainId: chainId.toString(),
-      address: parsed.reference
+      address: identity.reference
     };
   }
 
@@ -53,30 +52,15 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
    * Provider → Canonical 1cs_v1 (for responses)
    */
   async transformAssetFromProvider(asset: ProviderAssetType): Promise<AssetType> {
-    const blockchain = await getBlockchainFromChainId(asset.chainId);
-
-    if (!blockchain) {
-      switch (asset.chainId) {
-        default: {
-          throw new Error(`Unknown chainId: ${asset.chainId} for asset ${asset.symbol} (${asset.address})`);
-        }
-      }
-    }
-
-    const { namespace, reference } = getChainNamespace(blockchain, asset.address);
-
-    const assetId = stringify1cs({
-      version: "v1",
-      chain: blockchain,
-      namespace,
-      reference
+    const identity = await assetToCanonicalIdentity({
+      chainId: asset.chainId,
+      address: asset.address!
     });
 
-    return {
-      assetId,
+    return canonicalToAsset(identity, {
       symbol: asset.symbol!,
       decimals: asset.decimals!
-    };
+    });
   }
 
   /**

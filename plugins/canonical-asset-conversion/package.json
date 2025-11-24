@@ -9,6 +9,8 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@data-provider/shared-contract": "workspace:*",
+    "@data-provider/plugin-utils": "workspace:*",
     "@effect/language-service": "^0.41.1",
     "@module-federation/node": "^2.7.17",
     "@rspack/cli": "^1.5.2",
@@ -31,6 +33,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@coingecko/coingecko-typescript": "^2.2.0",
     "@defuse-protocol/crosschain-assetid": "^1.0.2"
   }
 }

@@ -9,9 +9,14 @@ export type TimeWindow = z.infer<typeof TimeWindowEnum>;
 // --- Schemas ---
 
 export const Asset = z.object({
-  assetId: z.string(), // canonical 1cs_v1 format
-  symbol: z.string(),
-  decimals: z.number().int().min(0),
+  assetId: z.string().describe("canonical 1cs_v1 format"),
+  blockchain: z.string().describe("canonical blockchain slug (e.g., 'eth', 'arb', 'near')"),
+  chainId: z.number().int().optional().describe("EVM-style numeric chainId where applicable"),
+  namespace: z.string().describe("asset standard/kind (e.g., 'erc20', 'native', 'nep141')"),
+  reference: z.string().describe("contract address or 'coin' for native assets"),
+  symbol: z.string().describe("display symbol (e.g., 'USDC', 'ETH', 'SOL')"),
+  decimals: z.number().int().min(0).describe("token decimals for amount normalization"),
+  iconUrl: z.url().optional().describe("optional icon URL for UI display"),
 });
 
 export const Rate = z.object({
@@ -53,17 +58,22 @@ export const Route = z.object({
 // --- Types ---
 
 export type AssetType = z.infer<typeof Asset>;
-export type RouteType = { source: AssetType; destination: AssetType };
-export type RateType = {
-  source: AssetType;
-  destination: AssetType;
+export type RouteType<TAsset = AssetType> = {
+  source: TAsset;
+  destination: TAsset;
+};
+
+export type RateType<TAsset = AssetType> = {
+  source: TAsset;
+  destination: TAsset;
   amountIn: string;
   amountOut: string;
   effectiveRate: number;
   quotedAt: string;
 };
-export type LiquidityDepthType = {
-  route: RouteType;
+
+export type LiquidityDepthType<TAsset = AssetType> = {
+  route: RouteType<TAsset>;
   thresholds: Array<{
     maxAmountIn: string;
     slippageBps: number;

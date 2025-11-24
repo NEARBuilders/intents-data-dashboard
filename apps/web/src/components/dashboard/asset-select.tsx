@@ -14,23 +14,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { logEvent } from "@/lib/analytics";
-import type { CoinGeckoMarketCoin } from "@/lib/coingecko/types";
 import { cn } from "@/lib/utils";
 import type { Asset } from "@/types/common";
 import { useEffect, useMemo, useState } from "react";
-
-interface AssetSections {
-  popular: Asset[];
-  topByMarketCap: Asset[];
-}
 
 interface AssetSelectProps {
   label: string;
   value?: string;
   onChange: (assetId: string) => void;
   assets: Asset[];
-  tokens?: CoinGeckoMarketCoin[];
-  networkId?: string;
+  networkBlockchain?: string;
   direction: "source" | "destination";
   disabled?: boolean;
   loading?: boolean;
@@ -41,8 +34,7 @@ export const AssetSelect = ({
   value,
   onChange,
   assets,
-  tokens,
-  networkId,
+  networkBlockchain,
   direction,
   disabled,
   loading,
@@ -50,53 +42,29 @@ export const AssetSelect = ({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const sections = useMemo((): AssetSections => {
-    if (assets.length === 0) {
-      return {
-        popular: [],
-        topByMarketCap: [],
-      };
-    }
-
-    const popular = assets.slice(0, 10);
-    const topByMarketCap = assets.slice(10);
-
-    return { popular, topByMarketCap };
-  }, [assets]);
-
-  const filteredSections = useMemo((): AssetSections => {
-    if (!query.trim()) return sections;
+  const filteredAssets = useMemo(() => {
+    if (!query.trim()) return assets;
 
     const q = query.toLowerCase();
-
-    const filterList = (list: Asset[]) =>
-      list.filter(
-        (a) =>
-          a.symbol.toLowerCase().includes(q) ||
-          a.assetId.toLowerCase().includes(q)
-      );
-
-    return {
-      popular: filterList(sections.popular),
-      topByMarketCap: filterList(sections.topByMarketCap),
-    };
-  }, [sections, query]);
+    return assets.filter(
+      (a) =>
+        a.symbol.toLowerCase().includes(q) ||
+        a.assetId.toLowerCase().includes(q)
+    );
+  }, [assets, query]);
 
   useEffect(() => {
     if (!query.trim()) return;
 
-    const totalAssets =
-      filteredSections.popular.length + filteredSections.topByMarketCap.length;
-
-    if (totalAssets === 0) {
+    if (filteredAssets.length === 0) {
       logEvent({
         type: "asset_search_no_results",
         direction,
-        networkId,
+        networkId: networkBlockchain,
         query,
       });
     }
-  }, [filteredSections, query, direction, networkId]);
+  }, [filteredAssets, query, direction, networkBlockchain]);
 
   const selectedAsset = assets.find((a) => a.assetId === value) ?? null;
 
@@ -215,50 +183,9 @@ export const AssetSelect = ({
                 No assets found.
               </CommandEmpty>
 
-              {filteredSections.popular.length > 0 && (
+              {filteredAssets.length > 0 && (
                 <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  <div className="px-2.5 pb-1.5 text-[10px] uppercase tracking-[0.1em] text-white/40">
-                    Popular
-                  </div>
-                  {filteredSections.popular.map((asset) => (
-                    <CommandItem
-                      key={asset.assetId}
-                      value={`${asset.symbol} ${asset.assetId}`}
-                      onSelect={() => {
-                        onChange(asset.assetId);
-                        setOpen(false);
-                      }}
-                      className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] text-white/80 data-[selected=true]:bg-white/6 data-[selected=true]:text-white hover:bg-white/4 transition-colors"
-                    >
-                      <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                        {asset.iconUrl ? (
-                          <img
-                            src={asset.iconUrl}
-                            alt={asset.symbol}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-[#202027]" />
-                        )}
-                      </div>
-                      <span className="truncate">{asset.symbol}</span>
-                      {value === asset.assetId && (
-                        <span className="ml-auto text-xs text-green-400">
-                          ✓
-                        </span>
-                      )}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-
-              {filteredSections.topByMarketCap.length > 0 && (
-                <CommandGroup className="px-1.5 py-1.5 space-y-0.5">
-                  <div className="px-2.5 pb-1.5 text-[10px] uppercase tracking-[0.1em] text-white/40">
-                    Top by Market Cap
-                  </div>
-                  {filteredSections.topByMarketCap.map((asset) => (
+                  {filteredAssets.map((asset) => (
                     <CommandItem
                       key={asset.assetId}
                       value={`${asset.symbol} ${asset.assetId}`}

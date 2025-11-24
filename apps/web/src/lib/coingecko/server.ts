@@ -1,5 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions'
+import { parse1cs } from '@defuse-protocol/crosschain-assetid'
+import { getPlatformId } from '@/lib/1cs-utils'
 import type { CoinGeckoPlatform, CoinGeckoMarketCoin, CoinGeckoListCoin, EnrichedAsset } from './types'
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3'
@@ -38,7 +40,7 @@ async function coingeckoFetch(path: string): Promise<Response> {
   return response
 }
 
-export const getCoinGeckoPlatforms = createServerFn().handler(async () => {
+async function getPlatformsInternal(): Promise<CoinGeckoPlatform[]> {
   const now = Date.now()
   if (platformsCache && now - platformsCache.timestamp < CACHE_DURATION) {
     return platformsCache.data
@@ -56,6 +58,10 @@ export const getCoinGeckoPlatforms = createServerFn().handler(async () => {
 
   platformsCache = { data: valid, timestamp: now }
   return valid
+}
+
+export const getCoinGeckoPlatforms = createServerFn().handler(async () => {
+  return await getPlatformsInternal()
 })
 
 interface StaticAssetsData {
@@ -196,4 +202,42 @@ export const getAssetPlatforms = createServerFn()
     const globalCoins = await getGlobalAssetsInternal()
     const coin = globalCoins.find((c) => c.id === data.assetId)
     return coin?.platforms || {}
+  })
+
+export const getCoinDetails = createServerFn()
+  .inputValidator((data: { coinId: string }) => data)
+  .handler(async ({ data }) => {
+    let resolvedCoinId = data.coinId
+
+    if (data.coinId.startsWith('1cs:')) {
+      try {
+        const parsed = parse1cs(data.coinId)
+        const platformId = getPlatformId(parsed.chain)
+        
+        if (parsed.reference && parsed.reference !== 'coin') {
+          const contractResponse = await coingeckoFetch(`/coins/${platformId}/contract/${parsed.reference}`)
+          if (!contractResponse.ok) {
+            throw new Error(`CoinGecko API error: ${contractResponse.status}`)
+          }
+          return await contractResponse.json() as import('./types').CoinGeckoCoinDetails
+        } else {
+          const platforms = await getPlatformsInternal()
+          const platform = platforms.find((p: CoinGeckoPlatform) => p.id === platformId)
+          if (platform?.native_coin_id) {
+            resolvedCoinId = platform.native_coin_id
+          } else {
+            throw new Error(`Unable to resolve native coin for platform: ${platformId}`)
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing 1cs ID:', data.coinId, error)
+        throw new Error(`Invalid 1cs ID or unable to resolve: ${data.coinId}`)
+      }
+    }
+
+    const response = await coingeckoFetch(`/coins/${resolvedCoinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`)
+    if (!response.ok) {
+      throw new Error(`CoinGecko API error: ${response.status}`)
+    }
+    return await response.json() as import('./types').CoinGeckoCoinDetails
   })

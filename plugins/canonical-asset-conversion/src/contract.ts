@@ -1,94 +1,105 @@
 import { oc } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
+import { Asset } from "@data-provider/shared-contract";
 
-// Common chains for autocomplete
 const CommonChains = z.enum([
   'eth', 'arb', 'pol', 'bsc', 'op', 'matic', 'bnb',
-  'base', 'sol', 'near', 'ton', 'aptos', 'sui', 'fiat'
+  'base', 'sol', 'near', 'ton', 'aptos', 'sui', 'btc'
 ]);
 
-// Common namespaces for autocomplete
 const CommonNamespaces = z.enum([
   'erc20', 'erc721', 'erc1155', 'spl', 'nep141', 'nep171', 'near-nft',
   'native', 'aptos-coin', 'iso4217', 'stellar-asset'
 ]);
 
-// Flexible chains: Common ones + Extensible custom
-export const SupportedChains = z.union([
-  CommonChains,
-  z.string()  // Allow any chain slug for extensibility
-]);
+const BlockchainSchema = z.union([CommonChains, z.string()]);
 
-// Flexible namespaces: Common ones + Extensible custom
-export const SupportedNamespaces = z.union([
-  CommonNamespaces,
-  z.string()  // Allow any namespace for extensibility
-]);
+const NamespaceSchema = z.union([CommonNamespaces, z.string()]);
 
-// Input schemas
-export const AssetInput = z.object({
-  chainId: z.number().optional()
-    .describe('Optional EVM chain ID (e.g., 1 for Ethereum, 42161 for Arbitrum). Used with address for EVM token lookups.'),
-  chain: z.string()
-    .describe('Chain slug (e.g., "eth", "sol", "near", "ton"). Required. Use lowercase canonical slugs.'),
-  address: z.string().optional()
-    .describe('Token contract/mint address. Omit for native coins. Examples: "0xA0b..." (EVM), "EPjF..." (Solana).'),
-  symbol: z.string()
-    .describe('Asset symbol for display (e.g., "USDC", "ETH", "SOL")'),
-  decimals: z.number().optional()
-    .describe('Token decimals (e.g., 6 for USDC, 18 for ETH). Optional metadata.')
+// Input for normalization from arbitrary descriptor
+export const AssetDescriptor = z.object({
+  blockchain: BlockchainSchema.describe('canonical blockchain slug (e.g., "eth", "arb", "sol", "near")'),
+  chainId: z.number().optional().describe('optional EVM chain ID'),
+  namespace: NamespaceSchema.optional().describe('e.g., "erc20", "native", "nep141"'),
+  reference: z.string().optional().describe('contract address or "coin" for native'),
+  symbol: z.string().optional().describe('display symbol (e.g., "USDC", "ETH")'),
+  decimals: z.number().optional().describe('token decimals'),
 });
 
-// Output schemas - matches 1cs_v1 OneCsAsset interface
-export const AssetDetails = z.object({
-  version: z.literal('v1')
-    .describe('1cs format version'),
-  chain: SupportedChains
-    .describe('Lowercase chain slug (e.g., "eth", "sol", "near"). Can encode testnet in slug (e.g., "eth-sepolia").'),
-  namespace: SupportedNamespaces
-    .describe('Asset standard/kind. Examples: "erc20" (EVM tokens), "spl" (Solana), "nep141" (NEAR tokens), "native" (native coins), "erc721" (NFTs).'),
-  reference: z.string()
-    .describe('URI-encoded contract/mint/account address. Examples: "0xa0b..." (EVM), "EPjF..." (Solana), "coin" (native).'),
-  selector: z.string().optional()
-    .describe('Optional sub-asset selector for NFTs, token IDs, etc. URI-encoded. Example: "42" (ERC-721 token ID), "series:1/blue:42" (NEAR NFT).'),
-  chainId: z.number().optional()
-    .describe('EVM chain ID if applicable (e.g., 1 for Ethereum). Only present for EVM chains.')
+// Input for parsing canonical ID
+export const CanonicalIdInput = z.object({
+  assetId: z.string().describe('canonical 1cs_v1 asset ID'),
 });
 
-// oRPC contract with OpenAPI metadata
+// Input for building canonical ID
+export const CanonicalIdComponents = z.object({
+  blockchain: z.string().describe('canonical blockchain slug'),
+  namespace: z.string().describe('asset standard/kind'),
+  reference: z.string().describe('contract address or "coin"'),
+});
+
+export const Network = z.object({
+  blockchain: z.string().describe('canonical blockchain slug'),
+  displayName: z.string().describe('human-readable network name'),
+  symbol: z.string().describe('native currency symbol'),
+  iconUrl: z.string().optional().describe('network icon URL'),
+});
+
 export const contract = oc.router({
-  // FROM standard format → convert TO canonical
-  from: oc
+  // Normalize arbitrary asset descriptor into canonical Asset
+  normalize: oc
     .route({
       method: 'POST',
-      path: '/from',
-      summary: 'Convert FROM standard format to 1cs_v1 canonical',
-      description: `Takes standard asset data and converts to canonical format.
-
+      path: '/normalize',
+      summary: 'Normalize arbitrary asset descriptor into canonical Asset',
+      description: `Takes a partial asset description and resolves it into canonical AssetType using registries and heuristics.
+      
 **Examples:**
-- Ethereum USDC: \`{ "chainId": 1, "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "symbol": "USDC" }\`
-- Solana USDC: \`{ "chain": "sol", "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "symbol": "USDC" }\`
-- Ethereum native: \`{ "chainId": 1, "symbol": "ETH" }\``,
-      successDescription: 'Returns canonical 1cs_v1 asset identifier'
+- Ethereum USDC: \`{ "blockchain": "eth", "chainId": 1, "reference": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "symbol": "USDC", "decimals": 6 }\`
+- Solana SOL: \`{ "blockchain": "sol", "symbol": "SOL", "decimals": 9 }\`
+- Arbitrum native: \`{ "blockchain": "arb", "chainId": 42161, "namespace": "native", "reference": "coin", "symbol": "ETH", "decimals": 18 }\``,
     })
-    .input(AssetInput)
-    .output(z.object({ canonical: z.string() })),
+    .input(AssetDescriptor)
+    .output(Asset),
 
-  // TO standard format ← convert FROM canonical
-  to: oc
+  // Convert 1cs_v1 assetId into canonical Asset
+  fromCanonicalId: oc
     .route({
       method: 'POST',
-      path: '/to',
-      summary: 'Convert TO standard format from 1cs_v1 canonical',
-      description: `Parses canonical format and returns structured asset details.
-
+      path: '/fromCanonical',
+      summary: 'Convert 1cs_v1 assetId into canonical Asset',
+      description: `Parses the canonical assetId, enriches with chain/namespace/reference and registry metadata (symbol, decimals, iconUrl).
+      
 **Example:**
-- Input: \`"1cs_v1:eth:erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"\`
-- Output: \`{ "version": "v1", "chain": "eth", "namespace": "erc20", "reference": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" }\``,
-      successDescription: 'Returns parsed asset details with metadata'
+- Input: \`{ "assetId": "1cs_v1:eth:erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" }\`
+- Output: Full Asset object with symbol, decimals, iconUrl from registries`,
     })
-    .input(z.object({ canonical: z.string() }))
-    .output(AssetDetails),
+    .input(CanonicalIdInput)
+    .output(Asset),
+
+  // Build 1cs_v1 assetId from canonical components
+  toCanonicalId: oc
+    .route({
+      method: 'POST',
+      path: '/toCanonical',
+      summary: 'Build 1cs_v1 assetId from canonical blockchain/namespace/reference',
+      description: `Constructs a canonical 1cs_v1 assetId from its components.
+      
+**Example:**
+- Input: \`{ "blockchain": "eth", "namespace": "erc20", "reference": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" }\`
+- Output: \`{ "assetId": "1cs_v1:eth:erc20:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" }\``,
+    })
+    .input(CanonicalIdComponents)
+    .output(z.object({ assetId: z.string() })),
+
+  getNetworks: oc
+    .route({
+      method: 'GET',
+      path: '/networks',
+      summary: 'List supported canonical blockchains with metadata',
+      description: 'Returns blockchains with display name, symbol, and iconUrl based on underlying registries',
+    })
+    .output(z.array(Network)),
 
   ping: oc
     .route({
@@ -97,12 +108,15 @@ export const contract = oc.router({
       summary: 'Health check endpoint',
       description: 'Returns service health status and uptime information',
     })
-    .output(z.object({
-      status: z.literal('ok'),
-      timestamp: z.string(),
-    }))
+    .output(
+      z.object({
+        status: z.literal('ok'),
+        timestamp: z.string(),
+      }),
+    ),
 });
 
-// Export inferred types for use in service layer
-export type AssetInputType = z.infer<typeof AssetInput>;
-export type AssetDetailsType = z.infer<typeof AssetDetails>;
+// Export inferred types
+export type AssetDescriptorType = z.infer<typeof AssetDescriptor>;
+export type CanonicalIdInputType = z.infer<typeof CanonicalIdInput>;
+export type CanonicalIdComponentsType = z.infer<typeof CanonicalIdComponents>;

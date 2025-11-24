@@ -9,12 +9,22 @@ import {
 } from "@/components/ui/select";
 import { useListedAssets } from "@/hooks/use-listed-assets";
 import { useStaticAssets } from "@/hooks/use-static-assets";
-import { parse1csToAsset } from "@/lib/1cs-utils";
+import { buildSymbolGroups, type SymbolGroup } from "@/lib/symbol-groups";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { z } from "zod";
+
+const searchSchema = z.object({
+  search: z.string().optional().default(""),
+  provider: z.string().optional().default("all"),
+  blockchain: z.string().optional().default("all"),
+});
+
+export type AssetsSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_layout/assets")({
+  validateSearch: searchSchema,
   component: AssetsPage,
   loader: async ({ context }) => {
     const providersQuery = context.orpc.getProviders.queryOptions();
@@ -28,21 +38,32 @@ export const Route = createFileRoute("/_layout/assets")({
   ),
 });
 
-interface AssetRow {
-  assetId: string;
-  symbol: string;
-  blockchain: string;
-  decimals: number;
-  providers: string[];
-  iconUrl?: string;
-  price?: number;
-}
-
 function AssetsPage() {
   const loaderData = Route.useLoaderData();
-  const [search, setSearch] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState<string>("all");
-  const [selectedBlockchain, setSelectedBlockchain] = useState<string>("all");
+  const urlSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const search = urlSearch.search || "";
+  const selectedProvider = urlSearch.provider || "all";
+  const selectedBlockchain = urlSearch.blockchain || "all";
+
+  const handleSearchChange = (value: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, search: value || undefined })
+    });
+  };
+
+  const handleProviderChange = (value: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, provider: value === "all" ? undefined : value })
+    });
+  };
+
+  const handleBlockchainChange = (value: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, blockchain: value === "all" ? undefined : value })
+    });
+  };
 
   const assetProviders = useMemo(
     () =>
@@ -52,74 +73,48 @@ function AssetsPage() {
     [loaderData.providers]
   );
 
-  const providerIds = useMemo(
-    () => assetProviders.map((p) => p.id),
-    [assetProviders]
-  );
-
-  const { data: assetsData, isLoading: assetsLoading } =
-    useListedAssets(providerIds);
+  const { data: assetsData, isLoading: assetsLoading } = useListedAssets();
   const { data: staticAssets } = useStaticAssets();
 
-  const assetRows = useMemo((): AssetRow[] => {
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+
+  const symbolGroups = useMemo(() => {
     if (!assetsData) return [];
-
-    const assetMap = new Map<string, AssetRow>();
-
-    for (const [providerId, assets] of Object.entries(assetsData.data)) {
-      for (const asset of assets) {
-        const parsed = parse1csToAsset(asset.assetId);
-        const blockchain = parsed?.blockchain ?? "unknown";
-
-        if (!assetMap.has(asset.assetId)) {
-          const cgAsset = staticAssets?.assets.find(
-            (a) => a.symbol.toLowerCase() === asset.symbol.toLowerCase()
-          );
-
-          assetMap.set(asset.assetId, {
-            assetId: asset.assetId,
-            symbol: asset.symbol,
-            blockchain,
-            decimals: asset.decimals,
-            providers: [providerId],
-            iconUrl: cgAsset?.image,
-            price: cgAsset?.current_price,
-          });
-        } else {
-          const existing = assetMap.get(asset.assetId)!;
-          if (!existing.providers.includes(providerId)) {
-            existing.providers.push(providerId);
-          }
-        }
-      }
-    }
-
-    return Array.from(assetMap.values());
+    return buildSymbolGroups(assetsData, staticAssets);
   }, [assetsData, staticAssets]);
 
-  const filteredRows = useMemo(() => {
-    return assetRows.filter((row) => {
+  const filteredSymbols = useMemo(() => {
+    return symbolGroups.filter((group) => {
       const matchesSearch =
         !search ||
-        row.symbol.toLowerCase().includes(search.toLowerCase()) ||
-        row.assetId.toLowerCase().includes(search.toLowerCase()) ||
-        row.blockchain.toLowerCase().includes(search.toLowerCase());
+        group.symbol.toLowerCase().includes(search.toLowerCase()) ||
+        group.allBlockchains.some((b) =>
+          b.toLowerCase().includes(search.toLowerCase())
+        );
 
       const matchesProvider =
         selectedProvider === "all" ||
-        row.providers.includes(selectedProvider);
+        group.allProviders.includes(selectedProvider);
 
       const matchesBlockchain =
-        selectedBlockchain === "all" || row.blockchain === selectedBlockchain;
+        selectedBlockchain === "all" ||
+        group.allBlockchains.includes(selectedBlockchain);
 
       return matchesSearch && matchesProvider && matchesBlockchain;
     });
-  }, [assetRows, search, selectedProvider, selectedBlockchain]);
+  }, [symbolGroups, search, selectedProvider, selectedBlockchain]);
 
   const blockchains = useMemo(() => {
-    const chains = new Set(assetRows.map((r) => r.blockchain));
+    const chains = new Set<string>();
+    for (const group of symbolGroups) {
+      group.allBlockchains.forEach((b) => chains.add(b));
+    }
     return Array.from(chains).sort();
-  }, [assetRows]);
+  }, [symbolGroups]);
+
+  const selectedGroup = useMemo(() => {
+    return filteredSymbols.find((g) => g.symbol === selectedSymbol) || null;
+  }, [filteredSymbols, selectedSymbol]);
 
   if (assetsLoading) {
     return (
@@ -146,11 +141,11 @@ function AssetsPage() {
         <Input
           placeholder="Search by symbol, asset ID, or blockchain..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="flex-1 bg-[#252525] border-[#343434] text-white placeholder:text-gray-500"
         />
 
-        <Select value={selectedBlockchain} onValueChange={setSelectedBlockchain}>
+        <Select value={selectedBlockchain} onValueChange={handleBlockchainChange}>
           <SelectTrigger className="w-full sm:w-[200px] bg-[#252525] border-[#343434] text-white">
             <SelectValue placeholder="All Blockchains" />
           </SelectTrigger>
@@ -166,7 +161,7 @@ function AssetsPage() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+        <Select value={selectedProvider} onValueChange={handleProviderChange}>
           <SelectTrigger className="w-full sm:w-[200px] bg-[#252525] border-[#343434] text-white">
             <SelectValue placeholder="All Providers" />
           </SelectTrigger>
@@ -190,13 +185,13 @@ function AssetsPage() {
               <thead>
                 <tr className="border-b border-[#343434]">
                   <th className="text-left p-4 text-gray-400 font-medium text-sm">
-                    Asset
-                  </th>
-                  <th className="text-left p-4 text-gray-400 font-medium text-sm">
-                    Blockchain
+                    Symbol
                   </th>
                   <th className="text-left p-4 text-gray-400 font-medium text-sm">
                     Price
+                  </th>
+                  <th className="text-left p-4 text-gray-400 font-medium text-sm">
+                    Blockchains
                   </th>
                   <th className="text-left p-4 text-gray-400 font-medium text-sm">
                     Providers
@@ -204,50 +199,48 @@ function AssetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.length === 0 ? (
+                {filteredSymbols.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="text-center p-8 text-gray-400">
                       No assets found matching your criteria
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((row) => (
+                  filteredSymbols.map((group) => (
                     <tr
-                      key={row.assetId}
-                      className="border-b border-[#343434] hover:bg-[#1a1a1a] transition-colors"
+                      key={group.symbol}
+                      className={cn(
+                        "border-b border-[#343434] hover:bg-[#1a1a1a] transition-colors cursor-pointer",
+                        selectedSymbol === group.symbol && "bg-[#1a1a1a]"
+                      )}
+                      onClick={() =>
+                        setSelectedSymbol(
+                          selectedSymbol === group.symbol ? null : group.symbol
+                        )
+                      }
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                            {row.iconUrl ? (
+                            {group.iconUrl ? (
                               <img
-                                src={row.iconUrl}
-                                alt={row.symbol}
+                                src={group.iconUrl}
+                                alt={group.symbol}
                                 className="h-full w-full object-cover"
                               />
                             ) : (
                               <div className="h-full w-full bg-[#202027]" />
                             )}
                           </div>
-                          <div>
-                            <div className="text-white font-medium">
-                              {row.symbol}
-                            </div>
-                            <div className="text-gray-500 text-xs font-mono">
-                              {row.assetId.slice(0, 20)}...
-                            </div>
+                          <div className="text-white font-medium">
+                            {group.symbol}
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="text-white capitalize">
-                          {row.blockchain}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        {row.price ? (
+                        {group.price ? (
                           <span className="text-white">
-                            ${row.price.toLocaleString(undefined, {
+                            ${group.price.toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 6,
                             })}
@@ -258,7 +251,19 @@ function AssetsPage() {
                       </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
-                          {row.providers.map((providerId) => {
+                          {group.allBlockchains.map((blockchain) => (
+                            <span
+                              key={blockchain}
+                              className="px-2 py-1 rounded text-xs font-medium bg-[#252525] text-white border border-[#343434] capitalize"
+                            >
+                              {blockchain}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                          {group.allProviders.map((providerId) => {
                             const provider = assetProviders.find(
                               (p) => p.id === providerId
                             );
@@ -285,8 +290,94 @@ function AssetsPage() {
         </CardContent>
       </Card>
 
+      {selectedGroup && (
+        <Card className="mt-4 bg-[#0e0e0e] border-[#343434] rounded-[14px]">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
+                {selectedGroup.iconUrl ? (
+                  <img
+                    src={selectedGroup.iconUrl}
+                    alt={selectedGroup.symbol}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-[#202027]" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  {selectedGroup.symbol}
+                </h2>
+                {selectedGroup.price && (
+                  <p className="text-gray-400 text-sm">
+                    ${selectedGroup.price.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 6,
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#343434]">
+                    <th className="text-left p-3 text-gray-400 font-medium text-sm">
+                      Provider
+                    </th>
+                    {selectedGroup.allBlockchains.map((blockchain) => (
+                      <th
+                        key={blockchain}
+                        className="text-center p-3 text-gray-400 font-medium text-sm capitalize"
+                      >
+                        {blockchain}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedGroup.allProviders.map((providerId) => {
+                    const provider = assetProviders.find(
+                      (p) => p.id === providerId
+                    );
+                    return (
+                      <tr
+                        key={providerId}
+                        className="border-b border-[#343434] last:border-0"
+                      >
+                        <td className="p-3 text-white">
+                          {provider?.label || providerId}
+                        </td>
+                        {selectedGroup.allBlockchains.map((blockchain) => {
+                          const asset =
+                            selectedGroup.providers[providerId]?.[blockchain];
+                          return (
+                            <td
+                              key={blockchain}
+                              className="p-3 text-center"
+                            >
+                              {asset ? (
+                                <span className="text-green-400 text-lg">✓</span>
+                              ) : (
+                                <span className="text-gray-600">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mt-4 text-gray-400 text-sm">
-        Showing {filteredRows.length} of {assetRows.length} assets
+        Showing {filteredSymbols.length} of {symbolGroups.length} symbols
       </div>
     </div>
   );

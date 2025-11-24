@@ -11,23 +11,6 @@ export interface CoinGeckoPlatform {
   };
 }
 
-export interface CoinGeckoTokenListToken {
-  chainId: number;
-  address: string;
-  name: string;
-  symbol: string;
-  decimals: number;
-  logoURI: string;
-}
-
-export interface CoinGeckoTokenListResponse {
-  name: string;
-  logoURI: string;
-  keywords: string[];
-  timestamp: string;
-  tokens: CoinGeckoTokenListToken[];
-}
-
 export interface CoinGeckoMarketCoin {
   id: string;
   symbol: string;
@@ -65,4 +48,14 @@ export interface CoinGeckoListCoin {
   symbol: string;
   name: string;
   platforms: Record<string, string>;
+}
+
+export interface CoinGeckoCoinDetails {
+  id: string;
+  symbol: string;
+  name: string;
+  detail_platforms: Record<string, {
+    decimal_place: number | null;
+    contract_address: string;
+  }>;
 }

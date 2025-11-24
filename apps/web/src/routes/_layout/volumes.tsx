@@ -111,7 +111,7 @@ function VolumesPage() {
 
   const handlePeriodChange = (period: string) => {
     navigate({
-      search: (prev) => ({ ...prev, period: period as VolumesSearch["period"] })
+      search: (prev) => ({ ...prev, period: period.toLowerCase() as VolumesSearch["period"] })
     })
   }
 

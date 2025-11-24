@@ -1,7 +1,7 @@
 import { useServerFn } from '@tanstack/react-start'
 import { useQuery } from '@tanstack/react-query'
-import { getCoinGeckoPlatforms, getCoinGeckoTopAssets, searchGlobalAssets, getAssetPlatforms, getTopAssetsForPlatform } from './server'
-import type { CoinGeckoPlatform, CoinGeckoMarketCoin, CoinGeckoListCoin } from './types'
+import { getCoinGeckoPlatforms, getCoinGeckoTopAssets, searchGlobalAssets, getAssetPlatforms, getTopAssetsForPlatform, getCoinDetails } from './server'
+import type { CoinGeckoPlatform, CoinGeckoMarketCoin, CoinGeckoListCoin, CoinGeckoCoinDetails } from './types'
 
 export function usePlatformsQuery() {
   const getPlatforms = useServerFn(getCoinGeckoPlatforms)
@@ -56,6 +56,19 @@ export function useTopAssetsForPlatformQuery(platformId: string | undefined) {
     queryKey: ["coingecko-top-assets-platform", platformId],
     queryFn: () => getAssets({ data: { platformId: platformId! } }),
     enabled: !!platformId,
+    staleTime: 3600000,
+    retry: (failureCount, error) =>
+      error instanceof Error && error.message.includes("429") && failureCount < 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  })
+}
+
+export function useCoinDetailsQuery(coinId: string | undefined) {
+  const getDetails = useServerFn(getCoinDetails)
+  return useQuery<CoinGeckoCoinDetails>({
+    queryKey: ["coingecko-coin-details", coinId],
+    queryFn: () => getDetails({ data: { coinId: coinId! } }),
+    enabled: !!coinId,
     staleTime: 3600000,
     retry: (failureCount, error) =>
       error instanceof Error && error.message.includes("429") && failureCount < 2,

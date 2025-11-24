@@ -1,6 +1,5 @@
-import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, getBlockchainFromChainId, getChainId, getChainNamespace } from '@data-provider/plugin-utils';
+import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, assetToCanonicalIdentity, canonicalToAsset, getChainId } from '@data-provider/plugin-utils';
 import type { AssetType } from "@data-provider/shared-contract";
-import { fromUniswapToken, parse1cs, stringify1cs } from "@defuse-protocol/crosschain-assetid";
 import { AcrossApiClient, AcrossAssetType, type AcrossLimitsResponse, type AcrossSuggestedFeesResponse, type DefiLlamaBridgeResponse } from './client';
 
 import type {
@@ -24,17 +23,17 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
    * Transform canonical AssetType to provider-specific format.
    */
   async transformAssetToProvider(asset: AssetType): Promise<AcrossAssetType> {
-    const chainId = await getChainId(asset.assetId.startsWith('1cs_v1:') ? parse1cs(asset.assetId).chain : '');
+    const identity = await assetToCanonicalIdentity(asset);
+    const chainId = await getChainId(identity.blockchain);
+    
     if (!chainId) {
-      throw new Error(`Unable to resolve chain for asset: ${asset.assetId}`);
+      throw new Error(`Unable to resolve chain for asset: ${identity.assetId}`);
     }
-
-    const parsed = parse1cs(asset.assetId);
 
     return {
       chainId,
-      name: asset.assetId,
-      address: parsed.reference,
+      name: identity.assetId,
+      address: identity.reference,
       symbol: asset.symbol,
       decimals: asset.decimals
     };
@@ -44,41 +43,15 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
    * Transform provider-specific asset to canonical AssetType format.
    */
   async transformAssetFromProvider(asset: AcrossAssetType): Promise<AssetType> {
-    try {
-      const canonical = fromUniswapToken({
-        chainId: asset.chainId,
-        address: asset.address.toLowerCase()
-      });
-      return {
-        assetId: canonical,
-        symbol: asset.symbol,
-        decimals: asset.decimals
-      };
-    } catch (error) {
-      let blockchain = await getBlockchainFromChainId(asset.chainId.toString());
+    const identity = await assetToCanonicalIdentity({
+      chainId: asset.chainId,
+      address: asset.address
+    });
 
-      if (!blockchain) {
-        if (asset.chainId === 34268394551451) {
-          blockchain = "sol";
-        } else {
-          throw new Error(`Unknown chainId: ${asset.chainId} for asset ${asset.symbol} (${asset.address})`);
-        }
-      }
-
-      const { namespace, reference } = getChainNamespace(blockchain, asset.address);
-      const canonical = stringify1cs({
-        version: 'v1',
-        chain: blockchain,
-        namespace,
-        reference: reference.toLowerCase()
-      });
-
-      return {
-        assetId: canonical,
-        symbol: asset.symbol,
-        decimals: asset.decimals
-      };
-    }
+    return canonicalToAsset(identity, {
+      symbol: asset.symbol,
+      decimals: asset.decimals
+    });
   }
 
 

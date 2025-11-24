@@ -6,7 +6,8 @@ import type {
 import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
-import { ORPCError } from "every-plugin/orpc";
+import { ORPCError, type ContractRouterClient } from "every-plugin/orpc";
+import type { contract as CanonicalAssetContract } from "@data-provider/canonical-asset-conversion/src/contract";
 import type {
   AggregatedVolumeResultType,
   DailyVolumeType,
@@ -27,15 +28,58 @@ export class DataAggregatorService {
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private redis?: RedisService;
+  private canonicalAsset: ContractRouterClient<typeof CanonicalAssetContract>;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, PluginClient>>,
+    canonicalAsset: ContractRouterClient<typeof CanonicalAssetContract>,
     redis?: RedisService
   ) {
     this.dune = dune;
     this.providers = providers;
+    this.canonicalAsset = canonicalAsset;
     this.redis = redis;
+  }
+
+  private async canonicalizeAsset(asset: AssetType): Promise<AssetType> {
+    if (asset.assetId?.startsWith("1cs_v1:")) {
+      try {
+        const canonical = await this.canonicalAsset.fromCanonicalId({ assetId: asset.assetId });
+        return canonical;
+      } catch (error: any) {
+        const errorMsg = error?.message ?? String(error);
+        console.warn(`[Aggregator] Failed to canonicalize asset from ID ${asset.assetId}: ${errorMsg}`);
+        return asset;
+      }
+    }
+
+    const descriptor = {
+      blockchain: asset.blockchain,
+      chainId: asset.chainId,
+      namespace: asset.namespace,
+      reference: asset.reference,
+      symbol: asset.symbol,
+      decimals: asset.decimals,
+    };
+
+    try {
+      const canonical = await this.canonicalAsset.normalize(descriptor);
+      return canonical;
+    } catch (error: any) {
+      const errorMsg = error?.message ?? String(error);
+      console.warn(`[Aggregator] Failed to normalize asset ${asset.symbol ?? asset.assetId}: ${errorMsg}`);
+      return asset;
+    }
+  }
+
+  private async canonicalizeAssets(assets: AssetType[]): Promise<AssetType[]> {
+    const results: AssetType[] = [];
+    for (const a of assets) {
+      const canonical = await this.canonicalizeAsset(a);
+      results.push(canonical);
+    }
+    return results;
   }
 
   getProviders(): ProviderInfoType[] {
@@ -132,7 +176,18 @@ export class DataAggregatorService {
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
     const result = await aggregateListedAssets(this.providers, targetProviders, this.redis);
-    return { ...result, measuredAt: new Date().toISOString() };
+
+    const canonicalData: Record<ProviderIdentifier, AssetType[]> = {} as any;
+    for (const provider of result.providers) {
+      const assets = result.data[provider] ?? [];
+      canonicalData[provider] = await this.canonicalizeAssets(assets);
+    }
+
+    return {
+      providers: result.providers,
+      data: canonicalData,
+      measuredAt: new Date().toISOString(),
+    };
   }
 
 
@@ -153,8 +208,19 @@ export class DataAggregatorService {
     const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
+    const canonicalRoutes = await Promise.all(
+      input.routes.map(async (r) => ({
+        source: await this.canonicalizeAsset(r.source),
+        destination: await this.canonicalizeAsset(r.destination),
+      }))
+    );
+
     const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
-    const result = await aggregateRates(this.providers, { ...input, targetProviders }, assetSupportIndex);
+    const result = await aggregateRates(
+      this.providers,
+      { ...input, routes: canonicalRoutes, targetProviders },
+      assetSupportIndex
+    );
     return { ...result, measuredAt: new Date().toISOString() };
   }
 
@@ -173,8 +239,19 @@ export class DataAggregatorService {
     const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
+    const canonicalRoutes = await Promise.all(
+      input.routes.map(async (r) => ({
+        source: await this.canonicalizeAsset(r.source),
+        destination: await this.canonicalizeAsset(r.destination),
+      }))
+    );
+
     const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
-    const result = await aggregateLiquidity(this.providers, { ...input, targetProviders }, assetSupportIndex);
+    const result = await aggregateLiquidity(
+      this.providers,
+      { ...input, routes: canonicalRoutes, targetProviders },
+      assetSupportIndex
+    );
     return { ...result, measuredAt: new Date().toISOString() };
   }
 }
