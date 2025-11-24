@@ -129,13 +129,11 @@ export const contract = oc.router({
       method: 'POST',
       path: '/sync',
       summary: 'Sync registry data',
-      description: 'Manually trigger synchronization of token data from Uniswap, CoinGecko, and Jupiter registries',
+      description: 'Manually trigger synchronization of token data from Uniswap, CoinGecko, and Jupiter registries. Runs asynchronously in the background.',
     })
     .output(
       z.object({
-        uniswap: z.number(),
-        coingecko: z.number(),
-        jupiter: z.number(),
+        status: z.string(),
       }),
     ),
 });

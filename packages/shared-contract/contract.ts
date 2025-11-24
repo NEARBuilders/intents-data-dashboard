@@ -15,6 +15,7 @@ export const Asset = z.object({
   namespace: z.string().describe("asset standard/kind (e.g., 'erc20', 'native', 'nep141')"),
   reference: z.string().describe("contract address or 'coin' for native assets"),
   symbol: z.string().describe("display symbol (e.g., 'USDC', 'ETH', 'SOL')"),
+  name: z.string().optional().describe("human-readable name (e.g., 'USD Coin', 'Ethereum', 'Solana')"),
   decimals: z.number().int().min(0).describe("token decimals for amount normalization"),
   iconUrl: z.url().optional().describe("optional icon URL for UI display"),
 });

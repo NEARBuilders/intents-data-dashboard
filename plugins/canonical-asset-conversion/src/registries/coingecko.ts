@@ -1,9 +1,9 @@
-import { Context, Effect, Layer } from "every-plugin/effect";
-import type { AssetType } from "@data-provider/shared-contract";
-import { AssetStore, type AssetCriteria, Database } from "../store";
 import { assetToCanonicalIdentity } from "@data-provider/plugin-utils";
-import { eq, like } from "drizzle-orm";
+import type { AssetType } from "@data-provider/shared-contract";
+import { like } from "drizzle-orm";
+import { Context, Effect, Layer, RateLimiter } from "every-plugin/effect";
 import * as schema from "../db/schema";
+import { AssetStore, Database, type AssetCriteria } from "../store";
 
 interface CoingeckoCoin {
   id: string;
@@ -100,13 +100,18 @@ export class CoingeckoRegistry extends Context.Tag("CoingeckoRegistry")<
     readonly sync: () => Effect.Effect<number, Error>;
     readonly lookup: (criteria: AssetCriteria) => Effect.Effect<AssetType | null, Error>;
   }
->() {}
+>() { }
 
-export const CoingeckoRegistryLive = Layer.effect(
+export const CoingeckoRegistryLive = Layer.scoped(
   CoingeckoRegistry,
   Effect.gen(function* () {
     const store = yield* AssetStore;
     const db = yield* Database;
+
+    const rateLimiter = yield* RateLimiter.make({
+      limit: 14,
+      interval: "1 minutes",
+    });
 
     const fetchCoinsList = Effect.tryPromise({
       try: async () => {
@@ -233,6 +238,7 @@ export const CoingeckoRegistryLive = Layer.effect(
           namespace: identity.namespace,
           reference: identity.reference,
           symbol: detail.symbol.toUpperCase(),
+          name: detail.name,
           decimals,
           iconUrl,
           source: "coingecko",
@@ -240,7 +246,7 @@ export const CoingeckoRegistryLive = Layer.effect(
       });
 
     const nativeCoinIds = [...new Set(Object.values(NATIVE_COINS).map((c) => c.id))];
-    
+
     const blockchainByNativeCoinId: Record<string, string[]> = {};
     for (const [blockchain, coin] of Object.entries(NATIVE_COINS)) {
       if (!blockchainByNativeCoinId[coin.id]) {
@@ -253,31 +259,45 @@ export const CoingeckoRegistryLive = Layer.effect(
       sync: () =>
         Effect.gen(function* () {
           console.log("Phase 1: Syncing CoinGecko coins list for fuzzy search...");
-          const coinsList = yield* fetchCoinsList;
+          const coinsList = yield* rateLimiter(fetchCoinsList);
 
-          for (const coin of coinsList) {
+          const chunkSize = 500;
+          const chunks: CoingeckoCoin[][] = [];
+          for (let i = 0; i < coinsList.length; i += chunkSize) {
+            chunks.push(coinsList.slice(i, i + chunkSize));
+          }
+
+          console.log(`Processing ${coinsList.length} coins in ${chunks.length} batches...`);
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i]!;
             yield* Effect.tryPromise({
               try: async () => {
                 await db
                   .insert(schema.coingeckoIds)
-                  .values({
-                    id: coin.id,
-                    symbol: coin.symbol,
-                    name: coin.name,
-                  })
+                  .values(
+                    chunk.map((coin) => ({
+                      id: coin.id,
+                      symbol: coin.symbol,
+                      name: coin.name,
+                    }))
+                  )
                   .onConflictDoNothing();
               },
-              catch: () => new Error("Failed to insert coingecko ID"),
+              catch: () => new Error("Failed to batch insert coingecko IDs"),
             }).pipe(Effect.catchAll(() => Effect.void));
+
+            if ((i + 1) % 10 === 0) {
+              console.log(`Processed ${(i + 1) * chunkSize} / ${coinsList.length} coins...`);
+            }
           }
 
           console.log(`Phase 1 complete: ${coinsList.length} coins indexed`);
 
           console.log("Phase 2: Fetching markets for native coins and top 250...");
-          const nativeMarkets = yield* fetchMarkets(nativeCoinIds).pipe(
+          const nativeMarkets = yield* rateLimiter(fetchMarkets(nativeCoinIds)).pipe(
             Effect.catchAll(() => Effect.succeed([]))
           );
-          const top250Markets = yield* fetchMarkets(undefined, 250).pipe(
+          const top250Markets = yield* rateLimiter(fetchMarkets(undefined, 250)).pipe(
             Effect.catchAll(() => Effect.succeed([]))
           );
 
@@ -306,6 +326,7 @@ export const CoingeckoRegistryLive = Layer.effect(
                       namespace: identity.namespace,
                       reference: identity.reference,
                       symbol: market.symbol.toUpperCase(),
+                      name: market.name,
                       decimals: nativeCoin.decimals,
                       iconUrl: market.image,
                       source: "coingecko",
@@ -348,7 +369,7 @@ export const CoingeckoRegistryLive = Layer.effect(
             return null;
           }
 
-          const detail = yield* fetchCoinDetail(coinId);
+          const detail = yield* rateLimiter(fetchCoinDetail(coinId));
           const asset = yield* convertDetailToAsset(detail, blockchain);
           yield* store.upsert(asset);
 

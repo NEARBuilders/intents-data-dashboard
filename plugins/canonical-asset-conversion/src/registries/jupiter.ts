@@ -63,6 +63,7 @@ export const JupiterRegistryLive = Layer.effect(
           namespace: identity.namespace,
           reference: identity.reference,
           symbol: token.symbol,
+          name: token.name,
           decimals: token.decimals,
           iconUrl: token.icon,
           source: "jupiter",

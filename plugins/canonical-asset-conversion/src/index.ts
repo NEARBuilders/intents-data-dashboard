@@ -118,7 +118,8 @@ export default createPlugin({
         return await Effect.runPromise(
           Effect.gen(function* () {
             const service = yield* CanonicalAssetService;
-            return yield* service.sync();
+            const result = yield* service.sync();
+            return result;
           }).pipe(Effect.provide(context.appLayer))
         );
       }),

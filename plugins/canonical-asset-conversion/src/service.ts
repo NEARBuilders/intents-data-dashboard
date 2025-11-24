@@ -33,7 +33,7 @@ export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
       Error
     >;
     readonly getStoredAssets: () => Effect.Effect<AssetType[], Error>;
-    readonly sync: () => Effect.Effect<{ uniswap: number; coingecko: number; jupiter: number }, Error>;
+    readonly sync: () => Effect.Effect<{ status: string }, Error>;
   }
 >() {}
 
@@ -202,7 +202,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
             if (asset) {
               networks.push({
                 blockchain,
-                displayName: asset.symbol,
+                displayName: asset.name || asset.symbol,
                 symbol: asset.symbol,
                 iconUrl: asset.iconUrl,
               });
@@ -226,15 +226,43 @@ export const CanonicalAssetServiceLive = Layer.effect(
 
       sync: () =>
         Effect.gen(function* () {
-          const uniswapCount = yield* uniswapRegistry.sync();
-          const coingeckoCount = yield* coingeckoRegistry.sync();
-          const jupiterCount = yield* jupiterRegistry.sync();
+          const syncTask = Effect.gen(function* () {
+            console.log("Background sync started...");
+            const startTime = Date.now();
+            
+            const uniswapCount = yield* uniswapRegistry.sync().pipe(
+              Effect.catchAll((error) => {
+                console.error("Uniswap sync failed:", error);
+                return Effect.succeed(0);
+              })
+            );
+            console.log(`Uniswap sync complete: ${uniswapCount} assets`);
+            
+            const coingeckoCount = yield* coingeckoRegistry.sync().pipe(
+              Effect.catchAll((error) => {
+                console.error("CoinGecko sync failed:", error);
+                return Effect.succeed(0);
+              })
+            );
+            console.log(`CoinGecko sync complete: ${coingeckoCount} assets`);
+            
+            const jupiterCount = yield* jupiterRegistry.sync().pipe(
+              Effect.catchAll((error) => {
+                console.error("Jupiter sync failed:", error);
+                return Effect.succeed(0);
+              })
+            );
+            console.log(`Jupiter sync complete: ${jupiterCount} assets`);
+            
+            const duration = Date.now() - startTime;
+            console.log(
+              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount} assets in ${duration}ms`
+            );
+          });
 
-          return {
-            uniswap: uniswapCount,
-            coingecko: coingeckoCount,
-            jupiter: jupiterCount,
-          };
+          yield* Effect.forkDaemon(syncTask);
+
+          return { status: "started" };
         }),
     };
   })
