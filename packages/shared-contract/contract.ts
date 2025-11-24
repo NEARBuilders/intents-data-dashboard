@@ -9,7 +9,7 @@ export type TimeWindow = z.infer<typeof TimeWindowEnum>;
 // --- Schemas ---
 
 export const Asset = z.object({
-  assetId: z.string().describe("canonical 1cs_v1 format"),
+  assetId: z.string().regex(/^1cs_v1:/, "Asset ID must start with '1cs_v1:'").describe("canonical 1cs_v1 format"),
   blockchain: z.string().describe("canonical blockchain slug (e.g., 'eth', 'arb', 'near')"),
   chainId: z.number().int().optional().describe("EVM-style numeric chainId where applicable"),
   namespace: z.string().describe("asset standard/kind (e.g., 'erc20', 'native', 'nep141')"),

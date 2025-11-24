@@ -1,319 +1,359 @@
-import { Coingecko } from '@coingecko/coingecko-typescript';
-import type { AssetMetadata, RegistryClient } from "./types";
+import { Context, Effect, Layer } from "every-plugin/effect";
+import type { AssetType } from "@data-provider/shared-contract";
+import { AssetStore, type AssetCriteria, Database } from "../store";
+import { assetToCanonicalIdentity } from "@data-provider/plugin-utils";
+import { eq, like } from "drizzle-orm";
+import * as schema from "../db/schema";
+
+interface CoingeckoCoin {
+  id: string;
+  symbol: string;
+  name: string;
+}
+
+interface CoingeckoCoinDetail {
+  id: string;
+  symbol: string;
+  name: string;
+  detail_platforms?: Record<string, { decimal_place?: number }>;
+  image?: {
+    thumb?: string;
+    small?: string;
+    large?: string;
+  };
+}
+
+interface CoingeckoMarket {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  current_price: number;
+  market_cap: number;
+}
 
 const BLOCKCHAIN_TO_PLATFORM: Record<string, string> = {
-  eth: 'ethereum',
-
+  eth: "ethereum",
   arb: "arbitrum-one",
-  arbitrum: "arbitrum-one",
-  arb1: "arbitrum-one",
-
-  pol: 'polygon-pos',
-  polygon: "polygon-pos",
-  matic: "polygon-pos",
-
-  bsc: 'binance-smart-chain',
-  bnb: 'binance-smart-chain',
-
-  op: 'optimistic-ethereum',
-  optimism: 'optimistic-ethereum',
-
-  sol: 'solana',
-  solana: 'solana',
-
-  base: 'base',
-  bera: 'berachain',
-  near: 'near-protocol',
-  ton: 'the-open-network',
-  tron: 'tron',
-  aptos: 'aptos',
-  sui: 'sui',
-  
-  avax: 'avalanche',
-  avalanche: 'avalanche',
-  
-  ftm: 'fantom',
-  celo: 'celo',
-  gnosis: 'xdai',
-  zksync: "zksync",
-  linea: "linea",
-  mantle: "mantle",
-  opbnb: "opbnb",
-  scroll: "scroll",
-  "polygon-zkevm": "polygon-zkevm",
+  pol: "polygon-pos",
+  bsc: "binance-smart-chain",
+  op: "optimistic-ethereum",
+  base: "base",
+  sol: "solana",
+  near: "near-protocol",
+  avax: "avalanche",
+  ftm: "fantom",
+  celo: "celo",
 };
 
-// Map canonical blockchain slugs to native coin IDs
-const NATIVE_COIN_IDS: Record<string, string> = {
-  eth: 'ethereum',
-  arb: 'ethereum',
-  arbitrum: 'ethereum',
-  op: 'ethereum',
-  optimism: 'ethereum',
-  base: 'ethereum',
-  pol: 'matic-network',
-  matic: 'matic-network',
-  polygon: 'matic-network',
-  bsc: 'binancecoin',
-  bnb: 'binancecoin',
-  sol: 'solana',
-  near: 'near',
-  ton: 'the-open-network',
-  tron: 'tron',
-  aptos: 'aptos',
-  sui: 'sui',
-  avax: 'avalanche-2',
-  ftm: 'fantom',
-  celo: 'celo',
-  btc: 'bitcoin',
-  doge: 'dogecoin',
-  xrp: 'ripple',
-  zec: 'zcash',
-  ltc: 'litecoin',
-  stellar: 'stellar',
-  cardano: 'cardano',
-  bera: 'berachain',
-  gnosis: 'xdai',
-  zksync: 'ethereum',
-  linea: 'ethereum',
-  mantle: 'mantle',
-  scroll: 'ethereum',
-  'polygon-zkevm': 'ethereum',
-  opbnb: 'binancecoin',
-  plasma: 'plasma',
-  lens: 'lens',
-  blast: "blast",
-  blastmainnet: "blast",
+const NATIVE_COINS: Record<string, { id: string; decimals: number }> = {
+  eth: { id: "ethereum", decimals: 18 },
+  arb: { id: "ethereum", decimals: 18 },
+  op: { id: "ethereum", decimals: 18 },
+  base: { id: "ethereum", decimals: 18 },
+  "arb-nova": { id: "ethereum", decimals: 18 },
+  zora: { id: "ethereum", decimals: 18 },
+  pol: { id: "matic-network", decimals: 18 },
+  polygon: { id: "matic-network", decimals: 18 },
+  matic: { id: "matic-network", decimals: 18 },
+  "polygon-zkevm": { id: "ethereum", decimals: 18 },
+  bsc: { id: "binancecoin", decimals: 18 },
+  bnb: { id: "binancecoin", decimals: 18 },
+  opbnb: { id: "binancecoin", decimals: 18 },
+  avax: { id: "avalanche-2", decimals: 18 },
+  avalanche: { id: "avalanche-2", decimals: 18 },
+  ftm: { id: "fantom", decimals: 18 },
+  fantom: { id: "fantom", decimals: 18 },
+  celo: { id: "celo", decimals: 18 },
+  gnosis: { id: "xdai", decimals: 18 },
+  zksync: { id: "ethereum", decimals: 18 },
+  linea: { id: "ethereum", decimals: 18 },
+  mantle: { id: "mantle", decimals: 18 },
+  scroll: { id: "ethereum", decimals: 18 },
+  manta: { id: "ethereum", decimals: 18 },
+  mode: { id: "ethereum", decimals: 18 },
+  blast: { id: "ethereum", decimals: 18 },
+  sol: { id: "solana", decimals: 9 },
+  near: { id: "near", decimals: 24 },
+  ton: { id: "the-open-network", decimals: 9 },
+  aptos: { id: "aptos", decimals: 8 },
+  sui: { id: "sui", decimals: 9 },
+  btc: { id: "bitcoin", decimals: 8 },
+  zec: { id: "zcash", decimals: 8 },
+  ltc: { id: "litecoin", decimals: 8 },
+  doge: { id: "dogecoin", decimals: 8 },
+  xrp: { id: "ripple", decimals: 6 },
+  xlm: { id: "stellar", decimals: 7 },
+  ada: { id: "cardano", decimals: 6 },
+  dot: { id: "polkadot", decimals: 10 },
+  cosmos: { id: "cosmos", decimals: 6 },
+  osmo: { id: "osmosis", decimals: 6 },
+  atom: { id: "cosmos", decimals: 6 },
+  algo: { id: "algorand", decimals: 6 },
+  tezos: { id: "tezos", decimals: 6 },
+  xtz: { id: "tezos", decimals: 6 },
 };
 
-export class CoingeckoRegistry implements RegistryClient {
-  private client: Coingecko;
-  private cache = new Map<string, { data: AssetMetadata; timestamp: number }>();
-  private negativeCache = new Map<string, number>();
-  private CACHE_TTL = 3600_000; // 1 hour
-  private rateLimitedUntil: number | null = null;
+export class CoingeckoRegistry extends Context.Tag("CoingeckoRegistry")<
+  CoingeckoRegistry,
+  {
+    readonly sync: () => Effect.Effect<number, Error>;
+    readonly lookup: (criteria: AssetCriteria) => Effect.Effect<AssetType | null, Error>;
+  }
+>() {}
 
-  constructor(opts?: { proAPIKey?: string | null; demoAPIKey?: string | null }) {
-    this.client = new Coingecko({
-      proAPIKey: opts?.proAPIKey ?? null,
-      demoAPIKey: opts?.demoAPIKey ?? null,
-      environment: opts?.proAPIKey ? 'pro' : 'demo',
+export const CoingeckoRegistryLive = Layer.effect(
+  CoingeckoRegistry,
+  Effect.gen(function* () {
+    const store = yield* AssetStore;
+    const db = yield* Database;
+
+    const fetchCoinsList = Effect.tryPromise({
+      try: async () => {
+        const response = await fetch("https://api.coingecko.com/api/v3/coins/list");
+        if (!response.ok) {
+          const errorMsg = `Failed to fetch CoinGecko list: ${response.status} ${response.statusText}`;
+          console.error(errorMsg);
+          throw new Error(errorMsg);
+        }
+        return (await response.json()) as CoingeckoCoin[];
+      },
+      catch: (error) => {
+        const errorMsg = `CoinGecko fetch error: ${error}`;
+        console.error(errorMsg);
+        return new Error(errorMsg);
+      },
     });
-  }
 
-  private isRateLimited(): boolean {
-    return this.rateLimitedUntil !== null && Date.now() < this.rateLimitedUntil;
-  }
-
-  private setRateLimit(resetHeader?: string): void {
-    const resetAt = resetHeader ? Date.parse(resetHeader) : Date.now() + 60_000;
-    this.rateLimitedUntil = resetAt;
-    console.warn(`[CoingeckoRegistry] Rate limited, backing off until ${new Date(resetAt).toISOString()}`);
-  }
-
-  private isNegativelyCached(key: string): boolean {
-    const timestamp = this.negativeCache.get(key);
-    if (timestamp && Date.now() - timestamp < this.CACHE_TTL) {
-      return true;
-    }
-    this.negativeCache.delete(key);
-    return false;
-  }
-
-  private setNegativeCache(key: string): void {
-    this.negativeCache.set(key, Date.now());
-  }
-
-  private getCacheKey(type: string, ...args: string[]): string {
-    return `${type}:${args.join(':')}`.toLowerCase();
-  }
-
-  private getCached(key: string): AssetMetadata | null {
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      return cached.data;
-    }
-    return null;
-  }
-
-  private setCache(key: string, data: AssetMetadata): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
-  }
-
-  async findByReference(blockchain: string, reference: string): Promise<AssetMetadata | null> {
-    const cacheKey = this.getCacheKey('ref', blockchain, reference);
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    if (this.isNegativelyCached(cacheKey)) {
-      return null;
-    }
-
-    if (this.isRateLimited()) {
-      return null;
-    }
-
-    const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain.toLowerCase()];
-    if (!platformId) {
-      console.warn(`[CoingeckoRegistry] Unknown blockchain: ${blockchain}`);
-      return null;
-    }
-
-    try {
-      const response = await this.client.coins.contract.get(reference.toLowerCase(), {
-        id: platformId,
+    const fetchMarkets = (ids?: string[], perPage = 250): Effect.Effect<CoingeckoMarket[], Error> =>
+      Effect.tryPromise({
+        try: async () => {
+          const params = new URLSearchParams({
+            vs_currency: "usd",
+            per_page: perPage.toString(),
+          });
+          if (ids && ids.length > 0) {
+            params.set("ids", ids.join(","));
+          }
+          const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`);
+          if (!response.ok) {
+            const errorMsg = `Failed to fetch CoinGecko markets: ${response.status} ${response.statusText}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+          }
+          return (await response.json()) as CoingeckoMarket[];
+        },
+        catch: (error) => {
+          const errorMsg = `CoinGecko markets fetch error: ${error}`;
+          console.error(errorMsg);
+          return new Error(errorMsg);
+        },
       });
 
-      const decimals = response.detail_platforms?.[platformId]?.decimal_place ?? undefined;
-      const iconUrl = response.image?.large || response.image?.small || response.image?.thumb;
-
-      const metadata: AssetMetadata = {
-        symbol: response.symbol?.toUpperCase(),
-        decimals,
-        iconUrl,
-        name: response.name,
-      };
-
-      this.setCache(cacheKey, metadata);
-      return metadata;
-    } catch (error: any) {
-      const status = error?.status ?? error?.response?.status;
-      const errorMsg = error?.error?.error ?? error?.response?.data?.error ?? error?.message;
-
-      if (status === 404 && errorMsg === "coin not found") {
-        console.warn(`[CoingeckoRegistry] Token not found: ${blockchain}:${reference}`);
-        this.setNegativeCache(cacheKey);
-        return null;
-      }
-
-      if (status === 429) {
-        const resetHeader = error?.headers?.get?.('x-ratelimit-reset') ?? error?.headers?.['x-ratelimit-reset'];
-        this.setRateLimit(resetHeader);
-        return null;
-      }
-
-      console.warn(`[CoingeckoRegistry] Error finding by reference (${status ?? "unknown"}): ${errorMsg ?? String(error)}`);
-      return null;
-    }
-  }
-
-  async findBySymbol(symbol: string, blockchain: string): Promise<AssetMetadata | null> {
-    const cacheKey = this.getCacheKey('symbol', blockchain, symbol);
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    if (this.isRateLimited()) {
-      return null;
-    }
-
-    try {
-      const search = await this.client.search.get({ query: symbol });
-
-      const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain.toLowerCase()];
-
-      const candidate = search.coins?.find(
-        (c) => c.symbol?.toLowerCase() === symbol.toLowerCase()
-      );
-
-      if (!candidate || !candidate.id) {
-        return null;
-      }
-
-      const details = await this.client.coins.getID(candidate.id, {
-        localization: false,
-        tickers: false,
-        market_data: false,
-        community_data: false,
-        developer_data: false,
-        sparkline: false,
+    const fetchCoinDetail = (coinId: string): Effect.Effect<CoingeckoCoinDetail, Error> =>
+      Effect.tryPromise({
+        try: async () => {
+          const response = await fetch(
+            `https://api.coingecko.com/api/v3/coins?include_platform=true`
+          );
+          if (!response.ok) {
+            const errorMsg = `Failed to fetch coin detail for ${coinId}: ${response.status} ${response.statusText}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+          }
+          return (await response.json()) as CoingeckoCoinDetail;
+        },
+        catch: (error) => {
+          const errorMsg = `CoinGecko detail fetch error for ${coinId}: ${error}`;
+          console.error(errorMsg);
+          return new Error(errorMsg);
+        },
       });
 
-      const decimals =
-        platformId ? details.detail_platforms?.[platformId]?.decimal_place ?? undefined : undefined;
+    const fuzzySearchCoingeckoId = (
+      symbol: string,
+      blockchain?: string
+    ): Effect.Effect<string | null, Error> =>
+      Effect.tryPromise({
+        try: async () => {
+          const results = await db
+            .select()
+            .from(schema.coingeckoIds)
+            .where(like(schema.coingeckoIds.symbol, `%${symbol}%`))
+            .limit(5);
 
-      const iconUrl = details.image?.large || details.image?.small || details.image?.thumb;
+          if (results.length === 0) {
+            return null;
+          }
 
-      const metadata: AssetMetadata = {
-        symbol: details.symbol?.toUpperCase(),
-        decimals,
-        iconUrl,
-        name: details.name,
-      };
+          const exactMatch = results.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase());
+          if (exactMatch) {
+            return exactMatch.id;
+          }
 
-      this.setCache(cacheKey, metadata);
-      return metadata;
-    } catch (error: any) {
-      const status = error?.status ?? error?.response?.status;
-      const errorMsg = error?.error?.error ?? error?.response?.data?.error ?? error?.message;
+          if (blockchain) {
+            const nativeCoin = NATIVE_COINS[blockchain.toLowerCase()];
+            if (nativeCoin) {
+              const nativeMatch = results.find((r) => r.id === nativeCoin.id);
+              if (nativeMatch) {
+                return nativeMatch.id;
+              }
+            }
+          }
 
-      if (status === 429) {
-        const resetHeader = error?.headers?.get?.('x-ratelimit-reset') ?? error?.headers?.['x-ratelimit-reset'];
-        this.setRateLimit(resetHeader);
-        return null;
-      }
-
-      console.warn(`[CoingeckoRegistry] Error finding by symbol (${status ?? "unknown"}): ${errorMsg ?? String(error)}`);
-      return null;
-    }
-  }
-
-  async getNativeCoin(blockchain: string): Promise<AssetMetadata | null> {
-    const cacheKey = this.getCacheKey('native', blockchain);
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    if (this.isRateLimited()) {
-      return null;
-    }
-
-    const coinId = NATIVE_COIN_IDS[blockchain.toLowerCase()];
-    if (!coinId) {
-      console.warn(`[CoingeckoRegistry] Unknown native coin for blockchain: ${blockchain}`);
-      return null;
-    }
-
-    try {
-      const response = await this.client.coins.getID(coinId, {
-        localization: false,
-        tickers: false,
-        market_data: false,
-        community_data: false,
-        developer_data: false,
-        sparkline: false,
+          return results[0]!.id;
+        },
+        catch: (error) => new Error(`Fuzzy search error: ${error}`),
       });
 
-      const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain.toLowerCase()];
-      const decimals =
-        platformId ? response.detail_platforms?.[platformId]?.decimal_place ?? undefined : undefined;
+    const convertDetailToAsset = (
+      detail: CoingeckoCoinDetail,
+      blockchain: string
+    ): Effect.Effect<AssetType & { source: string }, Error> =>
+      Effect.gen(function* () {
+        const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain.toLowerCase()];
+        const decimals = platformId ? detail.detail_platforms?.[platformId]?.decimal_place ?? 18 : 18;
+        const iconUrl = detail.image?.large || detail.image?.small || detail.image?.thumb;
 
-      const iconUrl = response.image?.large || response.image?.small || response.image?.thumb;
+        const isNative = NATIVE_COINS[blockchain.toLowerCase()]?.id === detail.id;
+        const namespace = isNative ? "native" : "erc20";
+        const reference = isNative ? "coin" : "";
 
-      const metadata: AssetMetadata = {
-        symbol: response.symbol?.toUpperCase(),
-        decimals: decimals ?? 18,
-        iconUrl,
-        name: response.name,
-      };
+        const identity = yield* Effect.tryPromise(() =>
+          assetToCanonicalIdentity({
+            blockchain,
+            namespace,
+            reference,
+          })
+        );
 
-      this.setCache(cacheKey, metadata);
-      return metadata;
-    } catch (error: any) {
-      const status = error?.status ?? error?.response?.status;
-      const errorMsg = error?.error?.error ?? error?.response?.data?.error ?? error?.message;
+        return {
+          assetId: identity.assetId,
+          blockchain: identity.blockchain,
+          namespace: identity.namespace,
+          reference: identity.reference,
+          symbol: detail.symbol.toUpperCase(),
+          decimals,
+          iconUrl,
+          source: "coingecko",
+        };
+      });
 
-      if (status === 404) {
-        console.warn(`[CoingeckoRegistry] Native coin not found for blockchain: ${blockchain} (coinId: ${coinId})`);
-        return null;
+    const nativeCoinIds = [...new Set(Object.values(NATIVE_COINS).map((c) => c.id))];
+    
+    const blockchainByNativeCoinId: Record<string, string[]> = {};
+    for (const [blockchain, coin] of Object.entries(NATIVE_COINS)) {
+      if (!blockchainByNativeCoinId[coin.id]) {
+        blockchainByNativeCoinId[coin.id] = [];
       }
-
-      if (status === 429) {
-        const resetHeader = error?.headers?.get?.('x-ratelimit-reset') ?? error?.headers?.['x-ratelimit-reset'];
-        this.setRateLimit(resetHeader);
-        return null;
-      }
-
-      console.warn(`[CoingeckoRegistry] Error getting native coin (${status ?? "unknown"}): ${errorMsg ?? String(error)}`);
-      return null;
+      blockchainByNativeCoinId[coin.id]!.push(blockchain);
     }
-  }
-}
+
+    return {
+      sync: () =>
+        Effect.gen(function* () {
+          console.log("Phase 1: Syncing CoinGecko coins list for fuzzy search...");
+          const coinsList = yield* fetchCoinsList;
+
+          for (const coin of coinsList) {
+            yield* Effect.tryPromise({
+              try: async () => {
+                await db
+                  .insert(schema.coingeckoIds)
+                  .values({
+                    id: coin.id,
+                    symbol: coin.symbol,
+                    name: coin.name,
+                  })
+                  .onConflictDoNothing();
+              },
+              catch: () => new Error("Failed to insert coingecko ID"),
+            }).pipe(Effect.catchAll(() => Effect.void));
+          }
+
+          console.log(`Phase 1 complete: ${coinsList.length} coins indexed`);
+
+          console.log("Phase 2: Fetching markets for native coins and top 250...");
+          const nativeMarkets = yield* fetchMarkets(nativeCoinIds).pipe(
+            Effect.catchAll(() => Effect.succeed([]))
+          );
+          const top250Markets = yield* fetchMarkets(undefined, 250).pipe(
+            Effect.catchAll(() => Effect.succeed([]))
+          );
+
+          const allMarkets = [...nativeMarkets, ...top250Markets];
+          const uniqueMarkets = Array.from(new Map(allMarkets.map((m) => [m.id, m])).values());
+
+          let enhancedCount = 0;
+          for (const market of uniqueMarkets) {
+            const blockchains = blockchainByNativeCoinId[market.id];
+            if (blockchains && blockchains.length > 0) {
+              for (const blockchain of blockchains) {
+                const nativeCoin = NATIVE_COINS[blockchain];
+                if (nativeCoin) {
+                  const identity = yield* Effect.tryPromise(() =>
+                    assetToCanonicalIdentity({
+                      blockchain,
+                      namespace: "native",
+                      reference: "coin",
+                    })
+                  ).pipe(Effect.catchAll(() => Effect.succeed(null)));
+
+                  if (identity) {
+                    const asset: AssetType & { source: string } = {
+                      assetId: identity.assetId,
+                      blockchain: identity.blockchain,
+                      namespace: identity.namespace,
+                      reference: identity.reference,
+                      symbol: market.symbol.toUpperCase(),
+                      decimals: nativeCoin.decimals,
+                      iconUrl: market.image,
+                      source: "coingecko",
+                    };
+
+                    yield* store.upsert(asset).pipe(Effect.catchAll(() => Effect.void));
+                    enhancedCount++;
+                  }
+                }
+              }
+            }
+          }
+
+          console.log(`Phase 2 complete: ${enhancedCount} native assets enhanced`);
+          return coinsList.length + enhancedCount;
+        }),
+
+      lookup: (criteria) =>
+        Effect.gen(function* () {
+          if (!criteria.blockchain) {
+            return null;
+          }
+
+          const blockchain = criteria.blockchain.toLowerCase();
+          const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain];
+
+          if (!platformId && !NATIVE_COINS[blockchain]) {
+            return null;
+          }
+
+          let coinId: string | null = null;
+
+          if (criteria.reference === "coin") {
+            coinId = NATIVE_COINS[blockchain]?.id || null;
+          } else if (criteria.symbol) {
+            coinId = yield* fuzzySearchCoingeckoId(criteria.symbol, blockchain);
+          }
+
+          if (!coinId) {
+            return null;
+          }
+
+          const detail = yield* fetchCoinDetail(coinId);
+          const asset = yield* convertDetailToAsset(detail, blockchain);
+          yield* store.upsert(asset);
+
+          return asset;
+        }).pipe(Effect.catchAll(() => Effect.succeed(null))),
+    };
+  })
+);

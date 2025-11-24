@@ -10,13 +10,13 @@
   },
   "devDependencies": {
     "@data-provider/shared-contract": "workspace:*",
-    "@data-provider/plugin-utils": "workspace:*",
     "@effect/language-service": "^0.41.1",
     "@module-federation/node": "^2.7.17",
     "@rspack/cli": "^1.5.2",
     "@rspack/core": "^1.5.2",
     "@types/node": "^24.6.0",
     "dotenv": "^17.2.2",
+    "drizzle-kit": "^0.31.7",
     "every-plugin": "catalog:",
     "msw": "^2.3.0",
     "sirv": "^3.0.2",
@@ -30,10 +30,16 @@
     "dev": "rspack serve",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "db:local": "turso dev --db-file local.db",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@coingecko/coingecko-typescript": "^2.2.0",
-    "@defuse-protocol/crosschain-assetid": "^1.0.2"
+    "@data-provider/plugin-utils": "workspace:*",
+    "@libsql/client": "^0.15.15",
+    "drizzle-orm": "^0.44.7"
   }
 }

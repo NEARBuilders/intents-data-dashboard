@@ -92,14 +92,23 @@ export const contract = oc.router({
     .input(CanonicalIdComponents)
     .output(z.object({ assetId: z.string() })),
 
-  getNetworks: oc
+  getBlockchains: oc
     .route({
       method: 'GET',
-      path: '/networks',
+      path: '/blockchains',
       summary: 'List supported canonical blockchains with metadata',
-      description: 'Returns blockchains with display name, symbol, and iconUrl based on underlying registries',
+      description: 'Returns all blockchains (EVM and non-EVM) with display name, symbol, and iconUrl based on underlying registries',
     })
     .output(z.array(Network)),
+
+  getStoredAssets: oc
+    .route({
+      method: 'GET',
+      path: '/stored-assets',
+      summary: 'List all assets stored in the local database',
+      description: 'Returns all canonical assets currently cached in the local SQLite database',
+    })
+    .output(z.array(Asset)),
 
   ping: oc
     .route({
@@ -112,6 +121,21 @@ export const contract = oc.router({
       z.object({
         status: z.literal('ok'),
         timestamp: z.string(),
+      }),
+    ),
+
+  sync: oc
+    .route({
+      method: 'POST',
+      path: '/sync',
+      summary: 'Sync registry data',
+      description: 'Manually trigger synchronization of token data from Uniswap, CoinGecko, and Jupiter registries',
+    })
+    .output(
+      z.object({
+        uniswap: z.number(),
+        coingecko: z.number(),
+        jupiter: z.number(),
       }),
     ),
 });
