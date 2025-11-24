@@ -12,15 +12,28 @@ import {
   type MetricRow,
 } from "./versus-comparison-table";
 
-const selectItemClassName =
-  "text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white";
-
 interface ComparisonTableProps {
   selectedProvider: string;
   onProviderChange: (provider: string) => void;
   providersInfo: ProviderInfo[];
   selectedRoute: Route | null;
 }
+
+const handleShare = () => {
+  const url = window.location.href;
+  if (navigator.share) {
+    navigator
+      .share({
+        title: "Swap Comparison",
+        url: url,
+      })
+      .catch(() => {
+        navigator.clipboard.writeText(url);
+      });
+  } else {
+    navigator.clipboard.writeText(url);
+  }
+};
 
 export const ComparisonTable = ({
   selectedProvider,
@@ -109,6 +122,14 @@ export const ComparisonTable = ({
           selectedProvider={selectedProvider}
           onProviderChange={onProviderChange}
         />
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors text-sm cursor-pointer"
+          >
+            Share →
+          </button>
+        </div>
       </div>
     </section>
   );

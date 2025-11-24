@@ -12,6 +12,22 @@ interface MetricsTableProps {
   selectedRoute: Route | null;
 }
 
+const handleShare = () => {
+  const url = window.location.href;
+  if (navigator.share) {
+    navigator
+      .share({
+        title: "Swap Comparison",
+        url: url,
+      })
+      .catch(() => {
+        navigator.clipboard.writeText(url);
+      });
+  } else {
+    navigator.clipboard.writeText(url);
+  }
+};
+
 export const MetricsTable = ({
   selectedProvider,
   providersInfo,
@@ -170,6 +186,14 @@ export const MetricsTable = ({
           metrics={swapMetrics}
           showProviderSelector={false}
         />
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors text-sm cursor-pointer"
+          >
+            Share →
+          </button>
+        </div>
       </div>
     </section>
   );

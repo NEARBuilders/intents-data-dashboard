@@ -127,22 +127,6 @@ export const SwapPairSelector = () => {
     }
   };
 
-  const handleShare = () => {
-    const url = window.location.href;
-    if (navigator.share) {
-      navigator
-        .share({
-          title: "Swap Comparison",
-          url: url,
-        })
-        .catch(() => {
-          navigator.clipboard.writeText(url);
-        });
-    } else {
-      navigator.clipboard.writeText(url);
-    }
-  };
-
   useEffect(() => {
     if (!search.source && effectiveSourceAsset && !assetsLoading) {
       navigate({
@@ -164,28 +148,14 @@ export const SwapPairSelector = () => {
     }
   }, [search.destination, effectiveDestAsset, assetsLoading, navigate]);
 
-  if (assetsLoading || networksLoading) {
-    return (
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
-        <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-6">
-          <div className="flex items-center justify-center h-32">
-            <span className="text-white text-sm">
-              Loading networks and assets...
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
       <p className="text-base md:text-lg text-gray-300 text-center mb-6">
         Compare a cross-chain swap route between the selected platform and NEAR
         Intents.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-start">
-        <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-end">
+        <div className="flex flex-col items-end gap-3">
           <div className="text-xs text-gray-400 uppercase tracking-wider">
             SWAP FROM
           </div>
@@ -248,15 +218,6 @@ export const SwapPairSelector = () => {
             disabled={uniqueAssets.length === 0}
           />
         </div>
-      </div>
-
-      <div className="flex justify-end mt-4">
-        <button
-          onClick={handleShare}
-          className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors text-sm"
-        >
-          Share →
-        </button>
       </div>
     </div>
   );
