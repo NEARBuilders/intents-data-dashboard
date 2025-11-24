@@ -11,8 +11,8 @@ declare module "every-plugin" {
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-742-data-provider-aggregator-data-pr-a7b37cf75-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-739-data-provider-canonical-asset-co-2e1478526-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-752-data-provider-aggregator-data-pr-fcbe28793-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/canonical-asset-conversion": "https://elliot-braem-751-data-provider-canonical-asset-co-d0e3f7b6c-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",

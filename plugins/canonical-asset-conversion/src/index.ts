@@ -9,6 +9,7 @@ import { DatabaseLive, AssetStoreLive } from "./store";
 import { UniswapRegistryLive } from "./registries/uniswap";
 import { CoingeckoRegistryLive } from "./registries/coingecko";
 import { JupiterRegistryLive } from "./registries/jupiter";
+import { createDatabase } from "./db";
 
 /**
  * Canonical Asset Conversion Plugin
@@ -48,16 +49,15 @@ export default createPlugin({
         Layer.provide(dbLayer)
       );
 
-      const { createDatabase } = require("./db");
-      const db = createDatabase(config.secrets.DATABASE_URL, config.secrets.DATABASE_AUTH_TOKEN);
+      // const db = createDatabase(config.secrets.DATABASE_URL, config.secrets.DATABASE_AUTH_TOKEN);
 
-      yield* Effect.tryPromise({
-        try: () =>
-          migrate(db, {
-            migrationsFolder: "./src/db/migrations",
-          }),
-        catch: (error) => new Error(`Migration failed: ${error}`),
-      });
+      // yield* Effect.tryPromise({
+      //   try: () =>
+      //     migrate(db, {
+      //       migrationsFolder: "./db/migrations",
+      //     }),
+      //   catch: (error) => new Error(`Migration failed: ${error}`),
+      // });
 
       console.log("Canonical Asset Conversion plugin initialized");
 

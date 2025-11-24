@@ -15,7 +15,7 @@ const PLUGIN_URLS = {
   production: {
     "@data-provider/near-intents": "https://elliot-braem-703-data-provider-near-intents-data--383cccfa0-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/across": "https://elliot-braem-686-data-provider-across-data-provid-39c5d431c-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-739-data-provider-canonical-asset-co-2e1478526-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/canonical-asset-conversion": "https://elliot-braem-751-data-provider-canonical-asset-co-d0e3f7b6c-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",
