@@ -11,8 +11,8 @@ declare module "every-plugin" {
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-707-data-provider-aggregator-data-pr-009c3d6d5-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-706-data-provider-canonical-asset-co-573bd0884-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-742-data-provider-aggregator-data-pr-a7b37cf75-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/canonical-asset-conversion": "https://elliot-braem-739-data-provider-canonical-asset-co-2e1478526-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
@@ -25,8 +25,8 @@ export async function initializePlugins(config: {
     REDIS_URL: string,
     DUNE_API_KEY: string,
     NEAR_INTENTS_API_KEY: string,
-    COINGECKO_PRO_API_KEY?: string,
-    COINGECKO_DEMO_API_KEY?: string,
+    DATABASE_URL: string,
+    DATABASE_AUTH_TOKEN: string
   },
   isDevelopment?: boolean,
   registry?: typeof PLUGIN_URLS
@@ -50,10 +50,7 @@ export async function initializePlugins(config: {
 
   const canonical = await runtime.usePlugin("@data-provider/canonical-asset-conversion", {
     variables: {},
-    secrets: {
-      COINGECKO_PRO_API_KEY: config.secrets.COINGECKO_PRO_API_KEY,
-      COINGECKO_DEMO_API_KEY: config.secrets.COINGECKO_DEMO_API_KEY,
-    },
+    secrets: config.secrets,
   });
 
   return { runtime, aggregator, canonical } as const;

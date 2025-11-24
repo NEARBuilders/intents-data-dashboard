@@ -15,13 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-
-export interface Network {
-  blockchain: string;
-  displayName: string;
-  symbol: string;
-  iconUrl?: string;
-}
+import { Network } from "@/lib/aggregator/hooks";
 
 const PINNED_BLOCKCHAIN_SLUGS: string[] = [
   "eth",

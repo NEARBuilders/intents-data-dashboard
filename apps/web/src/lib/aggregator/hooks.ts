@@ -13,7 +13,7 @@ export function useAggregatorListedAssets() {
 export function useCanonicalNetworks() {
   return useQuery({
     queryKey: ["canonical-networks"],
-    queryFn: () => client.getNetworks(),
+    queryFn: () => client.getBlockchains(),
     staleTime: 3600_000,
   });
 }
@@ -23,6 +23,22 @@ export interface Network {
   displayName: string;
   symbol: string;
   iconUrl?: string;
+}
+
+function isNativeAsset(asset: Asset): boolean {
+  return asset.namespace === 'native' || asset.reference === 'coin';
+}
+
+function sortAssetsByNativeFirst(assets: Asset[]): Asset[] {
+  return assets.sort((a, b) => {
+    const aIsNative = isNativeAsset(a);
+    const bIsNative = isNativeAsset(b);
+    
+    if (aIsNative && !bIsNative) return -1;
+    if (!aIsNative && bIsNative) return 1;
+    
+    return a.symbol.localeCompare(b.symbol);
+  });
 }
 
 export function useAggregatorAssets() {
@@ -39,7 +55,7 @@ export function useAggregatorAssets() {
     }
   }
 
-  const uniqueAssets = Array.from(assetsByAssetId.values());
+  const uniqueAssets = sortAssetsByNativeFirst(Array.from(assetsByAssetId.values()));
 
   const supportedBlockchains = new Set(uniqueAssets.map((a) => a.blockchain));
 

@@ -17,7 +17,8 @@ export default createPlugin({
     DUNE_API_KEY: z.string(),
     REDIS_URL: z.string().default("redis://localhost:6379"),
     NEAR_INTENTS_API_KEY: z.string(),
-    COINGECKO_DEMO_API_KEY: z.string()
+    DATABASE_URL: z.string(),
+    DATABASE_AUTH_TOKEN: z.string(),
   }),
 
   contract,

@@ -1,9 +1,9 @@
-import { createPluginRuntime } from "every-plugin";
-import { Effect } from "every-plugin/effect";
-import type NearIntentsPlugin from "@data-provider/near-intents";
 import type AcrossPlugin from "@data-provider/across";
 import type CanonicalAssetConversionPlugin from "@data-provider/canonical-asset-conversion";
+import type NearIntentsPlugin from "@data-provider/near-intents";
 import type { PluginClient } from "@data-provider/shared-contract";
+import { createPluginRuntime } from "every-plugin";
+import { Effect } from "every-plugin/effect";
 
 type AggregatorRegistry = {
   "@data-provider/near-intents": typeof NearIntentsPlugin;
@@ -15,7 +15,7 @@ const PLUGIN_URLS = {
   production: {
     "@data-provider/near-intents": "https://elliot-braem-703-data-provider-near-intents-data--383cccfa0-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/across": "https://elliot-braem-686-data-provider-across-data-provid-39c5d431c-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-706-data-provider-canonical-asset-co-573bd0884-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/canonical-asset-conversion": "https://elliot-braem-739-data-provider-canonical-asset-co-2e1478526-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",
@@ -30,9 +30,8 @@ export interface PluginRuntimeConfig {
     NEAR_INTENTS_API_KEY: string;
     DUNE_API_KEY: string;
     REDIS_URL: string;
-    COINMARKETCAP_API_KEY?: string;
-    COINGECKO_PRO_API_KEY?: string;
-    COINGECKO_DEMO_API_KEY?: string;
+    DATABASE_URL: string,
+    DATABASE_AUTH_TOKEN: string
   };
 }
 
@@ -68,8 +67,8 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
         const canonicalAsset = await runtime.usePlugin("@data-provider/canonical-asset-conversion", {
           variables: {},
           secrets: {
-            COINGECKO_PRO_API_KEY: config.secrets.COINGECKO_PRO_API_KEY,
-            COINGECKO_DEMO_API_KEY: config.secrets.COINGECKO_DEMO_API_KEY,
+            DATABASE_URL: config.secrets.DATABASE_URL,
+            DATABASE_AUTH_TOKEN: config.secrets.DATABASE_AUTH_TOKEN
           }
         });
 

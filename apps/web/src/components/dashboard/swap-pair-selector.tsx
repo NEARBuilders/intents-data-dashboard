@@ -1,4 +1,4 @@
-import { useAggregatorAssets } from "@/lib/aggregator/hooks";
+import { useAggregatorAssets, useCanonicalNetworks, type Network } from "@/lib/aggregator/hooks";
 import { logEvent } from "@/lib/analytics";
 import { Route } from "@/routes/_layout/swaps";
 import type { Asset } from "@/types/common";
@@ -22,6 +22,7 @@ export const SwapPairSelector = () => {
   const navigate = Route.useNavigate();
 
   const { uniqueAssets, isLoading: assetsLoading } = useAggregatorAssets();
+  const { data: canonicalNetworks, isLoading: networksLoading } = useCanonicalNetworks();
 
   const sourceAssetId = search.source;
   const destAssetId = search.destination;
@@ -44,15 +45,34 @@ export const SwapPairSelector = () => {
     return destAssetFromUrl ?? uniqueAssets[1] ?? uniqueAssets[0] ?? null;
   }, [destAssetFromUrl, uniqueAssets]);
 
-  const sourceBlockchains = useMemo(() => {
-    if (!effectiveSourceAsset) return [];
-    return getBlockchainsForSymbol(uniqueAssets, effectiveSourceAsset.symbol);
-  }, [uniqueAssets, effectiveSourceAsset]);
+  const networksByBlockchain = useMemo(() => {
+    if (!canonicalNetworks) return new Map<string, Network>();
+    return new Map(canonicalNetworks.map(n => [n.blockchain, n]));
+  }, [canonicalNetworks]);
 
-  const destBlockchains = useMemo(() => {
+  const sourceNetworks = useMemo(() => {
+    if (!effectiveSourceAsset) return [];
+    const blockchains = getBlockchainsForSymbol(uniqueAssets, effectiveSourceAsset.symbol);
+    return blockchains.map(chain => 
+      networksByBlockchain.get(chain) ?? {
+        blockchain: chain,
+        displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
+        symbol: chain,
+      }
+    );
+  }, [uniqueAssets, effectiveSourceAsset, networksByBlockchain]);
+
+  const destNetworks = useMemo(() => {
     if (!effectiveDestAsset) return [];
-    return getBlockchainsForSymbol(uniqueAssets, effectiveDestAsset.symbol);
-  }, [uniqueAssets, effectiveDestAsset]);
+    const blockchains = getBlockchainsForSymbol(uniqueAssets, effectiveDestAsset.symbol);
+    return blockchains.map(chain => 
+      networksByBlockchain.get(chain) ?? {
+        blockchain: chain,
+        displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
+        symbol: chain,
+      }
+    );
+  }, [uniqueAssets, effectiveDestAsset, networksByBlockchain]);
 
   const [selectedSourceNetwork, setSelectedSourceNetwork] = useState<string>(
     effectiveSourceAsset?.blockchain || ""
@@ -144,7 +164,7 @@ export const SwapPairSelector = () => {
     }
   }, [search.destination, effectiveDestAsset, assetsLoading, navigate]);
 
-  if (assetsLoading) {
+  if (assetsLoading || networksLoading) {
     return (
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
         <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-6">
@@ -173,12 +193,8 @@ export const SwapPairSelector = () => {
             label=""
             value={selectedSourceNetwork}
             onChange={setSelectedSourceNetwork}
-            networks={sourceBlockchains.map((chain) => ({
-              blockchain: chain,
-              displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
-              symbol: chain,
-            }))}
-            disabled={sourceBlockchains.length === 0}
+            networks={sourceNetworks}
+            disabled={sourceNetworks.length === 0}
           />
 
           <AssetSelect
@@ -218,12 +234,8 @@ export const SwapPairSelector = () => {
             label=""
             value={selectedDestNetwork}
             onChange={setSelectedDestNetwork}
-            networks={destBlockchains.map((chain) => ({
-              blockchain: chain,
-              displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
-              symbol: chain,
-            }))}
-            disabled={destBlockchains.length === 0}
+            networks={destNetworks}
+            disabled={destNetworks.length === 0}
           />
 
           <AssetSelect
