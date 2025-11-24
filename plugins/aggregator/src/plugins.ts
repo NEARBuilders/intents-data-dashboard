@@ -13,9 +13,9 @@ type AggregatorRegistry = {
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/near-intents": "https://elliot-braem-766-data-provider-near-intents-data--8e1dc4cbd-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/across": "https://elliot-braem-765-data-provider-across-data-provid-8fc9637eb-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/asset-enrichment": "https://elliot-braem-764-data-provider-canonical-asset-co-a70517e4e-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/near-intents": "https://elliot-braem-795-data-provider-near-intents-data--d0e12ef8c-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/across": "https://elliot-braem-793-data-provider-across-data-provid-7c374a021-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/asset-enrichment": "https://elliot-braem-796-data-provider-asset-enrichment-d-89fe2bc64-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",

@@ -41,14 +41,18 @@ const EVM_CHAIN_MAPPINGS = {
   169: "manta",
   34443: "mode",
   81457: "blast",
-  
-  // Emerging L2s
+  1135: "lisk",
+  690: "redstone",
   9745: "plasma",
   80094: "bera",
   130: "unichain",
   143: "monad",
   480: "worldchain",
   1868: "soneium",
+  57073: "ink",
+  
+  232: "gho",
+  999: "wan",
   
   // Testnets
   3: "eth-ropsten",
@@ -63,18 +67,89 @@ const EVM_CHAIN_MAPPINGS = {
 } as const;
 
 /**
- * Blockchain slug aliases (alternative names -> canonical slug)
- * These provide alternative names that map to the same chainId
+ * Blockchain canonical map: Single source of truth for normalization
+ * Maps any name (canonical or alias) to the canonical slug
  */
-const BLOCKCHAIN_ALIASES = {
+const BLOCKCHAIN_CANONICAL_MAP: Record<string, string> = {
+  // EVM chains - canonical names (identity mappings)
+  "eth": "eth",
+  "arb": "arb",
+  "arb-nova": "arb-nova",
+  "op": "op",
+  "base": "base",
+  "zora": "zora",
+  "pol": "pol",
+  "polygon-zkevm": "polygon-zkevm",
+  "bsc": "bsc",
+  "opbnb": "opbnb",
+  "avax": "avax",
+  "ftm": "ftm",
+  "celo": "celo",
+  "gnosis": "gnosis",
+  "zksync": "zksync",
+  "linea": "linea",
+  "mantle": "mantle",
+  "scroll": "scroll",
+  "manta": "manta",
+  "mode": "mode",
+  "blast": "blast",
+  "plasma": "plasma",
+  "bera": "bera",
+  "unichain": "unichain",
+  "monad": "monad",
+  "worldchain": "worldchain",
+  "soneium": "soneium",
+  "lisk": "lisk",
+  "redstone": "redstone",
+  "ink": "ink",
+  "gho": "gho",
+  "wan": "wan",
+  
+  // Testnets
+  "eth-ropsten": "eth-ropsten",
+  "eth-rinkeby": "eth-rinkeby",
+  "eth-goerli": "eth-goerli",
+  "eth-kovan": "eth-kovan",
+  "eth-sepolia": "eth-sepolia",
+  "arb-sepolia": "arb-sepolia",
+  "base-sepolia": "base-sepolia",
+  "op-sepolia": "op-sepolia",
+  "pol-mumbai": "pol-mumbai",
+  
+  // Non-EVM chains - canonical
+  "sol": "sol",
+  "near": "near",
+  "ton": "ton",
+  "aptos": "aptos",
+  "sui": "sui",
+  "btc": "btc",
+  "tron": "tron",
+  "stellar": "stellar",
+  "cardano": "cardano",
+  "zec": "zec",
+  "ltc": "ltc",
+  "doge": "doge",
+  "xrp": "xrp",
+  "xlm": "xlm",
+  "ada": "ada",
+  "dot": "dot",
+  "cosmos": "cosmos",
+  "osmo": "osmo",
+  "atom": "atom",
+  "algo": "algo",
+  "tezos": "tezos",
+  "xtz": "xtz",
+  
+  // Aliases
   "polygon": "pol",
   "matic": "pol",
+  "arbitrum": "arb",
   "bnb": "bsc",
   "avalanche": "avax",
   "fantom": "ftm",
   "matic-mumbai": "pol-mumbai",
   "mumbai": "pol-mumbai",
-} as const;
+};
 
 /**
  * Non-EVM chain ID mappings (string chainId -> blockchain slug)
@@ -112,15 +187,27 @@ export const BLOCKCHAIN_TO_CHAIN_ID: Record<string, number> = (() => {
     map[slug] = Number(chainId);
   }
   
-  for (const [alias, canonicalSlug] of Object.entries(BLOCKCHAIN_ALIASES)) {
-    const chainId = map[canonicalSlug];
-    if (chainId !== undefined) {
-      map[alias] = chainId;
+  // Add reverse mappings for aliases from BLOCKCHAIN_CANONICAL_MAP
+  for (const [name, canonicalSlug] of Object.entries(BLOCKCHAIN_CANONICAL_MAP)) {
+    if (name !== canonicalSlug) {
+      // This is an alias
+      const chainId = map[canonicalSlug];
+      if (chainId !== undefined) {
+        map[name] = chainId;
+      }
     }
   }
   
   return map;
 })();
+
+/**
+ * Normalize a blockchain slug to its canonical form using direct lookup
+ */
+export function normalizeBlockchainSlug(blockchain: string): string {
+  const lower = blockchain.toLowerCase();
+  return BLOCKCHAIN_CANONICAL_MAP[lower] ?? lower;
+}
 
 export const NON_EVM_BLOCKCHAINS = [
   "sol",
@@ -372,6 +459,14 @@ export function isNonEvmBlockchain(blockchain: string): blockchain is NonEvmBloc
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /**
+ * Check if an address is the EVM zero address (0x000...000)
+ * Used to identify native coin placeholders in token lists
+ */
+export function isZeroAddress(address: string): boolean {
+  return address.toLowerCase() === ZERO_ADDRESS;
+}
+
+/**
  * Get namespace and reference for a blockchain
  * Returns the appropriate namespace (e.g., erc20, spl, nep141) and reference
  * based on whether the asset has an address/contract or is native
@@ -398,7 +493,7 @@ export function getChainNamespace(
   }
 
   if (hasAddress) {
-    if (address.toLowerCase() === ZERO_ADDRESS) {
+    if (isZeroAddress(address)) {
       return { namespace: 'native', reference: 'coin' };
     }
     return { namespace: 'erc20', reference: address };

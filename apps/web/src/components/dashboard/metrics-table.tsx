@@ -2,8 +2,6 @@ import { useMemo } from "react";
 import type { Route, ProviderInfo } from "@/types/common";
 import { useRates, useLiquidity, useVolumes } from "@/hooks/use-route-metrics";
 import { formatVolume, formatCurrency, formatPercentage } from "@/utils/comparison";
-import { useStaticAssets } from "@/hooks/use-static-assets";
-import { calculateEstimatedFee } from "@/utils/fees";
 import { VersusComparisonTable, type MetricRow } from "./versus-comparison-table";
 
 interface MetricsTableProps {
@@ -52,8 +50,6 @@ export const MetricsTable = ({
     !!selectedProvider
   );
 
-  const { data: staticAssets } = useStaticAssets();
-
   const nearIntentsRate = ratesData?.data?.near_intents?.[0];
   const selectedProviderRate = ratesData?.data?.[selectedProvider]?.[0];
 
@@ -61,14 +57,12 @@ export const MetricsTable = ({
   const selectedProviderLiquidity = liquidityData?.data?.[selectedProvider]?.[0];
 
   const nearIntentsFee = useMemo(() => {
-    if (!nearIntentsRate) return null;
-    return calculateEstimatedFee(nearIntentsRate, staticAssets?.assets);
-  }, [nearIntentsRate, staticAssets]);
+    return nearIntentsRate?.totalFeesUsd ?? null;
+  }, [nearIntentsRate]);
 
   const providerFee = useMemo(() => {
-    if (!selectedProviderRate) return null;
-    return calculateEstimatedFee(selectedProviderRate, staticAssets?.assets);
-  }, [selectedProviderRate, staticAssets]);
+    return selectedProviderRate?.totalFeesUsd ?? null;
+  }, [selectedProviderRate]);
 
   const nearIntentsVolume = useMemo(() => {
     const data = volumeData?.data?.near_intents;
@@ -107,18 +101,18 @@ export const MetricsTable = ({
   };
 
   const swapMetrics: MetricRow[] = useMemo(() => {
-    const nearCost = nearIntentsFee ?? null;
-    const competitorCost = providerFee ?? null;
+    const nearCost = nearIntentsFee ?? undefined;
+    const competitorCost = providerFee ?? undefined;
     const nearLiq = nearIntentsLiquidity?.thresholds?.[0]?.slippageBps ?? null;
     const competitorLiq = selectedProviderLiquidity?.thresholds?.[0]?.slippageBps ?? null;
 
     return [
       {
         label: "Estimated Cost",
-        leftValue: formatCurrency(nearCost ?? undefined),
-        rightValue: formatCurrency(competitorCost ?? undefined),
-        leftIndicator: getIndicator(nearCost ?? undefined, competitorCost ?? undefined, true),
-        rightIndicator: getIndicator(competitorCost ?? undefined, nearCost ?? undefined, true),
+        leftValue: formatCurrency(nearCost),
+        rightValue: formatCurrency(competitorCost),
+        leftIndicator: getIndicator(nearCost, competitorCost, true),
+        rightIndicator: getIndicator(competitorCost, nearCost, true),
       },
       {
         label: "Fees Generated",
@@ -129,8 +123,8 @@ export const MetricsTable = ({
       },
       {
         label: "Liquidity Depth",
-        leftValue: formatPercentage(nearLiq),
-        rightValue: formatPercentage(competitorLiq),
+        leftValue: formatPercentage(nearLiq ?? undefined),
+        rightValue: formatPercentage(competitorLiq ?? undefined),
         leftIndicator: getIndicator(nearLiq, competitorLiq, true),
         rightIndicator: getIndicator(competitorLiq, nearLiq, true),
       },

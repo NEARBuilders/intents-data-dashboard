@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "every-plugin/effect";
 import type { AssetType } from "@data-provider/shared-contract";
 import { AssetStore, type AssetCriteria } from "../store";
-import { assetToCanonicalIdentity, getBlockchainFromChainId, isEvmBlockchain } from "@data-provider/plugin-utils";
+import { assetToCanonicalIdentity, getBlockchainFromChainId, normalizeBlockchainSlug, isZeroAddress } from "@data-provider/plugin-utils";
 
 interface UniswapToken {
   chainId: number;
@@ -80,9 +80,19 @@ export const UniswapRegistryLive = Layer.effect(
       sync: () =>
         Effect.gen(function* () {
           const tokenList = yield* fetchTokenList;
+          const totalTokens = tokenList.tokens.length;
           let syncedCount = 0;
+          let processedCount = 0;
+
+          console.log(`Uniswap sync: Processing ${totalTokens} tokens...`);
 
           for (const token of tokenList.tokens) {
+            processedCount++;
+
+            if (isZeroAddress(token.address)) {
+              continue;
+            }
+
             const asset = yield* convertToAsset(token).pipe(
               Effect.catchAll(() => Effect.succeed(null))
             );
@@ -91,8 +101,14 @@ export const UniswapRegistryLive = Layer.effect(
               yield* store.upsert(asset);
               syncedCount++;
             }
+
+            if (processedCount % 250 === 0) {
+              const percentComplete = Math.round((processedCount / totalTokens) * 100);
+              console.log(`Uniswap: ${processedCount} / ${totalTokens} tokens processed (${percentComplete}%), ${syncedCount} synced`);
+            }
           }
 
+          console.log(`Uniswap sync: ${syncedCount} / ${totalTokens} tokens successfully synced`);
           return syncedCount;
         }),
 
@@ -102,12 +118,13 @@ export const UniswapRegistryLive = Layer.effect(
             return null;
           }
 
-          const blockchain = criteria.blockchain.toLowerCase();
-          if (!isEvmBlockchain(blockchain)) {
-            return null;
-          }
+          const normalizedCriteria = {
+            ...criteria,
+            blockchain: normalizeBlockchainSlug(criteria.blockchain.toLowerCase()),
+            reference: criteria.reference.toLowerCase(),
+          };
 
-          return yield* store.find(criteria);
+          return yield* store.find(normalizedCriteria);
         }),
     };
   })

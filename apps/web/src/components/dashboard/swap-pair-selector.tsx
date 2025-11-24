@@ -1,4 +1,4 @@
-import { useAggregatorAssets, useCanonicalNetworks, type Network } from "@/lib/aggregator/hooks";
+import { useAggregatorAssets, useBlockchains, type Network } from "@/lib/aggregator/hooks";
 import { logEvent } from "@/lib/analytics";
 import { Route } from "@/routes/_layout/swaps";
 import type { Asset } from "@/types/common";
@@ -22,7 +22,7 @@ export const SwapPairSelector = () => {
   const navigate = Route.useNavigate();
 
   const { uniqueAssets, isLoading: assetsLoading } = useAggregatorAssets();
-  const { data: canonicalNetworks, isLoading: networksLoading } = useCanonicalNetworks();
+  const { data: canonicalNetworks, isLoading: networksLoading } = useBlockchains();
 
   const sourceAssetId = search.source;
   const destAssetId = search.destination;

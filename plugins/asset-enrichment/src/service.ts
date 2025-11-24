@@ -3,6 +3,7 @@ import {
   canonicalToAsset,
   getChainIdFromBlockchain,
   getChainNamespace,
+  normalizeBlockchainSlug,
    BLOCKCHAIN_TO_CHAIN_ID,
    NON_EVM_BLOCKCHAINS
 } from "@data-provider/plugin-utils";
@@ -36,6 +37,7 @@ export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
     >;
     readonly getStoredAssets: () => Effect.Effect<AssetType[], Error>;
     readonly sync: () => Effect.Effect<{ status: string }, Error>;
+    readonly getPrice: (assetId: string) => Effect.Effect<{ price: number | null; timestamp: number | null }, Error>;
   }
 >() { }
 
@@ -88,8 +90,14 @@ export const CanonicalAssetServiceLive = Layer.effect(
         return null;
       });
 
-    const getCachedAsset = (criteria: AssetCriteria): Effect.Effect<AssetType | null, Error> =>
-      lookupCache.get(JSON.stringify(criteria));
+    const getCachedAsset = (criteria: AssetCriteria): Effect.Effect<AssetType | null, Error> => {
+      const normalizedCriteria = {
+        ...criteria,
+        blockchain: criteria.blockchain ? normalizeBlockchainSlug(criteria.blockchain) : undefined,
+        reference: criteria.reference ? criteria.reference.toLowerCase() : undefined,
+      };
+      return lookupCache.get(JSON.stringify(normalizedCriteria));
+    };
 
     return {
       normalize: (descriptor) =>
@@ -277,6 +285,11 @@ export const CanonicalAssetServiceLive = Layer.effect(
           yield* Effect.forkDaemon(syncTask);
 
           return { status: "started" };
+        }),
+
+      getPrice: (assetId) =>
+        Effect.gen(function* () {
+          return yield* coingeckoRegistry.getPrice(assetId);
         }),
     };
   })

@@ -12,6 +12,7 @@ import type {
   AggregatedVolumeResultType,
   DailyVolumeType,
   DataType,
+  EnrichedRateType,
   ProviderIdentifier,
   ProviderInfoType,
   TimePeriod,
@@ -201,7 +202,7 @@ export class DataAggregatorService {
     providers?: ProviderIdentifier[];
   }): Promise<{
     providers: ProviderIdentifier[];
-    data: Record<ProviderIdentifier, RateType[]>;
+    data: Partial<Record<ProviderIdentifier, EnrichedRateType[]>>;
     aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
@@ -221,7 +222,61 @@ export class DataAggregatorService {
       { ...input, routes: canonicalRoutes, targetProviders },
       assetSupportIndex
     );
-    return { ...result, measuredAt: new Date().toISOString() };
+
+    const uniqueAssetIds = new Set<string>();
+    for (const route of canonicalRoutes) {
+      uniqueAssetIds.add(route.source.assetId);
+      uniqueAssetIds.add(route.destination.assetId);
+    }
+
+    const priceMap = new Map<string, number>();
+    await Promise.all(
+      Array.from(uniqueAssetIds).map(async (assetId) => {
+        try {
+          const priceData = await this.canonicalAsset.getPrice({ assetId });
+          if (priceData.price !== null) {
+            priceMap.set(assetId, priceData.price);
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch price for ${assetId}:`, error);
+        }
+      })
+    );
+
+    const enrichedData: Partial<Record<ProviderIdentifier, EnrichedRateType[]>> = {};
+    for (const [providerId, rates] of Object.entries(result.data)) {
+      enrichedData[providerId as ProviderIdentifier] = rates.map((rate: RateType) => {
+        const sourcePrice = priceMap.get(rate.source.assetId);
+        const destPrice = priceMap.get(rate.destination.assetId);
+
+        let amountInUsd: number | undefined;
+        let amountOutUsd: number | undefined;
+        let totalFeesUsd: number | undefined;
+
+        if (sourcePrice && rate.amountIn) {
+          const amountInFloat = parseFloat(rate.amountIn) / Math.pow(10, rate.source.decimals);
+          amountInUsd = amountInFloat * sourcePrice;
+        }
+
+        if (destPrice && rate.amountOut) {
+          const amountOutFloat = parseFloat(rate.amountOut) / Math.pow(10, rate.destination.decimals);
+          amountOutUsd = amountOutFloat * destPrice;
+        }
+
+        if (amountInUsd !== undefined && amountOutUsd !== undefined) {
+          totalFeesUsd = amountInUsd - amountOutUsd;
+        }
+
+        return {
+          ...rate,
+          amountInUsd,
+          amountOutUsd,
+          totalFeesUsd,
+        };
+      });
+    }
+
+    return { ...result, data: enrichedData, measuredAt: new Date().toISOString() };
   }
 
   async getLiquidity(input: {

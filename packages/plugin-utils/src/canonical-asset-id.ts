@@ -4,7 +4,7 @@ import {
   fromUniswapToken,
 } from "@defuse-protocol/crosschain-assetid";
 import type { AssetType } from "@data-provider/shared-contract";
-import { getBlockchainFromChainId, getChainNamespace } from "./blockchain-mapping";
+import { getBlockchainFromChainId, getChainNamespace, isZeroAddress, normalizeBlockchainSlug } from "./blockchain-mapping";
 
 export interface CanonicalIdentity {
   assetId: string;
@@ -37,46 +37,50 @@ export async function assetToCanonicalIdentity(
         ? parseInt(input.chainId, 10)
         : input.chainId;
 
-    // Fast path: fromUniswapToken (handles most EVM chains)
-    try {
-      const assetId = fromUniswapToken({
-        chainId: numericChainId,
-        address: input.address.toLowerCase(),
-      });
+    const address = input.address.toLowerCase();
+    
+    // Fast path: fromUniswapToken (handles most EVM chains efficiently)
+    // But skip if zero address (native coin)
+    if (!isZeroAddress(address)) {
+      try {
+        const assetId = fromUniswapToken({
+          chainId: numericChainId,
+          address,
+        });
 
-      const parsed = parse1cs(assetId);
-      
-      return {
-        assetId,
-        blockchain: parsed.chain,
-        namespace: parsed.namespace,
-        reference: parsed.reference,
-      };
-    } catch {
-      // Fallback: use custom chain mapping
-      const blockchain = getBlockchainFromChainId(
-        String(numericChainId),
-      );
-      if (!blockchain) {
-        throw new Error(
-          `assetToCanonicalIdentity: unknown chainId ${input.chainId}`,
-        );
+        const parsed = parse1cs(assetId);
+        const normalizedBlockchain = normalizeBlockchainSlug(parsed.chain);
+        
+        return {
+          assetId,
+          blockchain: normalizedBlockchain,
+          namespace: parsed.namespace,
+          reference: parsed.reference,
+        };
+      } catch {
+        // Fall through to manual chain mapping
       }
-
-      const { namespace, reference } = getChainNamespace(
-        blockchain,
-        input.address.toLowerCase(),
-      );
-
-      const assetId = stringify1cs({
-        version: "v1",
-        chain: blockchain,
-        namespace,
-        reference,
-      });
-
-      return { assetId, blockchain, namespace, reference };
     }
+
+    // Fallback: use custom chain mapping (for zero address or unsupported chains)
+    const blockchain = getBlockchainFromChainId(String(numericChainId));
+    if (!blockchain) {
+      throw new Error(
+        `assetToCanonicalIdentity: unknown chainId ${input.chainId}`,
+      );
+    }
+
+    const { namespace, reference } = getChainNamespace(blockchain, address);
+    const normalizedBlockchain = normalizeBlockchainSlug(blockchain);
+    
+    const assetId = stringify1cs({
+      version: "v1",
+      chain: normalizedBlockchain,
+      namespace,
+      reference,
+    });
+
+    return { assetId, blockchain: normalizedBlockchain, namespace, reference };
   }
 
   // Case 2: AssetType-ish (canonical format)
@@ -99,6 +103,8 @@ export async function assetToCanonicalIdentity(
         "blockchain+namespace+reference, or chainId+address",
     );
   }
+
+  blockchain = normalizeBlockchainSlug(blockchain);
 
   const assetId =
     asset.assetId ??

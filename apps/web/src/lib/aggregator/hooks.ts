@@ -10,9 +10,9 @@ export function useAggregatorListedAssets() {
   });
 }
 
-export function useCanonicalNetworks() {
+export function useBlockchains() {
   return useQuery({
-    queryKey: ["canonical-networks"],
+    queryKey: ["blockchains"],
     queryFn: () => client.getBlockchains(),
     staleTime: 3600_000,
   });
@@ -68,7 +68,7 @@ export function useAggregatorAssets() {
 }
 
 export function useSupportedNetworks() {
-  const { data: networks, isLoading: isLoadingNetworks } = useCanonicalNetworks();
+  const { data: networks, isLoading: isLoadingNetworks } = useBlockchains();
   const { supportedBlockchains, isLoading: isLoadingAssets } = useAggregatorAssets();
 
   const supportedNetworks = (networks ?? []).filter((n) =>

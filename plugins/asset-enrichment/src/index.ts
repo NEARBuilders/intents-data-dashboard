@@ -120,6 +120,15 @@ export default createPlugin({
           timestamp: new Date().toISOString(),
         };
       }),
+
+      getPrice: builder.getPrice.handler(async ({ input }) => {
+        return await Effect.runPromise(
+          Effect.gen(function* () {
+            const service = yield* CanonicalAssetService;
+            return yield* service.getPrice(input.assetId);
+          }).pipe(Effect.provide(context.appLayer))
+        );
+      }),
     };
   },
 });

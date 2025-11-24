@@ -99,6 +99,7 @@ export class CoingeckoRegistry extends Context.Tag("CoingeckoRegistry")<
   {
     readonly sync: () => Effect.Effect<number, Error>;
     readonly lookup: (criteria: AssetCriteria) => Effect.Effect<AssetType | null, Error>;
+    readonly getPrice: (assetId: string) => Effect.Effect<{ price: number | null; timestamp: number | null }, Error>;
   }
 >() { }
 
@@ -255,6 +256,35 @@ export const CoingeckoRegistryLive = Layer.scoped(
       blockchainByNativeCoinId[coin.id]!.push(blockchain);
     }
 
+    const priceCache = new Map<string, { price: number; timestamp: number }>();
+    const CACHE_TTL_MS = 3 * 60 * 1000;
+
+    const fetchPrice = (coingeckoId: string): Effect.Effect<{ price: number | null; timestamp: number | null }, Error> =>
+      Effect.tryPromise({
+        try: async () => {
+          const params = new URLSearchParams({
+            ids: coingeckoId,
+            vs_currencies: "usd",
+            include_last_updated_at: "true",
+          });
+          const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?${params}`);
+          if (!response.ok) {
+            console.error(`Failed to fetch CoinGecko price for ${coingeckoId}: ${response.status}`);
+            return { price: null, timestamp: null };
+          }
+          const data = await response.json() as Record<string, { usd?: number; last_updated_at?: number }>;
+          const coinData = data[coingeckoId];
+          if (!coinData || typeof coinData.usd !== 'number') {
+            return { price: null, timestamp: null };
+          }
+          return {
+            price: coinData.usd,
+            timestamp: coinData.last_updated_at || Math.floor(Date.now() / 1000),
+          };
+        },
+        catch: (error) => new Error(`CoinGecko price fetch error: ${error}`),
+      });
+
     return {
       sync: () =>
         Effect.gen(function* () {
@@ -375,6 +405,39 @@ export const CoingeckoRegistryLive = Layer.scoped(
 
           return asset;
         }).pipe(Effect.catchAll(() => Effect.succeed(null))),
+
+      getPrice: (assetId) =>
+        Effect.gen(function* () {
+          const cached = priceCache.get(assetId);
+          if (cached && Date.now() - cached.timestamp * 1000 < CACHE_TTL_MS) {
+            return { price: cached.price, timestamp: cached.timestamp };
+          }
+
+          const asset = yield* store.find({ assetId });
+          if (!asset) {
+            return { price: null, timestamp: null };
+          }
+
+          let coingeckoId: string | null = null;
+
+          if (asset.reference === "coin" && asset.blockchain) {
+            coingeckoId = NATIVE_COINS[asset.blockchain.toLowerCase()]?.id || null;
+          } else if (asset.symbol) {
+            coingeckoId = yield* fuzzySearchCoingeckoId(asset.symbol, asset.blockchain);
+          }
+
+          if (!coingeckoId) {
+            return { price: null, timestamp: null };
+          }
+
+          const result = yield* rateLimiter(fetchPrice(coingeckoId));
+          
+          if (result.price !== null && result.timestamp !== null) {
+            priceCache.set(assetId, { price: result.price, timestamp: result.timestamp });
+          }
+
+          return result;
+        }).pipe(Effect.catchAll(() => Effect.succeed({ price: null, timestamp: null }))),
     };
   })
 );

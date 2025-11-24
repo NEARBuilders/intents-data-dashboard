@@ -136,6 +136,21 @@ export const contract = oc.router({
         status: z.string(),
       }),
     ),
+
+  getPrice: oc
+    .route({
+      method: 'POST',
+      path: '/price',
+      summary: 'Get asset price',
+      description: 'Fetch the current USD price for an asset using its canonical ID. Prices are cached for 3 minutes.',
+    })
+    .input(CanonicalIdInput)
+    .output(
+      z.object({
+        price: z.number().nullable().describe('Current price in USD, null if unavailable'),
+        timestamp: z.number().nullable().describe('Unix timestamp when price was last updated'),
+      }),
+    )
 });
 
 // Export inferred types

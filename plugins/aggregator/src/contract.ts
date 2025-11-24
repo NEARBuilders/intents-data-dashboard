@@ -80,7 +80,14 @@ export type AggregatedVolumeDataType = z.infer<typeof AggregatedVolumeData>;
 export const TimePeriodEnum = z.enum(["7d", "30d", "90d", "all"]);
 export type TimePeriod = z.infer<typeof TimePeriodEnum>;
 
-export const RateData = createProviderDataSchema(Rate);
+export const EnrichedRate = Rate.extend({
+  amountInUsd: z.number().optional().describe("USD value of input amount"),
+  amountOutUsd: z.number().optional().describe("USD value of output amount"),
+  totalFeesUsd: z.number().optional().describe("Estimated total fees in USD"),
+});
+export type EnrichedRateType = z.infer<typeof EnrichedRate>;
+
+export const RateData = createProviderDataSchema(EnrichedRate);
 export type RateDataType = z.infer<typeof RateData>;
 
 export const LiquidityData = createProviderDataSchema(LiquidityDepth);

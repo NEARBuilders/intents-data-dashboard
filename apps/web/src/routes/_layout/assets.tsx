@@ -8,8 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useListedAssets } from "@/hooks/use-listed-assets";
-import { useStaticAssets } from "@/hooks/use-static-assets";
-import { buildSymbolGroups, type SymbolGroup } from "@/lib/symbol-groups";
+import { buildSymbolGroups } from "@/lib/symbol-groups";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -49,19 +48,25 @@ function AssetsPage() {
 
   const handleSearchChange = (value: string) => {
     navigate({
-      search: (prev) => ({ ...prev, search: value || undefined })
+      search: (prev) => ({ ...prev, search: value || undefined }),
     });
   };
 
   const handleProviderChange = (value: string) => {
     navigate({
-      search: (prev) => ({ ...prev, provider: value === "all" ? undefined : value })
+      search: (prev) => ({
+        ...prev,
+        provider: value === "all" ? undefined : value,
+      }),
     });
   };
 
   const handleBlockchainChange = (value: string) => {
     navigate({
-      search: (prev) => ({ ...prev, blockchain: value === "all" ? undefined : value })
+      search: (prev) => ({
+        ...prev,
+        blockchain: value === "all" ? undefined : value,
+      }),
     });
   };
 
@@ -74,14 +79,13 @@ function AssetsPage() {
   );
 
   const { data: assetsData, isLoading: assetsLoading } = useListedAssets();
-  const { data: staticAssets } = useStaticAssets();
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
   const symbolGroups = useMemo(() => {
     if (!assetsData) return [];
-    return buildSymbolGroups(assetsData, staticAssets);
-  }, [assetsData, staticAssets]);
+    return buildSymbolGroups(assetsData);
+  }, [assetsData]);
 
   const filteredSymbols = useMemo(() => {
     return symbolGroups.filter((group) => {
@@ -145,7 +149,10 @@ function AssetsPage() {
           className="flex-1 bg-[#252525] border-[#343434] text-white placeholder:text-gray-500"
         />
 
-        <Select value={selectedBlockchain} onValueChange={handleBlockchainChange}>
+        <Select
+          value={selectedBlockchain}
+          onValueChange={handleBlockchainChange}
+        >
           <SelectTrigger className="w-full sm:w-[200px] bg-[#252525] border-[#343434] text-white">
             <SelectValue placeholder="All Blockchains" />
           </SelectTrigger>
@@ -170,7 +177,11 @@ function AssetsPage() {
               All Providers
             </SelectItem>
             {assetProviders.map((provider) => (
-              <SelectItem key={provider.id} value={provider.id} className="text-white">
+              <SelectItem
+                key={provider.id}
+                value={provider.id}
+                className="text-white"
+              >
                 {provider.label}
               </SelectItem>
             ))}
@@ -240,7 +251,8 @@ function AssetsPage() {
                       <td className="p-4">
                         {group.price ? (
                           <span className="text-white">
-                            ${group.price.toLocaleString(undefined, {
+                            $
+                            {group.price.toLocaleString(undefined, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 6,
                             })}
@@ -311,7 +323,8 @@ function AssetsPage() {
                 </h2>
                 {selectedGroup.price && (
                   <p className="text-gray-400 text-sm">
-                    ${selectedGroup.price.toLocaleString(undefined, {
+                    $
+                    {selectedGroup.price.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 6,
                     })}
@@ -354,12 +367,11 @@ function AssetsPage() {
                           const asset =
                             selectedGroup.providers[providerId]?.[blockchain];
                           return (
-                            <td
-                              key={blockchain}
-                              className="p-3 text-center"
-                            >
+                            <td key={blockchain} className="p-3 text-center">
                               {asset ? (
-                                <span className="text-green-400 text-lg">✓</span>
+                                <span className="text-green-400 text-lg">
+                                  ✓
+                                </span>
                               ) : (
                                 <span className="text-gray-600">-</span>
                               )}

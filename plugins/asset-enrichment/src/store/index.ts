@@ -34,9 +34,9 @@ export const AssetStoreLive = Layer.effect(
               .insert(schema.assets)
               .values({
                 id: asset.assetId,
-                blockchain: asset.blockchain,
+                blockchain: asset.blockchain.toLowerCase(),
                 namespace: asset.namespace,
-                reference: asset.reference,
+                reference: asset.reference.toLowerCase(),
                 symbol: asset.symbol,
                 name: asset.name || asset.symbol,
                 decimals: asset.decimals,
@@ -48,6 +48,9 @@ export const AssetStoreLive = Layer.effect(
               .onConflictDoUpdate({
                 target: schema.assets.id,
                 set: {
+                  blockchain: asset.blockchain.toLowerCase(),
+                  namespace: asset.namespace,
+                  reference: asset.reference.toLowerCase(),
                   symbol: asset.symbol,
                   name: asset.name || asset.symbol,
                   decimals: asset.decimals,
@@ -64,48 +67,92 @@ export const AssetStoreLive = Layer.effect(
       find: (criteria) =>
         Effect.tryPromise({
           try: async () => {
-            const conditions = [];
-
+            // Priority 1: assetId (most specific)
             if (criteria.assetId) {
-              conditions.push(eq(schema.assets.id, criteria.assetId));
-            } else {
+              const results = await db
+                .select()
+                .from(schema.assets)
+                .where(eq(schema.assets.id, criteria.assetId))
+                .limit(1);
+
+              if (results.length === 0) {
+                return null;
+              }
+
+              const row = results[0]!;
+              return {
+                assetId: row.id,
+                blockchain: row.blockchain,
+                namespace: row.namespace,
+                reference: row.reference,
+                symbol: row.symbol,
+                name: row.name || undefined,
+                decimals: row.decimals,
+                iconUrl: row.iconUrl || undefined,
+                chainId: row.chainId || undefined,
+              } satisfies AssetType;
+            }
+
+            // Priority 2: reference (address) - the unique identifier
+            // Optional filter by blockchain if provided
+            if (criteria.reference) {
+              const conditions = [eq(schema.assets.reference, criteria.reference.toLowerCase())];
+              
               if (criteria.blockchain) {
-                conditions.push(eq(schema.assets.blockchain, criteria.blockchain));
+                conditions.push(eq(schema.assets.blockchain, criteria.blockchain.toLowerCase()));
               }
-              if (criteria.reference) {
-                conditions.push(eq(schema.assets.reference, criteria.reference));
+
+              const results = await db
+                .select()
+                .from(schema.assets)
+                .where(and(...conditions))
+                .limit(1);
+
+              if (results.length === 0) {
+                return null;
               }
-              if (criteria.symbol) {
-                conditions.push(eq(schema.assets.symbol, criteria.symbol));
-              }
+
+              const row = results[0]!;
+              return {
+                assetId: row.id,
+                blockchain: row.blockchain,
+                namespace: row.namespace,
+                reference: row.reference,
+                symbol: row.symbol,
+                name: row.name || undefined,
+                decimals: row.decimals,
+                iconUrl: row.iconUrl || undefined,
+                chainId: row.chainId || undefined,
+              } satisfies AssetType;
             }
 
-            if (conditions.length === 0) {
-              return null;
+            // Fallback: symbol only (least specific)
+            if (criteria.symbol) {
+              const results = await db
+                .select()
+                .from(schema.assets)
+                .where(eq(schema.assets.symbol, criteria.symbol))
+                .limit(1);
+
+              if (results.length === 0) {
+                return null;
+              }
+
+              const row = results[0]!;
+              return {
+                assetId: row.id,
+                blockchain: row.blockchain,
+                namespace: row.namespace,
+                reference: row.reference,
+                symbol: row.symbol,
+                name: row.name || undefined,
+                decimals: row.decimals,
+                iconUrl: row.iconUrl || undefined,
+                chainId: row.chainId || undefined,
+              } satisfies AssetType;
             }
 
-            const results = await db
-              .select()
-              .from(schema.assets)
-              .where(and(...conditions))
-              .limit(1);
-
-            if (results.length === 0) {
-              return null;
-            }
-
-            const row = results[0]!;
-            return {
-              assetId: row.id,
-              blockchain: row.blockchain,
-              namespace: row.namespace,
-              reference: row.reference,
-              symbol: row.symbol,
-              name: row.name || undefined,
-              decimals: row.decimals,
-              iconUrl: row.iconUrl || undefined,
-              chainId: row.chainId || undefined,
-            } satisfies AssetType;
+            return null;
           },
           catch: (error) => new Error(`Failed to find asset: ${error}`),
         }),

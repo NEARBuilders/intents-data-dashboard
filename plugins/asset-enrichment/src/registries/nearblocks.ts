@@ -34,7 +34,7 @@ export const NearBlocksRegistryLive = Layer.scoped(
     const store = yield* AssetStore;
 
     const rateLimiter = yield* RateLimiter.make({
-      limit: 5,
+      limit: 3,
       interval: "1 minutes",
     });
 
@@ -122,9 +122,16 @@ export const NearBlocksRegistryLive = Layer.scoped(
       sync: () =>
         Effect.gen(function* () {
           console.log("Starting NearBlocks sync: fetching top 5 pages (250 tokens)...");
+          console.log("Note: Rate limited to 3 requests per minute");
           let totalSynced = 0;
 
           for (let page = 1; page <= 5; page++) {
+            if (page > 3) {
+              console.log(`NearBlocks: Waiting for rate limit before fetching page ${page}...`);
+            } else {
+              console.log(`NearBlocks: Fetching page ${page}...`);
+            }
+
             const tokens = yield* rateLimiter(fetchTokenList(page, 50)).pipe(
               Effect.catchAll((error) => {
                 console.error(`Failed to fetch page ${page}:`, error);
@@ -132,9 +139,17 @@ export const NearBlocksRegistryLive = Layer.scoped(
               })
             );
 
-            console.log(`Page ${page}: Retrieved ${tokens.length} tokens`);
+            console.log(`NearBlocks page ${page}: Retrieved ${tokens.length} tokens`);
 
-            for (const token of tokens) {
+            // Convert all tokens to assets first
+            const assets: (AssetType & { source: string })[] = [];
+            for (let i = 0; i < tokens.length; i++) {
+              const token = tokens[i]!;
+              
+              if ((i + 1) % 10 === 0 || i === tokens.length - 1) {
+                console.log(`NearBlocks page ${page}: Converting token ${i + 1}/${tokens.length}...`);
+              }
+
               const asset = yield* convertToAsset(token).pipe(
                 Effect.catchAll((error) => {
                   console.error(`Failed to convert token ${token.contract}:`, error);
@@ -143,14 +158,26 @@ export const NearBlocksRegistryLive = Layer.scoped(
               );
 
               if (asset) {
-                yield* store.upsert(asset).pipe(
-                  Effect.catchAll((error) => {
-                    console.error(`Failed to store token ${token.contract}:`, error);
-                    return Effect.void;
-                  })
-                );
-                totalSynced++;
+                assets.push(asset);
               }
+            }
+
+            // Batch upsert all assets
+            console.log(`NearBlocks page ${page}: Upserting ${assets.length} assets to database...`);
+            for (let i = 0; i < assets.length; i++) {
+              const asset = assets[i]!;
+              
+              if ((i + 1) % 10 === 0 || i === assets.length - 1) {
+                console.log(`NearBlocks page ${page}: Stored ${i + 1}/${assets.length} assets...`);
+              }
+
+              yield* store.upsert(asset).pipe(
+                Effect.catchAll((error) => {
+                  console.error(`Failed to store token ${asset.reference}:`, error);
+                  return Effect.void;
+                })
+              );
+              totalSynced++;
             }
 
             if (tokens.length < 50) {
