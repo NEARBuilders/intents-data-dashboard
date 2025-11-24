@@ -1,22 +1,22 @@
 import { createPluginRuntime } from "every-plugin";
 import type AggregatorPlugin from "@data-provider/aggregator";
-import type CanonicalAssetConversionPlugin from "@data-provider/canonical-asset-conversion";
+import type CanonicalAssetConversionPlugin from "@data-provider/asset-enrichment";
 
 declare module "every-plugin" {
   interface RegisteredPlugins {
     "@data-provider/aggregator": typeof AggregatorPlugin;
-    "@data-provider/canonical-asset-conversion": typeof CanonicalAssetConversionPlugin;
+    "@data-provider/asset-enrichment": typeof CanonicalAssetConversionPlugin;
   }
 }
 
 const PLUGIN_URLS = {
   production: {
     "@data-provider/aggregator": "https://elliot-braem-767-data-provider-aggregator-data-pr-8a82e525d-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-764-data-provider-canonical-asset-co-a70517e4e-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/asset-enrichment": "https://elliot-braem-764-data-provider-canonical-asset-co-a70517e4e-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "http://localhost:3017/remoteEntry.js",
+    "@data-provider/asset-enrichment": "http://localhost:3017/remoteEntry.js",
   }
 } as const;
 
@@ -36,7 +36,7 @@ export async function initializePlugins(config: {
   const runtime = createPluginRuntime({
     registry: {
       "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
-      "@data-provider/canonical-asset-conversion": { remoteUrl: urls["@data-provider/canonical-asset-conversion"] },
+      "@data-provider/asset-enrichment": { remoteUrl: urls["@data-provider/asset-enrichment"] },
     },
     secrets: config.secrets,
   });
@@ -48,7 +48,7 @@ export async function initializePlugins(config: {
     secrets: config.secrets,
   });
 
-  const canonical = await runtime.usePlugin("@data-provider/canonical-asset-conversion", {
+  const canonical = await runtime.usePlugin("@data-provider/asset-enrichment", {
     variables: {},
     secrets: config.secrets,
   });

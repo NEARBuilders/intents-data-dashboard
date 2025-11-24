@@ -1,7 +1,7 @@
 {
-  "name": "@data-provider/canonical-asset-conversion",
+  "name": "@data-provider/asset-enrichment",
   "version": "0.0.1",
-  "description": "Convert to and from canonical asset",
+  "description": "Enrich assets and convert to and from canonical asset",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "type": "module",

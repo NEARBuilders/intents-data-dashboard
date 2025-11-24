@@ -15,7 +15,7 @@
     "build": "tsdown"
   },
   "devDependencies": {
-    "@data-provider/canonical-asset-conversion": "workspace:*",
+    "@data-provider/asset-enrichment": "workspace:*",
     "@data-provider/aggregator": "workspace:*",
     "@types/node": "^24.10.0",
     "tsdown": "^0.15.5"

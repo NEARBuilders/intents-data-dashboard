@@ -7,7 +7,7 @@ import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
 import { ORPCError, type ContractRouterClient } from "every-plugin/orpc";
-import type { contract as CanonicalAssetContract } from "@data-provider/canonical-asset-conversion/src/contract";
+import type { contract as CanonicalAssetContract } from "@data-provider/asset-enrichment/src/contract";
 import type {
   AggregatedVolumeResultType,
   DailyVolumeType,

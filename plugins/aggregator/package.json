@@ -9,7 +9,7 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
-    "@data-provider/canonical-asset-conversion": "workspace:*",
+    "@data-provider/asset-enrichment": "workspace:*",
     "@data-provider/across": "workspace:*",
     "@data-provider/near-intents": "workspace:*",
     "@data-provider/shared-contract": "workspace:*",

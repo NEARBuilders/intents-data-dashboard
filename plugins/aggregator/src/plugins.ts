@@ -1,5 +1,5 @@
 import type AcrossPlugin from "@data-provider/across";
-import type CanonicalAssetConversionPlugin from "@data-provider/canonical-asset-conversion";
+import type CanonicalAssetConversionPlugin from "@data-provider/asset-enrichment";
 import type NearIntentsPlugin from "@data-provider/near-intents";
 import type { PluginClient } from "@data-provider/shared-contract";
 import { createPluginRuntime } from "every-plugin";
@@ -8,19 +8,19 @@ import { Effect } from "every-plugin/effect";
 type AggregatorRegistry = {
   "@data-provider/near-intents": typeof NearIntentsPlugin;
   "@data-provider/across": typeof AcrossPlugin;
-  "@data-provider/canonical-asset-conversion": typeof CanonicalAssetConversionPlugin;
+  "@data-provider/asset-enrichment": typeof CanonicalAssetConversionPlugin;
 };
 
 const PLUGIN_URLS = {
   production: {
     "@data-provider/near-intents": "https://elliot-braem-766-data-provider-near-intents-data--8e1dc4cbd-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/across": "https://elliot-braem-765-data-provider-across-data-provid-8fc9637eb-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "https://elliot-braem-764-data-provider-canonical-asset-co-a70517e4e-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/asset-enrichment": "https://elliot-braem-764-data-provider-canonical-asset-co-a70517e4e-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",
     "@data-provider/across": "http://localhost:3016/remoteEntry.js",
-    "@data-provider/canonical-asset-conversion": "http://localhost:3017/remoteEntry.js",
+    "@data-provider/asset-enrichment": "http://localhost:3017/remoteEntry.js",
   }
 } as const;
 
@@ -45,7 +45,7 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           registry: {
             "@data-provider/near-intents": { remoteUrl: urls["@data-provider/near-intents"] },
             "@data-provider/across": { remoteUrl: urls["@data-provider/across"] },
-            "@data-provider/canonical-asset-conversion": { remoteUrl: urls["@data-provider/canonical-asset-conversion"] },
+            "@data-provider/asset-enrichment": { remoteUrl: urls["@data-provider/asset-enrichment"] },
           },
           secrets: config.secrets,
         });
@@ -64,7 +64,7 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           secrets: {}
         });
 
-        const canonicalAsset = await runtime.usePlugin("@data-provider/canonical-asset-conversion", {
+        const canonicalAsset = await runtime.usePlugin("@data-provider/asset-enrichment", {
           variables: {},
           secrets: {
             DATABASE_URL: config.secrets.DATABASE_URL,

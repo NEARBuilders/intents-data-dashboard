@@ -109,7 +109,7 @@
       },
       "devDependencies": {
         "@data-provider/aggregator": "workspace:*",
-        "@data-provider/canonical-asset-conversion": "workspace:*",
+        "@data-provider/asset-enrichment": "workspace:*",
         "@types/node": "^24.10.0",
         "tsdown": "^0.15.5",
       },
@@ -212,7 +212,7 @@
       },
       "devDependencies": {
         "@data-provider/across": "workspace:*",
-        "@data-provider/canonical-asset-conversion": "workspace:*",
+        "@data-provider/asset-enrichment": "workspace:*",
         "@data-provider/near-intents": "workspace:*",
         "@data-provider/shared-contract": "workspace:*",
         "@data-provider/template": "workspace:*",
@@ -259,8 +259,8 @@
         "typescript": "^5.0.0",
       },
     },
-    "plugins/canonical-asset-conversion": {
-      "name": "@data-provider/canonical-asset-conversion",
+    "plugins/asset-enrichment": {
+      "name": "@data-provider/asset-enrichment",
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
@@ -649,7 +649,7 @@
 
     "@data-provider/axelar": ["@data-provider/axelar@workspace:plugins/axelar"],
 
-    "@data-provider/canonical-asset-conversion": ["@data-provider/canonical-asset-conversion@workspace:plugins/canonical-asset-conversion"],
+    "@data-provider/asset-enrichment": ["@data-provider/asset-enrichment@workspace:plugins/asset-enrichment"],
 
     "@data-provider/cbridge": ["@data-provider/cbridge@workspace:plugins/cbridge"],
 
@@ -3705,7 +3705,7 @@
 
     "@data-provider/axelar/@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
 
-    "@data-provider/canonical-asset-conversion/@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
+    "@data-provider/asset-enrichment/@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
 
     "@data-provider/cbridge/@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
 
@@ -4281,7 +4281,7 @@
 
     "@data-provider/axelar/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
-    "@data-provider/canonical-asset-conversion/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
+    "@data-provider/asset-enrichment/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
     "@data-provider/cbridge/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
