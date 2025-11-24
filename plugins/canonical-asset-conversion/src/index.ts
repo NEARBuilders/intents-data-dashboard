@@ -1,15 +1,14 @@
 import { createPlugin } from "every-plugin";
 import { Effect, Layer } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
-import { migrate } from "drizzle-orm/libsql/migrator";
 
 import { contract } from "./contract";
-import { CanonicalAssetService, CanonicalAssetServiceLive } from "./service";
-import { DatabaseLive, AssetStoreLive } from "./store";
-import { UniswapRegistryLive } from "./registries/uniswap";
 import { CoingeckoRegistryLive } from "./registries/coingecko";
 import { JupiterRegistryLive } from "./registries/jupiter";
-import { createDatabase } from "./db";
+import { NearBlocksRegistryLive } from "./registries/nearblocks";
+import { UniswapRegistryLive } from "./registries/uniswap";
+import { CanonicalAssetService, CanonicalAssetServiceLive } from "./service";
+import { AssetStoreLive, DatabaseLive } from "./store";
 
 /**
  * Canonical Asset Conversion Plugin
@@ -40,24 +39,15 @@ export default createPlugin({
   initialize: (config) =>
     Effect.gen(function* () {
       const dbLayer = DatabaseLive(config.secrets.DATABASE_URL, config.secrets.DATABASE_AUTH_TOKEN);
-      
+
       const AppLayer = CanonicalAssetServiceLive.pipe(
         Layer.provide(UniswapRegistryLive),
         Layer.provide(CoingeckoRegistryLive),
         Layer.provide(JupiterRegistryLive),
+        Layer.provide(NearBlocksRegistryLive),
         Layer.provide(AssetStoreLive),
         Layer.provide(dbLayer)
       );
-
-      // const db = createDatabase(config.secrets.DATABASE_URL, config.secrets.DATABASE_AUTH_TOKEN);
-
-      // yield* Effect.tryPromise({
-      //   try: () =>
-      //     migrate(db, {
-      //       migrationsFolder: "./db/migrations",
-      //     }),
-      //   catch: (error) => new Error(`Migration failed: ${error}`),
-      // });
 
       console.log("Canonical Asset Conversion plugin initialized");
 

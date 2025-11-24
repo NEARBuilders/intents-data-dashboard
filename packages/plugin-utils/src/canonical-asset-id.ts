@@ -4,8 +4,7 @@ import {
   fromUniswapToken,
 } from "@defuse-protocol/crosschain-assetid";
 import type { AssetType } from "@data-provider/shared-contract";
-import { getBlockchainFromChainId } from "./blockchain-mapping";
-import { getChainNamespace } from "./asset-normalization";
+import { getBlockchainFromChainId, getChainNamespace } from "./blockchain-mapping";
 
 export interface CanonicalIdentity {
   assetId: string;
@@ -17,24 +16,6 @@ export interface CanonicalIdentity {
 type AssetLike =
   | (Partial<AssetType> & { assetId?: string })
   | { chainId: number | string; address: string };
-
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-
-function normalizeNativeLike(
-  blockchain: string,
-  namespace: string,
-  reference: string,
-): { namespace: string; reference: string } {
-  // Heuristic: EVM "native via zero address" → native:coin
-  if (
-    namespace === "erc20" &&
-    reference.toLowerCase() === ZERO_ADDRESS
-  ) {
-    return { namespace: "native", reference: "coin" };
-  }
-
-  return { namespace, reference };
-}
 
 /**
  * Central function to normalize any asset-like input into canonical identity.
@@ -64,32 +45,16 @@ export async function assetToCanonicalIdentity(
       });
 
       const parsed = parse1cs(assetId);
-      const { namespace, reference } = normalizeNativeLike(
-        parsed.chain,
-        parsed.namespace,
-        parsed.reference,
-      );
-
-      const finalAssetId =
-        namespace === parsed.namespace &&
-        reference === parsed.reference
-          ? assetId
-          : stringify1cs({
-              version: "v1",
-              chain: parsed.chain,
-              namespace,
-              reference,
-            });
-
+      
       return {
-        assetId: finalAssetId,
+        assetId,
         blockchain: parsed.chain,
-        namespace,
-        reference,
+        namespace: parsed.namespace,
+        reference: parsed.reference,
       };
     } catch {
       // Fallback: use custom chain mapping
-      const blockchain = await getBlockchainFromChainId(
+      const blockchain = getBlockchainFromChainId(
         String(numericChainId),
       );
       if (!blockchain) {
@@ -98,15 +63,10 @@ export async function assetToCanonicalIdentity(
         );
       }
 
-      let { namespace, reference } = getChainNamespace(
+      const { namespace, reference } = getChainNamespace(
         blockchain,
         input.address.toLowerCase(),
       );
-      ({ namespace, reference } = normalizeNativeLike(
-        blockchain,
-        namespace,
-        reference,
-      ));
 
       const assetId = stringify1cs({
         version: "v1",
@@ -139,12 +99,6 @@ export async function assetToCanonicalIdentity(
         "blockchain+namespace+reference, or chainId+address",
     );
   }
-
-  ({ namespace, reference } = normalizeNativeLike(
-    blockchain,
-    namespace,
-    reference,
-  ));
 
   const assetId =
     asset.assetId ??

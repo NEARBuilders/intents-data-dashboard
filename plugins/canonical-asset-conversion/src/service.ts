@@ -1,17 +1,19 @@
-import { Cache, Context, Effect, Layer } from "every-plugin/effect";
-import type { AssetType } from "@data-provider/shared-contract";
 import {
   assetToCanonicalIdentity,
   canonicalToAsset,
+  getChainIdFromBlockchain,
   getChainNamespace,
-  getChainId,
+   BLOCKCHAIN_TO_CHAIN_ID,
+   NON_EVM_BLOCKCHAINS
 } from "@data-provider/plugin-utils";
-import type { AssetDescriptorType, CanonicalIdComponentsType } from "./contract";
-import { AssetStore, type AssetCriteria } from "./store";
-import { UniswapRegistry } from "./registries/uniswap";
+import type { AssetType } from "@data-provider/shared-contract";
+import { Cache, Context, Effect, Layer } from "every-plugin/effect";
+import type { AssetDescriptorType } from "./contract";
 import { CoingeckoRegistry } from "./registries/coingecko";
 import { JupiterRegistry } from "./registries/jupiter";
-import { BLOCKCHAIN_TO_CHAIN_ID, NON_EVM_BLOCKCHAINS } from "./blockchain-mapping";
+import { NearBlocksRegistry } from "./registries/nearblocks";
+import { UniswapRegistry } from "./registries/uniswap";
+import { AssetStore, type AssetCriteria } from "./store";
 
 export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
   CanonicalAssetService,
@@ -35,7 +37,7 @@ export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
     readonly getStoredAssets: () => Effect.Effect<AssetType[], Error>;
     readonly sync: () => Effect.Effect<{ status: string }, Error>;
   }
->() {}
+>() { }
 
 export const CanonicalAssetServiceLive = Layer.effect(
   CanonicalAssetService,
@@ -44,6 +46,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
     const uniswapRegistry = yield* UniswapRegistry;
     const coingeckoRegistry = yield* CoingeckoRegistry;
     const jupiterRegistry = yield* JupiterRegistry;
+    const nearBlocksRegistry = yield* NearBlocksRegistry;
 
     const lookupCache = yield* Cache.make({
       capacity: 1000,
@@ -75,6 +78,11 @@ export const CanonicalAssetServiceLive = Layer.effect(
         const jupiter = yield* jupiterRegistry.lookup(criteria);
         if (jupiter) {
           return jupiter;
+        }
+
+        const nearBlocks = yield* nearBlocksRegistry.lookup(criteria);
+        if (nearBlocks) {
+          return nearBlocks;
         }
 
         return null;
@@ -127,15 +135,13 @@ export const CanonicalAssetServiceLive = Layer.effect(
             );
           }
 
-          const chainIdEffect = Effect.tryPromise(() => getChainId(identity.blockchain));
-          const resolvedChainId = yield* chainIdEffect;
-          const chainId = descriptor.chainId ?? resolvedChainId;
+          const chainId = descriptor.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
 
           return canonicalToAsset(identity, {
             symbol,
             decimals,
             iconUrl,
-            chainId: chainId ?? undefined,
+            chainId,
           });
         }),
 
@@ -157,13 +163,13 @@ export const CanonicalAssetServiceLive = Layer.effect(
             );
           }
 
-          const chainId = yield* Effect.tryPromise(() => getChainId(identity.blockchain));
+          const chainId = asset.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
 
           return canonicalToAsset(identity, {
             symbol: asset.symbol,
             decimals: asset.decimals,
             iconUrl: asset.iconUrl,
-            chainId: chainId ?? undefined,
+            chainId,
           });
         }),
 
@@ -229,7 +235,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
           const syncTask = Effect.gen(function* () {
             console.log("Background sync started...");
             const startTime = Date.now();
-            
+
             const uniswapCount = yield* uniswapRegistry.sync().pipe(
               Effect.catchAll((error) => {
                 console.error("Uniswap sync failed:", error);
@@ -237,7 +243,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
               })
             );
             console.log(`Uniswap sync complete: ${uniswapCount} assets`);
-            
+
             const coingeckoCount = yield* coingeckoRegistry.sync().pipe(
               Effect.catchAll((error) => {
                 console.error("CoinGecko sync failed:", error);
@@ -245,7 +251,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
               })
             );
             console.log(`CoinGecko sync complete: ${coingeckoCount} assets`);
-            
+
             const jupiterCount = yield* jupiterRegistry.sync().pipe(
               Effect.catchAll((error) => {
                 console.error("Jupiter sync failed:", error);
@@ -253,10 +259,18 @@ export const CanonicalAssetServiceLive = Layer.effect(
               })
             );
             console.log(`Jupiter sync complete: ${jupiterCount} assets`);
-            
+
+            const nearBlocksCount = yield* nearBlocksRegistry.sync().pipe(
+              Effect.catchAll((error) => {
+                console.error("NearBlocks sync failed:", error);
+                return Effect.succeed(0);
+              })
+            );
+            console.log(`NearBlocks sync complete: ${nearBlocksCount} assets`);
+
             const duration = Date.now() - startTime;
             console.log(
-              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount} assets in ${duration}ms`
+              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount + nearBlocksCount} assets in ${duration}ms`
             );
           });
 

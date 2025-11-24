@@ -1,8 +1,7 @@
 import { Context, Effect, Layer } from "every-plugin/effect";
 import type { AssetType } from "@data-provider/shared-contract";
 import { AssetStore, type AssetCriteria } from "../store";
-import { assetToCanonicalIdentity } from "@data-provider/plugin-utils";
-import { getBlockchainFromChainId, isEvmBlockchain } from "../blockchain-mapping";
+import { assetToCanonicalIdentity, getBlockchainFromChainId, isEvmBlockchain } from "@data-provider/plugin-utils";
 
 interface UniswapToken {
   chainId: number;

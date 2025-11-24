@@ -1,6 +1,6 @@
-import { DataProviderService as BaseDataProviderService, calculateEffectiveRate, assetToCanonicalIdentity, canonicalToAsset, getChainId } from '@data-provider/plugin-utils';
+import { assetToCanonicalIdentity, DataProviderService as BaseDataProviderService, calculateEffectiveRate, canonicalToAsset, getChainIdFromBlockchain } from '@data-provider/plugin-utils';
 import type { AssetType } from "@data-provider/shared-contract";
-import { AcrossApiClient, AcrossAssetType, type AcrossLimitsResponse, type AcrossSuggestedFeesResponse, type DefiLlamaBridgeResponse } from './client';
+import { AcrossApiClient, AcrossAssetType } from './client';
 
 import type {
   LiquidityDepthType,
@@ -24,8 +24,8 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
    */
   async transformAssetToProvider(asset: AssetType): Promise<AcrossAssetType> {
     const identity = await assetToCanonicalIdentity(asset);
-    const chainId = await getChainId(identity.blockchain);
-    
+    const chainId = getChainIdFromBlockchain(identity.blockchain);
+
     if (!chainId) {
       throw new Error(`Unable to resolve chain for asset: ${identity.assetId}`);
     }
@@ -199,7 +199,7 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
       );
 
       const thresholds: Array<{ maxAmountIn: string; slippageBps: number }> = [];
-      
+
       const candidateAmounts = [
         { amount: limits.recommendedDepositInstant, label: 'recommended' },
         { amount: limits.maxDepositInstant, label: 'max' }
@@ -234,7 +234,7 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
               }
             }
           }
-          
+
           if (slippageBps <= 100) {
             const existing100 = thresholds.find(t => t.slippageBps === 100);
             if (!existing100 || parseFloat(candidate.amount) > parseFloat(existing100.maxAmountIn)) {
