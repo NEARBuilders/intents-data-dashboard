@@ -171,7 +171,7 @@ export const MetricsTable = ({
         <VersusComparisonTable
           leftProvider={{
             name: nearIntentsInfo?.label || "NEAR Intents",
-            icon: "/images/photopea-online-editor-image-1.png",
+            icon: "/images/provider-icons/near_intents.png",
           }}
           rightProvider={{
             name: selectedProviderInfo?.label || "Provider",
