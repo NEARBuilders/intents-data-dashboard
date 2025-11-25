@@ -32,12 +32,12 @@ export default createPlugin({
       const redis = new RedisService(config.secrets.REDIS_URL);
       yield* redis.healthCheck();
 
-      const { providers, canonicalAssetClient } = yield* getPluginRuntime({
+      const { providers, enrichAssetClient } = yield* getPluginRuntime({
         isDevelopment: config.variables.isDevelopment,
         secrets: config.secrets,
       });
 
-      const service = new DataAggregatorService(dune, providers, canonicalAssetClient, redis);
+      const service = new DataAggregatorService(dune, providers, enrichAssetClient, redis);
 
       return { service, providers, redis };
     }),

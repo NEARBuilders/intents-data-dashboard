@@ -12,6 +12,7 @@ export const assets = sqliteTable('assets', {
   chainId: integer('chain_id'),
   
   source: text('source').notNull(),
+  verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (table) => ([
   index('blockchain_reference_idx').on(table.blockchain, table.reference),

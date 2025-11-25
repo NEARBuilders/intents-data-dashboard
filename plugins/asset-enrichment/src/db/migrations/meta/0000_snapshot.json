@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0072f211-0090-44aa-a39d-c6021283e690",
+  "id": "dedfcf3d-9308-4dc8-88ed-7a7ccaf42d33",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "assets": {
@@ -76,6 +76,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "verified": {
+          "name": "verified",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "updated_at": {
           "name": "updated_at",

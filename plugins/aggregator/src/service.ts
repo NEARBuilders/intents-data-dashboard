@@ -7,7 +7,7 @@ import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
 import { ORPCError, type ContractRouterClient } from "every-plugin/orpc";
-import type { contract as CanonicalAssetContract } from "@data-provider/asset-enrichment/src/contract";
+import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment/src/contract";
 import type {
   AggregatedVolumeResultType,
   DailyVolumeType,
@@ -29,28 +29,28 @@ export class DataAggregatorService {
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private redis?: RedisService;
-  private canonicalAsset: ContractRouterClient<typeof CanonicalAssetContract>;
+  private assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, PluginClient>>,
-    canonicalAsset: ContractRouterClient<typeof CanonicalAssetContract>,
+    assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>,
     redis?: RedisService
   ) {
     this.dune = dune;
     this.providers = providers;
-    this.canonicalAsset = canonicalAsset;
+    this.assetEnrichmentClient = assetEnrichmentClient;
     this.redis = redis;
   }
 
-  private async canonicalizeAsset(asset: AssetType): Promise<AssetType> {
-    if (asset.assetId?.startsWith("1cs_v1:")) {
+  private async enrichAsset(asset: AssetType): Promise<AssetType> {
+    if (asset.assetId) {
       try {
-        const canonical = await this.canonicalAsset.fromCanonicalId({ assetId: asset.assetId });
-        return canonical;
+        const enriched = await this.assetEnrichmentClient.fromCanonicalId({ assetId: asset.assetId });
+        return enriched;
       } catch (error: any) {
         const errorMsg = error?.message ?? String(error);
-        console.warn(`[Aggregator] Failed to canonicalize asset from ID ${asset.assetId}: ${errorMsg}`);
+        console.warn(`[Aggregator] Failed to enrich asset from ID ${asset.assetId}: ${errorMsg}`);
         return asset;
       }
     }
@@ -65,19 +65,19 @@ export class DataAggregatorService {
     };
 
     try {
-      const canonical = await this.canonicalAsset.normalize(descriptor);
-      return canonical;
+      const enriched = await this.assetEnrichmentClient.enrich(descriptor);
+      return enriched;
     } catch (error: any) {
       const errorMsg = error?.message ?? String(error);
-      console.warn(`[Aggregator] Failed to normalize asset ${asset.symbol ?? asset.assetId}: ${errorMsg}`);
+      console.warn(`[Aggregator] Failed to enrich asset ${asset.symbol ?? asset.assetId}: ${errorMsg}`);
       return asset;
     }
   }
 
-  private async canonicalizeAssets(assets: AssetType[]): Promise<AssetType[]> {
+  private async enrichAssets(assets: AssetType[]): Promise<AssetType[]> {
     const results: AssetType[] = [];
     for (const a of assets) {
-      const canonical = await this.canonicalizeAsset(a);
+      const canonical = await this.enrichAsset(a);
       results.push(canonical);
     }
     return results;
@@ -173,19 +173,58 @@ export class DataAggregatorService {
     aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
+    const ENRICHED_ASSETS_CACHE_TTL = 60 * 60;
     const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
     const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
-    const result = await aggregateListedAssets(this.providers, targetProviders, this.redis);
-
     const canonicalData: Record<ProviderIdentifier, AssetType[]> = {} as any;
-    for (const provider of result.providers) {
-      const assets = result.data[provider] ?? [];
-      canonicalData[provider] = await this.canonicalizeAssets(assets);
+    const successfulProviders: ProviderIdentifier[] = [];
+    const providersToEnrich: ProviderIdentifier[] = [];
+
+    if (this.redis) {
+      for (const providerId of targetProviders) {
+        const enrichedCacheKey = `enriched-assets:${providerId}`;
+        try {
+          const cached = await Effect.runPromise(this.redis.get<AssetType[]>(enrichedCacheKey));
+          if (cached) {
+            canonicalData[providerId] = cached;
+            successfulProviders.push(providerId);
+            console.log(`[Aggregator] Using cached enriched assets for ${providerId}`);
+          } else {
+            providersToEnrich.push(providerId);
+          }
+        } catch (error) {
+          console.warn(`[Aggregator] Enriched cache check failed for ${providerId}:`, error);
+          providersToEnrich.push(providerId);
+        }
+      }
+    } else {
+      providersToEnrich.push(...targetProviders);
+    }
+
+    if (providersToEnrich.length > 0) {
+      const result = await aggregateListedAssets(this.providers, providersToEnrich);
+
+      for (const provider of result.providers) {
+        const assets = result.data[provider] ?? [];
+        const enrichedAssets = await this.enrichAssets(assets);
+        canonicalData[provider] = enrichedAssets;
+        successfulProviders.push(provider);
+
+        if (this.redis) {
+          const enrichedCacheKey = `enriched-assets:${provider}`;
+          try {
+            await Effect.runPromise(this.redis.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL));
+            console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 1 hour)`);
+          } catch (error) {
+            console.warn(`[Aggregator] Failed to cache enriched assets for ${provider}:`, error);
+          }
+        }
+      }
     }
 
     return {
-      providers: result.providers,
+      providers: successfulProviders,
       data: canonicalData,
       measuredAt: new Date().toISOString(),
     };
@@ -211,12 +250,13 @@ export class DataAggregatorService {
 
     const canonicalRoutes = await Promise.all(
       input.routes.map(async (r) => ({
-        source: await this.canonicalizeAsset(r.source),
-        destination: await this.canonicalizeAsset(r.destination),
+        source: await this.enrichAsset(r.source),
+        destination: await this.enrichAsset(r.destination),
       }))
     );
 
-    const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
+    const enrichedAssetsData = await this.getListedAssets({ providers: targetProviders });
+    const assetSupportIndex = buildAssetSupportIndex(enrichedAssetsData.data);
     const result = await aggregateRates(
       this.providers,
       { ...input, routes: canonicalRoutes, targetProviders },
@@ -233,7 +273,7 @@ export class DataAggregatorService {
     await Promise.all(
       Array.from(uniqueAssetIds).map(async (assetId) => {
         try {
-          const priceData = await this.canonicalAsset.getPrice({ assetId });
+          const priceData = await this.assetEnrichmentClient.getPrice({ assetId });
           if (priceData.price !== null) {
             priceMap.set(assetId, priceData.price);
           }
@@ -296,12 +336,13 @@ export class DataAggregatorService {
 
     const canonicalRoutes = await Promise.all(
       input.routes.map(async (r) => ({
-        source: await this.canonicalizeAsset(r.source),
-        destination: await this.canonicalizeAsset(r.destination),
+        source: await this.enrichAsset(r.source),
+        destination: await this.enrichAsset(r.destination),
       }))
     );
 
-    const assetSupportIndex = await buildAssetSupportIndex(this.providers, targetProviders);
+    const enrichedAssetsData = await this.getListedAssets({ providers: targetProviders });
+    const assetSupportIndex = buildAssetSupportIndex(enrichedAssetsData.data);
     const result = await aggregateLiquidity(
       this.providers,
       { ...input, routes: canonicalRoutes, targetProviders },

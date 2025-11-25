@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "every-plugin/effect";
 import type { AssetType } from "@data-provider/shared-contract";
 import { AssetStore, type AssetCriteria } from "../store";
-import { assetToCanonicalIdentity, getBlockchainFromChainId, normalizeBlockchainSlug, isZeroAddress } from "@data-provider/plugin-utils";
+import { assetToCanonicalIdentity, getBlockchainFromChainId, normalizeBlockchainSlug, isZeroAddress, getChainNamespace } from "@data-provider/plugin-utils";
 
 interface UniswapToken {
   chainId: number;
@@ -47,18 +47,20 @@ export const UniswapRegistryLive = Layer.effect(
       },
     });
 
-    const convertToAsset = (token: UniswapToken): Effect.Effect<AssetType & { source: string }, Error> =>
+    const convertToAsset = (token: UniswapToken): Effect.Effect<AssetType & { source: string; verified: boolean }, Error> =>
       Effect.gen(function* () {
         const blockchain = getBlockchainFromChainId(token.chainId);
         if (!blockchain) {
           return yield* Effect.fail(new Error(`Unsupported chainId: ${token.chainId}`));
         }
 
+        const { namespace, reference } = getChainNamespace(blockchain, token.address.toLowerCase());
+
         const identity = yield* Effect.tryPromise(() =>
           assetToCanonicalIdentity({
             blockchain,
-            namespace: "erc20",
-            reference: token.address.toLowerCase(),
+            namespace,
+            reference
           })
         );
 
@@ -73,6 +75,7 @@ export const UniswapRegistryLive = Layer.effect(
           iconUrl: token.logoURI,
           chainId: token.chainId,
           source: "uniswap",
+          verified: true,
         };
       });
 

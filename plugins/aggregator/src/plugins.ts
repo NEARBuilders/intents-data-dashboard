@@ -1,5 +1,5 @@
 import type AcrossPlugin from "@data-provider/across";
-import type CanonicalAssetConversionPlugin from "@data-provider/asset-enrichment";
+import type AssetEnrichmentPlugin from "@data-provider/asset-enrichment";
 import type NearIntentsPlugin from "@data-provider/near-intents";
 import type { PluginClient } from "@data-provider/shared-contract";
 import { createPluginRuntime } from "every-plugin";
@@ -8,14 +8,14 @@ import { Effect } from "every-plugin/effect";
 type AggregatorRegistry = {
   "@data-provider/near-intents": typeof NearIntentsPlugin;
   "@data-provider/across": typeof AcrossPlugin;
-  "@data-provider/asset-enrichment": typeof CanonicalAssetConversionPlugin;
+  "@data-provider/asset-enrichment": typeof AssetEnrichmentPlugin;
 };
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/near-intents": "https://elliot-braem-795-data-provider-near-intents-data--d0e12ef8c-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/across": "https://elliot-braem-793-data-provider-across-data-provid-7c374a021-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/asset-enrichment": "https://elliot-braem-796-data-provider-asset-enrichment-d-89fe2bc64-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/near-intents": "https://elliot-braem-862-data-provider-near-intents-data--2a21768a2-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/across": "https://elliot-braem-861-data-provider-across-data-provid-8e6d9e9d5-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/asset-enrichment": "https://elliot-braem-860-data-provider-asset-enrichment-d-1dce9d585-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",
@@ -64,7 +64,7 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           secrets: {}
         });
 
-        const canonicalAsset = await runtime.usePlugin("@data-provider/asset-enrichment", {
+        const enrichAsset = await runtime.usePlugin("@data-provider/asset-enrichment", {
           variables: {},
           secrets: {
             DATABASE_URL: config.secrets.DATABASE_URL,
@@ -77,7 +77,7 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           "across": across.client,
         };
 
-        return { runtime, providers, canonicalAssetClient: canonicalAsset.client };
+        return { runtime, providers, enrichAssetClient: enrichAsset.client };
       },
       catch: (error) => new Error(`Failed to initialize plugin runtime: ${error}`)
     }),

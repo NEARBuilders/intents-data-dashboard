@@ -11,27 +11,27 @@
 const EVM_CHAIN_MAPPINGS = {
   // Ethereum Mainnet
   1: "eth",
-  
+
   // Layer 2s
-  42161: "arb",
-  42170: "arb-nova",
-  10: "op",
+  42161: "arbitrum",
+  42170: "arbitrum-nova",
+  10: "optimism",
   8453: "base",
   7777777: "zora",
-  
+
   // Polygon
-  137: "pol",
+  137: "polygon",
   1101: "polygon-zkevm",
-  
+
   // BSC
   56: "bsc",
   204: "opbnb",
-  
+
   // Avalanche
   43114: "avax",
-  
+
   // Other EVM chains
-  250: "ftm",
+  250: "fantom",
   42220: "celo",
   100: "gnosis",
   324: "zksync",
@@ -50,20 +50,20 @@ const EVM_CHAIN_MAPPINGS = {
   480: "worldchain",
   1868: "soneium",
   57073: "ink",
-  
+
   232: "gho",
   999: "wan",
-  
+
   // Testnets
   3: "eth-ropsten",
   4: "eth-rinkeby",
   5: "eth-goerli",
   42: "eth-kovan",
   11155111: "eth-sepolia",
-  421614: "arb-sepolia",
+  421614: "arbitrum-sepolia",
   84532: "base-sepolia",
-  11155420: "op-sepolia",
-  80001: "pol-mumbai",
+  11155420: "optimism-sepolia",
+  80001: "polygon-mumbai",
 } as const;
 
 /**
@@ -73,17 +73,27 @@ const EVM_CHAIN_MAPPINGS = {
 const BLOCKCHAIN_CANONICAL_MAP: Record<string, string> = {
   // EVM chains - canonical names (identity mappings)
   "eth": "eth",
-  "arb": "arb",
-  "arb-nova": "arb-nova",
-  "op": "op",
+  "ethereum": "eth",
+  "arbitrum": "arbitrum",
+  "arb": "arbitrum",
+  "arb1": "arbitrum",
+  "arbitrum-nova": "arbitrum-nova",
+  "arb-nova": "arbitrum-nova",
+  "optimism": "optimism",
+  "op": "optimism",
   "base": "base",
   "zora": "zora",
-  "pol": "pol",
+  "polygon": "polygon",
+  "pol": "polygon",
+  "matic": "polygon",
   "polygon-zkevm": "polygon-zkevm",
   "bsc": "bsc",
+  "bnb": "bsc",
   "opbnb": "opbnb",
   "avax": "avax",
-  "ftm": "ftm",
+  "avalanche": "avax",
+  "fantom": "fantom",
+  "ftm": "fantom",
   "celo": "celo",
   "gnosis": "gnosis",
   "zksync": "zksync",
@@ -104,18 +114,23 @@ const BLOCKCHAIN_CANONICAL_MAP: Record<string, string> = {
   "ink": "ink",
   "gho": "gho",
   "wan": "wan",
-  
+
   // Testnets
   "eth-ropsten": "eth-ropsten",
   "eth-rinkeby": "eth-rinkeby",
   "eth-goerli": "eth-goerli",
   "eth-kovan": "eth-kovan",
   "eth-sepolia": "eth-sepolia",
-  "arb-sepolia": "arb-sepolia",
+  "arbitrum-sepolia": "arbitrum-sepolia",
+  "arb-sepolia": "arbitrum-sepolia",
   "base-sepolia": "base-sepolia",
-  "op-sepolia": "op-sepolia",
-  "pol-mumbai": "pol-mumbai",
-  
+  "optimism-sepolia": "optimism-sepolia",
+  "op-sepolia": "optimism-sepolia",
+  "polygon-mumbai": "polygon-mumbai",
+  "pol-mumbai": "polygon-mumbai",
+  "matic-mumbai": "polygon-mumbai",
+  "mumbai": "polygon-mumbai",
+
   // Non-EVM chains - canonical
   "sol": "sol",
   "near": "near",
@@ -125,30 +140,23 @@ const BLOCKCHAIN_CANONICAL_MAP: Record<string, string> = {
   "btc": "btc",
   "tron": "tron",
   "stellar": "stellar",
+  "xlm": "stellar",
   "cardano": "cardano",
+  "ada": "cardano",
   "zec": "zec",
   "ltc": "ltc",
   "doge": "doge",
   "xrp": "xrp",
-  "xlm": "xlm",
-  "ada": "ada",
   "dot": "dot",
+  "polkadot": "dot",
   "cosmos": "cosmos",
+  "atom": "cosmos",
   "osmo": "osmo",
-  "atom": "atom",
+  "osmosis": "osmo",
   "algo": "algo",
+  "algorand": "algo",
   "tezos": "tezos",
-  "xtz": "xtz",
-  
-  // Aliases
-  "polygon": "pol",
-  "matic": "pol",
-  "arbitrum": "arb",
-  "bnb": "bsc",
-  "avalanche": "avax",
-  "fantom": "ftm",
-  "matic-mumbai": "pol-mumbai",
-  "mumbai": "pol-mumbai",
+  "xtz": "tezos"
 };
 
 /**
@@ -160,11 +168,11 @@ const NON_EVM_CHAIN_ID_MAP: Record<string, string> = {
   "34268394551451": "sol",
   "1399811149": "sol",
   "501000101": "sol",
-  
+
   // Bitcoin - some providers use these
   "0": "btc",
   "8332": "btc",
-  
+
   // Tron
   "728126428": "tron",
 
@@ -182,11 +190,11 @@ export const CHAIN_ID_TO_BLOCKCHAIN: Record<number, string> = { ...EVM_CHAIN_MAP
  */
 export const BLOCKCHAIN_TO_CHAIN_ID: Record<string, number> = (() => {
   const map: Record<string, number> = {};
-  
+
   for (const [chainId, slug] of Object.entries(EVM_CHAIN_MAPPINGS)) {
     map[slug] = Number(chainId);
   }
-  
+
   // Add reverse mappings for aliases from BLOCKCHAIN_CANONICAL_MAP
   for (const [name, canonicalSlug] of Object.entries(BLOCKCHAIN_CANONICAL_MAP)) {
     if (name !== canonicalSlug) {
@@ -197,7 +205,7 @@ export const BLOCKCHAIN_TO_CHAIN_ID: Record<string, number> = (() => {
       }
     }
   }
-  
+
   return map;
 })();
 
@@ -216,25 +224,24 @@ export const NON_EVM_BLOCKCHAINS = [
   "aptos",
   "sui",
   "btc",
+  "tron",
+  "stellar",
+  "cardano",
   "zec",
   "ltc",
   "doge",
   "xrp",
-  "xlm",
-  "ada",
   "dot",
   "cosmos",
   "osmo",
-  "atom",
   "algo",
   "tezos",
-  "xtz",
 ] as const;
 
 export type NonEvmBlockchain = typeof NON_EVM_BLOCKCHAINS[number];
 
 const NON_EVM_NAMESPACE_CONFIG: Record<
-  NonEvmBlockchain,
+  string,
   { tokenNamespace: string; nativeNamespace: string; nativeReference: string }
 > = {
   sol: {
@@ -247,91 +254,11 @@ const NON_EVM_NAMESPACE_CONFIG: Record<
     nativeNamespace: 'native',
     nativeReference: 'coin',
   },
-  ton: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
   aptos: {
     tokenNamespace: 'aptos-coin',
     nativeNamespace: 'aptos-coin',
     nativeReference: encodeURIComponent('0x1::aptos_coin::AptosCoin'),
-  },
-  sui: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  btc: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  zec: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  ltc: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  doge: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  xrp: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  xlm: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  ada: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  dot: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  cosmos: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  osmo: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  atom: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  algo: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  tezos: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
-  xtz: {
-    tokenNamespace: 'native',
-    nativeNamespace: 'native',
-    nativeReference: 'coin',
-  },
+  }
 };
 
 interface ChainIdNetworkChain {
@@ -373,7 +300,7 @@ async function fetchChainIdNetworkData(): Promise<void> {
 
     for (const chain of chains) {
       if (chain.chainId && chain.name) {
-        const slug = chain.shortName 
+        const slug = chain.shortName
           ? normalizeChainName(chain.shortName)
           : normalizeChainName(chain.name);
         chainIdNetworkCache.set(chain.chainId, slug);
@@ -393,7 +320,7 @@ async function fetchChainIdNetworkData(): Promise<void> {
  */
 export function getBlockchainFromChainId(chainId: number | string): string | null {
   const chainIdStr = String(chainId);
-  
+
   const nonEvmBlockchain = NON_EVM_CHAIN_ID_MAP[chainIdStr];
   if (nonEvmBlockchain) {
     return nonEvmBlockchain;
@@ -401,7 +328,7 @@ export function getBlockchainFromChainId(chainId: number | string): string | nul
 
   const numericChainId = typeof chainId === "number" ? chainId : parseInt(chainIdStr, 10);
   const result = CHAIN_ID_TO_BLOCKCHAIN[numericChainId];
-  
+
   if (result) {
     return result;
   }
@@ -422,9 +349,9 @@ export function getBlockchainFromChainId(chainId: number | string): string | nul
       chainIdNetworkFetchPromise = null;
     });
   }
-  
+
   console.warn(`[blockchain-mapping] Unknown chainId: ${chainId} - please add to CHAIN_ID_TO_BLOCKCHAIN or NON_EVM_CHAIN_ID_MAP`);
-  
+
   return null;
 }
 
@@ -434,11 +361,11 @@ export function getBlockchainFromChainId(chainId: number | string): string | nul
 export function getChainIdFromBlockchain(blockchain: string): number | null {
   const normalized = blockchain.toLowerCase();
   const result = BLOCKCHAIN_TO_CHAIN_ID[normalized] || null;
-  
+
   if (!result && !isNonEvmBlockchain(blockchain)) {
     console.warn(`[blockchain-mapping] Unknown blockchain slug: ${blockchain} - please add to BLOCKCHAIN_TO_CHAIN_ID`);
   }
-  
+
   return result;
 }
 

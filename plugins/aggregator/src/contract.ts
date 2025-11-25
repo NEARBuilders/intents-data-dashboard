@@ -33,7 +33,7 @@ export const ProviderInfo = z.object({
   id: ProviderIdentifierEnum,
   label: z.string().describe("Human-friendly display name, e.g., 'NEAR Intents'"),
   category: CategoryEnum,
-  logoUrl: z.string().url().optional().describe("URL for the provider's logo"),
+  logoUrl: z.string().optional().describe("URL for the provider's logo"),
   supportedData: z
     .array(DataTypeEnum)
     .describe("List of data types this provider supports."),

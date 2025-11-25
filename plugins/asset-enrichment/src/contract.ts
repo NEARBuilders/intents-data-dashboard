@@ -26,9 +26,13 @@ export const AssetDescriptor = z.object({
   decimals: z.number().optional().describe('token decimals'),
 });
 
-// Input for parsing canonical ID
 export const CanonicalIdInput = z.object({
-  assetId: z.string().describe('canonical 1cs_v1 asset ID'),
+  assetId: z.string()
+    .refine(
+      (id) => id.startsWith('1cs_v1:'),
+      { message: 'Must start with 1cs_v1' }
+    )
+    .describe('canonical 1cs_v1 asset ID'),
 });
 
 // Input for building canonical ID
@@ -46,13 +50,13 @@ export const Network = z.object({
 });
 
 export const contract = oc.router({
-  // Normalize arbitrary asset descriptor into canonical Asset
-  normalize: oc
+  // Enrich arbitrary asset descriptor into canonical Asset
+  enrich: oc
     .route({
       method: 'POST',
-      path: '/normalize',
-      summary: 'Normalize arbitrary asset descriptor into canonical Asset',
-      description: `Takes a partial asset description and resolves it into canonical AssetType using registries and heuristics.
+      path: '/enrich',
+      summary: 'Enrich Asset',
+      description: `Takes a partial asset description and enriches it with registry metadata (symbol, decimals, iconUrl). Always returns an asset, falling back to best-effort data if registries don't have full information.
       
 **Examples:**
 - Ethereum USDC: \`{ "blockchain": "eth", "chainId": 1, "reference": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "symbol": "USDC", "decimals": 6 }\`
@@ -67,7 +71,7 @@ export const contract = oc.router({
     .route({
       method: 'POST',
       path: '/fromCanonical',
-      summary: 'Convert 1cs_v1 assetId into canonical Asset',
+      summary: 'Convert 1cs_v1 assetId to Asset',
       description: `Parses the canonical assetId, enriches with chain/namespace/reference and registry metadata (symbol, decimals, iconUrl).
       
 **Example:**
@@ -82,7 +86,7 @@ export const contract = oc.router({
     .route({
       method: 'POST',
       path: '/toCanonical',
-      summary: 'Build 1cs_v1 assetId from canonical blockchain/namespace/reference',
+      summary: 'Convert Asset to 1cs_v1 assetId',
       description: `Constructs a canonical 1cs_v1 assetId from its components.
       
 **Example:**
@@ -96,7 +100,7 @@ export const contract = oc.router({
     .route({
       method: 'GET',
       path: '/blockchains',
-      summary: 'List supported canonical blockchains with metadata',
+      summary: 'List blockchains',
       description: 'Returns all blockchains (EVM and non-EVM) with display name, symbol, and iconUrl based on underlying registries',
     })
     .output(z.array(Network)),
@@ -105,7 +109,7 @@ export const contract = oc.router({
     .route({
       method: 'GET',
       path: '/stored-assets',
-      summary: 'List all assets stored in the local database',
+      summary: 'List all assets',
       description: 'Returns all canonical assets currently cached in the local SQLite database',
     })
     .output(z.array(Asset)),

@@ -88,7 +88,7 @@ export const NearBlocksRegistryLive = Layer.scoped(
         },
       });
 
-    const convertToAsset = (token: NearBlocksToken): Effect.Effect<AssetType & { source: string }, Error> =>
+    const convertToAsset = (token: NearBlocksToken): Effect.Effect<AssetType & { source: string; verified: boolean }, Error> =>
       Effect.gen(function* () {
         const identity = yield* Effect.tryPromise(() =>
           assetToCanonicalIdentity({
@@ -113,8 +113,10 @@ export const NearBlocksRegistryLive = Layer.scoped(
           symbol: token.symbol.toUpperCase(),
           name: token.name,
           decimals,
-          iconUrl: token.icon,
+          // nearblocks stores as a bunch of svgs...
+          iconUrl: token.icon?.startsWith('data:') ? undefined : token.icon,
           source: "nearblocks",
+          verified: true,
         };
       });
 
@@ -124,12 +126,16 @@ export const NearBlocksRegistryLive = Layer.scoped(
           console.log("Starting NearBlocks sync: fetching top 5 pages (250 tokens)...");
           console.log("Note: Rate limited to 3 requests per minute");
           let totalSynced = 0;
+          const syncStartTime = Date.now();
 
           for (let page = 1; page <= 5; page++) {
+            const pageStartTime = Date.now();
+            const elapsedSeconds = Math.floor((pageStartTime - syncStartTime) / 1000);
+            
             if (page > 3) {
-              console.log(`NearBlocks: Waiting for rate limit before fetching page ${page}...`);
+              console.log(`NearBlocks: Waiting for rate limit before fetching page ${page}... (${elapsedSeconds}s elapsed)`);
             } else {
-              console.log(`NearBlocks: Fetching page ${page}...`);
+              console.log(`NearBlocks: Fetching page ${page}... (${elapsedSeconds}s elapsed)`);
             }
 
             const tokens = yield* rateLimiter(fetchTokenList(page, 50)).pipe(
@@ -139,10 +145,12 @@ export const NearBlocksRegistryLive = Layer.scoped(
               })
             );
 
-            console.log(`NearBlocks page ${page}: Retrieved ${tokens.length} tokens`);
+            const pageFetchTime = Date.now();
+            const fetchDuration = Math.floor((pageFetchTime - pageStartTime) / 1000);
+            console.log(`NearBlocks page ${page}: Retrieved ${tokens.length} tokens (took ${fetchDuration}s)`);
 
             // Convert all tokens to assets first
-            const assets: (AssetType & { source: string })[] = [];
+            const assets: (AssetType & { source: string; verified: boolean })[] = [];
             for (let i = 0; i < tokens.length; i++) {
               const token = tokens[i]!;
               

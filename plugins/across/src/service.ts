@@ -50,7 +50,9 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
 
     return canonicalToAsset(identity, {
       symbol: asset.symbol,
-      decimals: asset.decimals
+      decimals: asset.decimals,
+      iconUrl: asset.logoUrl,
+      chainId: asset.chainId
     });
   }
 

@@ -47,7 +47,7 @@ export const JupiterRegistryLive = Layer.effect(
         },
       });
 
-    const convertToAsset = (token: JupiterToken): Effect.Effect<AssetType & { source: string }, Error> =>
+    const convertToAsset = (token: JupiterToken): Effect.Effect<AssetType & { source: string; verified: boolean }, Error> =>
       Effect.gen(function* () {
         const identity = yield* Effect.tryPromise(() =>
           assetToCanonicalIdentity({
@@ -67,6 +67,7 @@ export const JupiterRegistryLive = Layer.effect(
           decimals: token.decimals,
           iconUrl: token.icon,
           source: "jupiter",
+          verified: true,
         };
       });
 

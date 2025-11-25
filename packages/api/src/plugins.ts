@@ -1,18 +1,18 @@
 import { createPluginRuntime } from "every-plugin";
 import type AggregatorPlugin from "@data-provider/aggregator";
-import type CanonicalAssetConversionPlugin from "@data-provider/asset-enrichment";
+import type AssetEnrichmentPlugin from "@data-provider/asset-enrichment";
 
 declare module "every-plugin" {
   interface RegisteredPlugins {
     "@data-provider/aggregator": typeof AggregatorPlugin;
-    "@data-provider/asset-enrichment": typeof CanonicalAssetConversionPlugin;
+    "@data-provider/asset-enrichment": typeof AssetEnrichmentPlugin;
   }
 }
 
 const PLUGIN_URLS = {
   production: {
-    "@data-provider/aggregator": "https://elliot-braem-797-data-provider-aggregator-data-pr-c4b33023e-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/asset-enrichment": "https://elliot-braem-796-data-provider-asset-enrichment-d-89fe2bc64-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/aggregator": "https://elliot-braem-863-data-provider-aggregator-data-pr-ed938ca47-ze.zephyrcloud.app/remoteEntry.js",
+    "@data-provider/asset-enrichment": "https://elliot-braem-860-data-provider-asset-enrichment-d-1dce9d585-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",

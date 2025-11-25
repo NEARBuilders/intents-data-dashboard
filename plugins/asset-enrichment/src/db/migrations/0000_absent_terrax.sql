@@ -9,6 +9,7 @@ CREATE TABLE `assets` (
 	`icon_url` text,
 	`chain_id` integer,
 	`source` text NOT NULL,
+	`verified` integer DEFAULT false NOT NULL,
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint

@@ -215,7 +215,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
     const convertDetailToAsset = (
       detail: CoingeckoCoinDetail,
       blockchain: string
-    ): Effect.Effect<AssetType & { source: string }, Error> =>
+    ): Effect.Effect<AssetType & { source: string; verified: boolean }, Error> =>
       Effect.gen(function* () {
         const platformId = BLOCKCHAIN_TO_PLATFORM[blockchain.toLowerCase()];
         const decimals = platformId ? detail.detail_platforms?.[platformId]?.decimal_place ?? 18 : 18;
@@ -243,6 +243,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
           decimals,
           iconUrl,
           source: "coingecko",
+          verified: true,
         };
       });
 
@@ -350,7 +351,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
                   ).pipe(Effect.catchAll(() => Effect.succeed(null)));
 
                   if (identity) {
-                    const asset: AssetType & { source: string } = {
+                    const asset: AssetType & { source: string; verified: boolean } = {
                       assetId: identity.assetId,
                       blockchain: identity.blockchain,
                       namespace: identity.namespace,
@@ -360,6 +361,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
                       decimals: nativeCoin.decimals,
                       iconUrl: market.image,
                       source: "coingecko",
+                      verified: true,
                     };
 
                     yield* store.upsert(asset).pipe(Effect.catchAll(() => Effect.void));

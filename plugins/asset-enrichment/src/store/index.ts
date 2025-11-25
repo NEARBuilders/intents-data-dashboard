@@ -14,8 +14,8 @@ export interface AssetCriteria {
 export class AssetStore extends Context.Tag("AssetStore")<
   AssetStore,
   {
-    readonly upsert: (asset: AssetType & { source: string }) => Effect.Effect<void, Error>;
-    readonly find: (criteria: AssetCriteria) => Effect.Effect<AssetType | null, Error>;
+    readonly upsert: (asset: AssetType & { source: string; verified: boolean }) => Effect.Effect<void, Error>;
+    readonly find: (criteria: AssetCriteria) => Effect.Effect<(AssetType & { verified: boolean; source: string }) | null, Error>;
     readonly findMany: (criteria: AssetCriteria) => Effect.Effect<AssetType[], Error>;
     readonly delete: (assetId: string) => Effect.Effect<void, Error>;
   }
@@ -43,6 +43,7 @@ export const AssetStoreLive = Layer.effect(
                 iconUrl: asset.iconUrl || null,
                 chainId: asset.chainId || null,
                 source: asset.source,
+                verified: asset.verified,
                 updatedAt: new Date(),
               })
               .onConflictDoUpdate({
@@ -57,6 +58,7 @@ export const AssetStoreLive = Layer.effect(
                   iconUrl: asset.iconUrl || null,
                   chainId: asset.chainId || null,
                   source: asset.source,
+                  verified: asset.verified,
                   updatedAt: new Date(),
                 },
               });
@@ -90,7 +92,9 @@ export const AssetStoreLive = Layer.effect(
                 decimals: row.decimals,
                 iconUrl: row.iconUrl || undefined,
                 chainId: row.chainId || undefined,
-              } satisfies AssetType;
+                verified: row.verified,
+                source: row.source,
+              };
             }
 
             // Priority 2: reference (address) - the unique identifier
@@ -123,7 +127,9 @@ export const AssetStoreLive = Layer.effect(
                 decimals: row.decimals,
                 iconUrl: row.iconUrl || undefined,
                 chainId: row.chainId || undefined,
-              } satisfies AssetType;
+                verified: row.verified,
+                source: row.source,
+              };
             }
 
             // Fallback: symbol only (least specific)
@@ -149,7 +155,9 @@ export const AssetStoreLive = Layer.effect(
                 decimals: row.decimals,
                 iconUrl: row.iconUrl || undefined,
                 chainId: row.chainId || undefined,
-              } satisfies AssetType;
+                verified: row.verified,
+                source: row.source,
+              };
             }
 
             return null;

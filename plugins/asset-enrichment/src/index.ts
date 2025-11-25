@@ -4,10 +4,11 @@ import { z } from "every-plugin/zod";
 
 import { contract } from "./contract";
 import { CoingeckoRegistryLive } from "./registries/coingecko";
+import { IntearRegistryLive } from "./registries/intear";
 import { JupiterRegistryLive } from "./registries/jupiter";
 import { NearBlocksRegistryLive } from "./registries/nearblocks";
 import { UniswapRegistryLive } from "./registries/uniswap";
-import { CanonicalAssetService, CanonicalAssetServiceLive } from "./service";
+import { AssetEnrichmentService, AssetEnrichmentServiceLive } from "./service";
 import { AssetStoreLive, DatabaseLive } from "./store";
 
 /**
@@ -40,10 +41,11 @@ export default createPlugin({
     Effect.gen(function* () {
       const dbLayer = DatabaseLive(config.secrets.DATABASE_URL, config.secrets.DATABASE_AUTH_TOKEN);
 
-      const AppLayer = CanonicalAssetServiceLive.pipe(
+      const AppLayer = AssetEnrichmentServiceLive.pipe(
         Layer.provide(UniswapRegistryLive),
         Layer.provide(CoingeckoRegistryLive),
         Layer.provide(JupiterRegistryLive),
+        Layer.provide(IntearRegistryLive),
         Layer.provide(NearBlocksRegistryLive),
         Layer.provide(AssetStoreLive),
         Layer.provide(dbLayer)
@@ -58,11 +60,11 @@ export default createPlugin({
 
   createRouter: (context, builder) => {
     return {
-      normalize: builder.normalize.handler(async ({ input }) => {
+      enrich: builder.enrich.handler(async ({ input }) => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
-            return yield* service.normalize(input);
+            const service = yield* AssetEnrichmentService;
+            return yield* service.enrich(input);
           }).pipe(Effect.provide(context.appLayer))
         );
       }),
@@ -70,7 +72,7 @@ export default createPlugin({
       fromCanonicalId: builder.fromCanonicalId.handler(async ({ input }) => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             return yield* service.fromCanonicalId(input.assetId);
           }).pipe(Effect.provide(context.appLayer))
         );
@@ -79,7 +81,7 @@ export default createPlugin({
       toCanonicalId: builder.toCanonicalId.handler(async ({ input }) => {
         const assetId = await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             return yield* service.toCanonicalId(input.blockchain, input.namespace, input.reference);
           }).pipe(Effect.provide(context.appLayer))
         );
@@ -89,7 +91,7 @@ export default createPlugin({
       getBlockchains: builder.getBlockchains.handler(async () => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             return yield* service.getBlockchains();
           }).pipe(Effect.provide(context.appLayer))
         );
@@ -98,7 +100,7 @@ export default createPlugin({
       getStoredAssets: builder.getStoredAssets.handler(async () => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             return yield* service.getStoredAssets();
           }).pipe(Effect.provide(context.appLayer))
         );
@@ -107,7 +109,7 @@ export default createPlugin({
       sync: builder.sync.handler(async () => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             const result = yield* service.sync();
             return result;
           }).pipe(Effect.provide(context.appLayer))
@@ -124,7 +126,7 @@ export default createPlugin({
       getPrice: builder.getPrice.handler(async ({ input }) => {
         return await Effect.runPromise(
           Effect.gen(function* () {
-            const service = yield* CanonicalAssetService;
+            const service = yield* AssetEnrichmentService;
             return yield* service.getPrice(input.assetId);
           }).pipe(Effect.provide(context.appLayer))
         );

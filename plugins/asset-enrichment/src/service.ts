@@ -11,15 +11,16 @@ import type { AssetType } from "@data-provider/shared-contract";
 import { Cache, Context, Effect, Layer } from "every-plugin/effect";
 import type { AssetDescriptorType } from "./contract";
 import { CoingeckoRegistry } from "./registries/coingecko";
+import { IntearRegistry } from "./registries/intear";
 import { JupiterRegistry } from "./registries/jupiter";
 import { NearBlocksRegistry } from "./registries/nearblocks";
 import { UniswapRegistry } from "./registries/uniswap";
 import { AssetStore, type AssetCriteria } from "./store";
 
-export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
-  CanonicalAssetService,
+export class AssetEnrichmentService extends Context.Tag("AssetEnrichmentService")<
+  AssetEnrichmentService,
   {
-    readonly normalize: (descriptor: AssetDescriptorType) => Effect.Effect<AssetType, Error>;
+    readonly enrich: (descriptor: AssetDescriptorType) => Effect.Effect<AssetType, Error>;
     readonly fromCanonicalId: (assetId: string) => Effect.Effect<AssetType, Error>;
     readonly toCanonicalId: (
       blockchain: string,
@@ -41,13 +42,14 @@ export class CanonicalAssetService extends Context.Tag("CanonicalAssetService")<
   }
 >() { }
 
-export const CanonicalAssetServiceLive = Layer.effect(
-  CanonicalAssetService,
+export const AssetEnrichmentServiceLive = Layer.effect(
+  AssetEnrichmentService,
   Effect.gen(function* () {
     const store = yield* AssetStore;
     const uniswapRegistry = yield* UniswapRegistry;
     const coingeckoRegistry = yield* CoingeckoRegistry;
     const jupiterRegistry = yield* JupiterRegistry;
+    const intearRegistry = yield* IntearRegistry;
     const nearBlocksRegistry = yield* NearBlocksRegistry;
 
     const lookupCache = yield* Cache.make({
@@ -82,6 +84,11 @@ export const CanonicalAssetServiceLive = Layer.effect(
           return jupiter;
         }
 
+        const intear = yield* intearRegistry.lookup(criteria);
+        if (intear) {
+          return intear;
+        }
+
         const nearBlocks = yield* nearBlocksRegistry.lookup(criteria);
         if (nearBlocks) {
           return nearBlocks;
@@ -99,8 +106,67 @@ export const CanonicalAssetServiceLive = Layer.effect(
       return lookupCache.get(JSON.stringify(normalizedCriteria));
     };
 
+    const enrichInternal = (
+      identity: { assetId: string; blockchain: string; namespace: string; reference: string },
+      descriptor?: Partial<AssetDescriptorType>
+    ): Effect.Effect<AssetType, Error> =>
+      Effect.gen(function* () {
+        const criteria: AssetCriteria = {
+          assetId: identity.assetId,
+          blockchain: identity.blockchain,
+          reference: identity.reference,
+          symbol: descriptor?.symbol,
+        };
+
+        const local = yield* store.find(criteria);
+        if (local && local.verified && local.decimals !== 0) {
+          const chainId = local.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
+          return canonicalToAsset(identity, {
+            symbol: local.symbol,
+            decimals: local.decimals,
+            iconUrl: local.iconUrl,
+            chainId,
+          });
+        }
+
+        const asset = yield* getCachedAsset(criteria);
+
+        if (asset && asset.decimals !== 0) {
+          const chainId = asset.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
+          return canonicalToAsset(identity, {
+            symbol: asset.symbol,
+            decimals: asset.decimals,
+            iconUrl: asset.iconUrl,
+            chainId,
+          });
+        }
+
+        const chainId = descriptor?.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
+        const fallbackSymbol = descriptor?.symbol || identity.blockchain.toUpperCase();
+        const fallbackDecimals = 
+          descriptor?.decimals ??
+          (identity.namespace === 'erc20' || identity.namespace === 'native' ? 18 :
+           identity.namespace === 'spl' ? 9 :
+           identity.namespace === 'nep141' ? 24 : 0);
+
+        const fallbackAsset = canonicalToAsset(identity, {
+          symbol: fallbackSymbol,
+          decimals: fallbackDecimals,
+          iconUrl: descriptor?.symbol ? undefined : undefined,
+          chainId,
+        });
+
+        yield* store.upsert({
+          ...fallbackAsset,
+          source: 'fallback',
+          verified: false,
+        });
+
+        return fallbackAsset;
+      });
+
     return {
-      normalize: (descriptor) =>
+      enrich: (descriptor: AssetDescriptorType) =>
         Effect.gen(function* () {
           const blockchain = descriptor.blockchain;
 
@@ -113,80 +179,47 @@ export const CanonicalAssetServiceLive = Layer.effect(
             reference = reference || chainNs.reference;
           }
 
-          const identity = yield* Effect.tryPromise(() =>
-            assetToCanonicalIdentity({ blockchain, namespace, reference })
-          );
-
-          let symbol = descriptor.symbol;
-          let decimals = descriptor.decimals;
-          let iconUrl: string | undefined;
-
-          if (!symbol || decimals === undefined) {
-            const criteria: AssetCriteria = {
-              blockchain: identity.blockchain,
-              reference: identity.reference,
-              symbol: descriptor.symbol,
-            };
-
-            const asset = yield* getCachedAsset(criteria);
-
-            if (asset) {
-              symbol = symbol || asset.symbol;
-              decimals = decimals ?? asset.decimals;
-              iconUrl = iconUrl || asset.iconUrl;
-            }
-          }
-
-          if (!symbol || decimals === undefined) {
-            return yield* Effect.fail(
-              new Error(`Cannot normalize asset: missing symbol or decimals for ${identity.assetId}`)
-            );
-          }
-
-          const chainId = descriptor.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
-
-          return canonicalToAsset(identity, {
-            symbol,
-            decimals,
-            iconUrl,
-            chainId,
+          const identity = yield* Effect.tryPromise({
+            try: () => assetToCanonicalIdentity({ blockchain, namespace, reference }),
+            catch: (error) => {
+              if (error instanceof Error) {
+                return error;
+              }
+              return new Error(String(error));
+            },
           });
+
+          return yield* enrichInternal(identity, descriptor);
         }),
 
       fromCanonicalId: (assetId) =>
         Effect.gen(function* () {
-          const identity = yield* Effect.tryPromise(() => assetToCanonicalIdentity({ assetId }));
-
-          const criteria: AssetCriteria = {
-            assetId: identity.assetId,
-            blockchain: identity.blockchain,
-            reference: identity.reference,
-          };
-
-          const asset = yield* getCachedAsset(criteria);
-
-          if (!asset || !asset.symbol || asset.decimals === undefined) {
-            return yield* Effect.fail(
-              new Error(`Cannot enrich asset ${assetId}: no metadata found`)
-            );
-          }
-
-          const chainId = asset.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
-
-          return canonicalToAsset(identity, {
-            symbol: asset.symbol,
-            decimals: asset.decimals,
-            iconUrl: asset.iconUrl,
-            chainId,
+          const identity = yield* Effect.tryPromise({
+            try: () => assetToCanonicalIdentity({ assetId }),
+            catch: (error) => {
+              if (error instanceof Error) {
+                return error;
+              }
+              return new Error(String(error));
+            },
           });
+
+          return yield* enrichInternal(identity);
         }),
 
       toCanonicalId: (blockchain, namespace, reference) =>
-        Effect.tryPromise(() =>
-          assetToCanonicalIdentity({ blockchain, namespace, reference }).then(
-            (identity) => identity.assetId
-          )
-        ),
+        Effect.tryPromise({
+          try: () =>
+            assetToCanonicalIdentity({ blockchain, namespace, reference }).then(
+              (identity) => identity.assetId
+            ),
+          catch: (error) => {
+            if (error instanceof Error) {
+              return error;
+            }
+            return new Error(String(error));
+          },
+        }),
 
       getBlockchains: () =>
         Effect.gen(function* () {
@@ -268,6 +301,14 @@ export const CanonicalAssetServiceLive = Layer.effect(
             );
             console.log(`Jupiter sync complete: ${jupiterCount} assets`);
 
+            const intearCount = yield* intearRegistry.sync().pipe(
+              Effect.catchAll((error) => {
+                console.error("Intear sync failed:", error);
+                return Effect.succeed(0);
+              })
+            );
+            console.log(`Intear sync complete: ${intearCount} assets`);
+
             const nearBlocksCount = yield* nearBlocksRegistry.sync().pipe(
               Effect.catchAll((error) => {
                 console.error("NearBlocks sync failed:", error);
@@ -278,7 +319,7 @@ export const CanonicalAssetServiceLive = Layer.effect(
 
             const duration = Date.now() - startTime;
             console.log(
-              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount + nearBlocksCount} assets in ${duration}ms`
+              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount + intearCount + nearBlocksCount} assets in ${duration}ms`
             );
           });
 
