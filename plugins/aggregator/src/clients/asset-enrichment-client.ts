@@ -1,7 +1,6 @@
+import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment/src/contract";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment/src/contract";
-import type { ContractRouterClient } from "every-plugin/orpc";
 
 export function createAssetEnrichmentClient(baseUrl: string) {
   const link = new RPCLink({

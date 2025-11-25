@@ -57,8 +57,6 @@ export default createPlugin({
       }),
 
       sync: builder.sync.handler(async ({ input }) => {
-        await service.startSync(input.datasets);
-
         const cleared: string[] = [];
 
         if (!input.datasets || input.datasets.includes('volumes')) {
@@ -77,14 +75,20 @@ export default createPlugin({
         }
 
         if (!input.datasets || input.datasets.includes('assets')) {
-          const count = await Effect.runPromise(redis.clear('assets:*'));
-          cleared.push(`assets (${count} keys)`);
+          const count = await Effect.runPromise(redis.clear('enriched-assets:*'));
+          cleared.push(`enriched-assets (${count} keys)`);
         }
 
         console.log('Cache cleared:', cleared.join(', '));
 
+        if (!input.datasets || input.datasets.includes('assets')) {
+          service.rebuildAssetsCache().catch((error) => {
+            console.error('[Aggregator] Failed to rebuild assets cache:', error);
+          });
+        }
+
         return {
-          status: "sync_initiated" as const,
+          status: "started" as const,
           timestamp: new Date().toISOString(),
         };
       }),

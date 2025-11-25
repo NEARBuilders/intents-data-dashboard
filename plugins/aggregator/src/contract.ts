@@ -133,7 +133,7 @@ export const contract = oc.router({
     )
     .output(
       z.object({
-        status: z.literal("sync_initiated"),
+        status: z.literal("started"),
         timestamp: z.iso.datetime(),
       })
     )

@@ -25,7 +25,6 @@ import { RedisService } from "./services/redis";
 import { aggregateVolumes, getVolumes } from "./services/volumes";
 
 export class DataAggregatorService {
-  private isSyncInProgress: boolean = false;
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private redis?: RedisService;
@@ -87,116 +86,35 @@ export class DataAggregatorService {
     return PROVIDERS_LIST;
   }
 
-  async startSync(datasets?: DataType[]): Promise<void> {
-    if (this.isSyncInProgress) {
-      throw new ORPCError("CONFLICT", {
-        message: "Sync already in progress",
-      });
+  async rebuildAssetsCache(targetProviders?: ProviderIdentifier[]): Promise<void> {
+    const ENRICHED_ASSETS_CACHE_TTL = 30 * 24 * 60 * 60;
+    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+    const providersToRebuild = targetProviders?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+
+    console.log(`[Aggregator] Rebuilding enriched assets cache for ${providersToRebuild.length} providers...`);
+
+    const result = await aggregateListedAssets(this.providers, providersToRebuild);
+
+    for (const provider of result.providers) {
+      const assets = result.data[provider] ?? [];
+      console.log(`[Aggregator] Enriching ${assets.length} assets for ${provider}...`);
+
+      const enrichedAssets = await this.enrichAssets(assets);
+
+      if (this.redis) {
+        const enrichedCacheKey = `enriched-assets:${provider}`;
+        try {
+          await Effect.runPromise(
+            this.redis.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
+          );
+          console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 30 days)`);
+        } catch (error) {
+          console.error(`[Aggregator] Failed to cache enriched assets for ${provider}:`, error);
+        }
+      }
     }
 
-    this.isSyncInProgress = true;
-
-    const self = this;
-    const ENRICHED_ASSETS_CACHE_TTL = 30 * 24 * 60 * 60;
-
-    const waitForEnrichmentSync = Effect.gen(function* () {
-      const maxAttempts = 60;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const status = yield* Effect.tryPromise({
-          try: () => self.assetEnrichmentClient.getSyncStatus(),
-          catch: (error) => new Error(`Failed to get sync status: ${error}`),
-        });
-
-        if (status.status === "idle") {
-          console.log("[Aggregator] Asset enrichment sync completed successfully");
-          return;
-        }
-
-        if (status.status === "error") {
-          console.error("[Aggregator] Asset enrichment sync failed:", status.errorMessage);
-          return yield* Effect.fail(new Error(status.errorMessage || "Enrichment sync failed"));
-        }
-
-        console.log(`[Aggregator] Waiting for enrichment sync... (attempt ${attempt + 1}/${maxAttempts})`);
-        yield* Effect.sleep("5 seconds");
-      }
-
-      console.warn("[Aggregator] Enrichment sync status check timed out");
-      return yield* Effect.fail(new Error("Enrichment sync status check timed out"));
-    });
-
-    const populateEnrichedCache = Effect.gen(function* () {
-      console.log("[Aggregator] Populating enriched assets cache...");
-      const availableProviders = Object.keys(self.providers) as ProviderIdentifier[];
-
-      const result = yield* Effect.tryPromise({
-        try: () => aggregateListedAssets(self.providers, availableProviders),
-        catch: (error) => new Error(`Failed to aggregate assets: ${error}`),
-      });
-
-      for (const provider of result.providers) {
-        const assets = result.data[provider] ?? [];
-        console.log(`[Aggregator] Enriching ${assets.length} assets for ${provider}...`);
-
-        const enrichedAssets = yield* Effect.tryPromise({
-          try: () => self.enrichAssets(assets),
-          catch: (error) => new Error(`Failed to enrich assets for ${provider}: ${error}`),
-        });
-
-        if (self.redis) {
-          const enrichedCacheKey = `enriched-assets:${provider}`;
-          yield* self.redis
-            .set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
-            .pipe(
-              Effect.tap(() =>
-                Effect.sync(() =>
-                  console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 30 days)`)
-                )
-              ),
-              Effect.catchAll((error) =>
-                Effect.sync(() =>
-                  console.error(`[Aggregator] Failed to cache enriched assets for ${provider}:`, error)
-                ).pipe(Effect.as(undefined))
-              )
-            );
-        }
-      }
-
-      console.log("[Aggregator] Asset sync complete");
-    });
-
-    const syncEffect = Effect.gen(function* () {
-      if (!datasets || datasets.includes("assets")) {
-        console.log("[Aggregator] Starting asset enrichment sync...");
-
-        yield* Effect.tryPromise({
-          try: () => self.assetEnrichmentClient.sync(),
-          catch: (error) => new Error(`Failed to initiate enrichment sync: ${error}`),
-        });
-
-        console.log("[Aggregator] Asset enrichment sync initiated");
-
-        yield* waitForEnrichmentSync.pipe(
-          Effect.catchAll((error) =>
-            Effect.sync(() => console.warn("[Aggregator] Enrichment sync error:", error.message))
-          )
-        );
-
-        yield* populateEnrichedCache;
-      }
-    }).pipe(
-      Effect.tapError((error) =>
-        Effect.sync(() => console.error("[Aggregator] Sync failed:", error))
-      ),
-      Effect.ensuring(
-        Effect.sync(() => {
-          self.isSyncInProgress = false;
-        })
-      )
-    );
-
-    Effect.runFork(syncEffect);
+    console.log("[Aggregator] Asset cache rebuild complete");
   }
 
   async getVolumes(input: {
@@ -300,17 +218,8 @@ export class DataAggregatorService {
       providersToEnrich.push(...targetProviders);
     }
 
-    if (providersToEnrich.length > 0 && this.redis) {
-      this.startSync(["assets"]).catch((error) => {
-        console.error("[Aggregator] Failed to trigger sync from cold cache:", error);
-      });
-
-      throw new ORPCError("SERVICE_UNAVAILABLE", {
-        message: "Asset cache is warming up. Please try again in a moment.",
-      });
-    }
-
-    if (providersToEnrich.length > 0 && !this.redis) {
+    if (providersToEnrich.length > 0) {
+      console.log(`[Aggregator] Cache miss for ${providersToEnrich.length} providers, recomputing...`);
       const result = await aggregateListedAssets(this.providers, providersToEnrich);
 
       for (const provider of result.providers) {
@@ -318,6 +227,18 @@ export class DataAggregatorService {
         const enrichedAssets = await this.enrichAssets(assets);
         canonicalData[provider] = enrichedAssets;
         successfulProviders.push(provider);
+
+        if (this.redis) {
+          const enrichedCacheKey = `enriched-assets:${provider}`;
+          try {
+            await Effect.runPromise(
+              this.redis.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
+            );
+            console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 30 days)`);
+          } catch (error) {
+            console.error(`[Aggregator] Failed to cache enriched assets for ${provider}:`, error);
+          }
+        }
       }
     }
 

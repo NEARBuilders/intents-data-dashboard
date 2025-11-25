@@ -6,11 +6,14 @@ import { BatchHandlerPlugin } from '@orpc/server/plugins'
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { CronJob } from 'cron'
+import { Effect } from 'every-plugin/effect'
 
 import { createContext } from './context'
 import { initializePlugins } from './plugins'
 import { createRouter } from './routers'
 import { serverEnv } from './env'
+import { runOrchestratedSync } from './sync-job'
 
 const plugins = await initializePlugins({
   secrets: {
@@ -106,6 +109,33 @@ app.all('/api/*', async (c) => {
 // 404 handler
 
 app.all('*', (c) => c.text('Not Found', 404))
+
+if (serverEnv.SYNC_CRON_SCHEDULE) {
+  console.log(`[Cron] Setting up orchestrated sync job with schedule: ${serverEnv.SYNC_CRON_SCHEDULE}`);
+  
+  const syncJob = new CronJob(
+    serverEnv.SYNC_CRON_SCHEDULE,
+    () => {
+      console.log('[Cron] Triggering orchestrated sync...');
+      
+      Effect.runPromise(
+        runOrchestratedSync(plugins, {
+          aggregatorUrl: serverEnv.AGGREGATOR_URL,
+        })
+      ).catch((error) => {
+        console.error('[Cron] Orchestrated sync failed:', error);
+      });
+    },
+    null,
+    true,
+    'UTC'
+  );
+
+  console.log('[Cron] Orchestrated sync job started');
+} else {
+  console.log('[Cron] No SYNC_CRON_SCHEDULE configured, orchestrated sync will not run automatically');
+  console.log('[Cron] To enable, set SYNC_CRON_SCHEDULE env var (e.g., "0 0 * * 0" for weekly on Sunday midnight UTC)');
+}
 
 export default {
   port: serverEnv.PORT,
