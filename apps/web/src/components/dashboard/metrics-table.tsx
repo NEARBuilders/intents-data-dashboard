@@ -168,25 +168,27 @@ export const MetricsTable = ({
   return (
     <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-16">
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
-        <VersusComparisonTable
-          leftProvider={{
-            name: nearIntentsInfo?.label || "NEAR Intents",
-            icon: "/images/provider-icons/near_intents.png",
-          }}
-          rightProvider={{
-            name: selectedProviderInfo?.label || "Provider",
-            icon: undefined,
-          }}
-          metrics={swapMetrics}
-          showProviderSelector={false}
-        />
-        <div className="flex justify-end mt-4">
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors text-sm cursor-pointer"
-          >
-            Share →
-          </button>
+        <div className="max-w-[900px] mx-auto">
+          <VersusComparisonTable
+            leftProvider={{
+              name: nearIntentsInfo?.label || "NEAR Intents",
+              icon: "/images/provider-icons/near_intents.png",
+            }}
+            rightProvider={{
+              name: selectedProviderInfo?.label || "Provider",
+              icon: undefined,
+            }}
+            metrics={swapMetrics}
+            showProviderSelector={false}
+          />
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-2 px-4 py-2 text-white hover:text-gray-300 transition-colors text-sm cursor-pointer"
+            >
+              Share →
+            </button>
+          </div>
         </div>
       </div>
     </section>
