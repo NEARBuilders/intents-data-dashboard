@@ -141,6 +141,87 @@ function AssetsPage() {
         </p>
       </header>
 
+      {selectedGroup && (
+        <Card className="mb-6 bg-[#0e0e0e] border-[#343434] rounded-[14px]">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
+                  {selectedGroup.iconUrl ? (
+                    <img
+                      src={selectedGroup.iconUrl}
+                      alt={selectedGroup.symbol}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-[#202027]" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">
+                    {selectedGroup.symbol}
+                  </h2>
+                  {selectedGroup.price && (
+                    <p className="text-gray-400">
+                      $
+                      {selectedGroup.price.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 6,
+                      })}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedSymbol(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Provider Support
+              </h3>
+              {selectedGroup.allProviders.map((providerId) => {
+                const provider = assetProviders.find((p) => p.id === providerId);
+                const supportedBlockchains = selectedGroup.allBlockchains.filter(
+                  (blockchain) => selectedGroup.providers[providerId]?.[blockchain]
+                );
+
+                return (
+                  <div
+                    key={providerId}
+                    className="bg-[#1a1a1a] border border-[#343434] rounded-lg p-4"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-white font-medium text-lg">
+                        {provider?.label || providerId}
+                      </h4>
+                      <span className="text-gray-400 text-sm">
+                        {supportedBlockchains.length}{" "}
+                        {supportedBlockchains.length === 1 ? "network" : "networks"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {supportedBlockchains.map((blockchain) => (
+                        <span
+                          key={blockchain}
+                          className="px-3 py-1.5 rounded-md text-sm font-medium bg-[#252525] text-white border border-[#343434] capitalize"
+                        >
+                          {blockchain}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <Input
           placeholder="Search by symbol, asset ID, or blockchain..."
@@ -301,92 +382,6 @@ function AssetsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {selectedGroup && (
-        <Card className="mt-4 bg-[#0e0e0e] border-[#343434] rounded-[14px]">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                {selectedGroup.iconUrl ? (
-                  <img
-                    src={selectedGroup.iconUrl}
-                    alt={selectedGroup.symbol}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full bg-[#202027]" />
-                )}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">
-                  {selectedGroup.symbol}
-                </h2>
-                {selectedGroup.price && (
-                  <p className="text-gray-400 text-sm">
-                    $
-                    {selectedGroup.price.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 6,
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#343434]">
-                    <th className="text-left p-3 text-gray-400 font-medium text-sm">
-                      Provider
-                    </th>
-                    {selectedGroup.allBlockchains.map((blockchain) => (
-                      <th
-                        key={blockchain}
-                        className="text-center p-3 text-gray-400 font-medium text-sm capitalize"
-                      >
-                        {blockchain}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedGroup.allProviders.map((providerId) => {
-                    const provider = assetProviders.find(
-                      (p) => p.id === providerId
-                    );
-                    return (
-                      <tr
-                        key={providerId}
-                        className="border-b border-[#343434] last:border-0"
-                      >
-                        <td className="p-3 text-white">
-                          {provider?.label || providerId}
-                        </td>
-                        {selectedGroup.allBlockchains.map((blockchain) => {
-                          const asset =
-                            selectedGroup.providers[providerId]?.[blockchain];
-                          return (
-                            <td key={blockchain} className="p-3 text-center">
-                              {asset ? (
-                                <span className="text-green-400 text-lg">
-                                  ✓
-                                </span>
-                              ) : (
-                                <span className="text-gray-600">-</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="mt-4 text-gray-400 text-sm">
         Showing {filteredSymbols.length} of {symbolGroups.length} symbols
