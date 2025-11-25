@@ -35,14 +35,14 @@ export const UniswapRegistryLive = Layer.effect(
         const response = await fetch("https://tokens.uniswap.org");
         if (!response.ok) {
           const errorMsg = `Failed to fetch Uniswap token list: ${response.status} ${response.statusText}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][Uniswap][error] msg=Failed to fetch token list status=${response.status}`);
           throw new Error(errorMsg);
         }
         return (await response.json()) as UniswapTokenList;
       },
       catch: (error) => {
         const errorMsg = `Uniswap fetch error: ${error}`;
-        console.error(errorMsg);
+        console.error(`[AssetSync][Uniswap][error] msg=${errorMsg}`);
         return new Error(errorMsg);
       },
     });
@@ -87,7 +87,7 @@ export const UniswapRegistryLive = Layer.effect(
           let syncedCount = 0;
           let processedCount = 0;
 
-          console.log(`Uniswap sync: Processing ${totalTokens} tokens...`);
+          console.log(`[AssetSync][Uniswap][start] totalTokens=${totalTokens}`);
 
           for (const token of tokenList.tokens) {
             processedCount++;
@@ -97,21 +97,28 @@ export const UniswapRegistryLive = Layer.effect(
             }
 
             const asset = yield* convertToAsset(token).pipe(
-              Effect.catchAll(() => Effect.succeed(null))
+              Effect.catchAll((error) => {
+                console.error(`[AssetSync][Uniswap][error] msg=Failed to convert token address=${token.address}`, error);
+                return Effect.succeed(null);
+              })
             );
             
             if (asset) {
-              yield* store.upsert(asset);
+              yield* store.upsert(asset).pipe(
+                Effect.catchAll((error) => {
+                  console.error(`[AssetSync][Uniswap][error] msg=Failed to store token reference=${asset.reference}`, error);
+                  return Effect.void;
+                })
+              );
               syncedCount++;
             }
 
             if (processedCount % 250 === 0) {
-              const percentComplete = Math.round((processedCount / totalTokens) * 100);
-              console.log(`Uniswap: ${processedCount} / ${totalTokens} tokens processed (${percentComplete}%), ${syncedCount} synced`);
+              console.log(`[AssetSync][Uniswap][progress] processed=${processedCount} total=${totalTokens} synced=${syncedCount}`);
             }
           }
 
-          console.log(`Uniswap sync: ${syncedCount} / ${totalTokens} tokens successfully synced`);
+          console.log(`[AssetSync][Uniswap][complete] synced=${syncedCount} total=${totalTokens}`);
           return syncedCount;
         }),
 

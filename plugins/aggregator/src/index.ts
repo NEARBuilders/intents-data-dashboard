@@ -3,6 +3,7 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 
+import { createAssetEnrichmentClient } from "./clients/asset-enrichment-client";
 import { contract } from "./contract";
 import { getPluginRuntime } from "./plugins";
 import { DataAggregatorService } from "./service";
@@ -17,8 +18,7 @@ export default createPlugin({
     DUNE_API_KEY: z.string(),
     REDIS_URL: z.string().default("redis://localhost:6379"),
     NEAR_INTENTS_API_KEY: z.string(),
-    DATABASE_URL: z.string(),
-    DATABASE_AUTH_TOKEN: z.string(),
+    ASSET_ENRICHMENT_URL: z.string().default("http://localhost:6767/api/rpc"),
   }),
 
   contract,
@@ -32,10 +32,12 @@ export default createPlugin({
       const redis = new RedisService(config.secrets.REDIS_URL);
       yield* redis.healthCheck();
 
-      const { providers, enrichAssetClient } = yield* getPluginRuntime({
+      const { providers } = yield* getPluginRuntime({
         isDevelopment: config.variables.isDevelopment,
         secrets: config.secrets,
       });
+
+      const enrichAssetClient = createAssetEnrichmentClient(config.secrets.ASSET_ENRICHMENT_URL);
 
       const service = new DataAggregatorService(dune, providers, enrichAssetClient, redis);
 

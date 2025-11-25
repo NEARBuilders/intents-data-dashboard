@@ -1,16 +1,11 @@
 import { oc } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import { Asset } from "@data-provider/shared-contract";
+import { CANONICAL_BLOCKCHAIN_SLUGS, CANONICAL_NAMESPACES } from "@data-provider/plugin-utils";
 
-const CommonChains = z.enum([
-  'eth', 'arb', 'pol', 'bsc', 'op', 'matic', 'bnb',
-  'base', 'sol', 'near', 'ton', 'aptos', 'sui', 'btc'
-]);
+const CommonChains = z.enum(CANONICAL_BLOCKCHAIN_SLUGS);
 
-const CommonNamespaces = z.enum([
-  'erc20', 'erc721', 'erc1155', 'spl', 'nep141', 'nep171', 'near-nft',
-  'native', 'aptos-coin', 'iso4217', 'stellar-asset'
-]);
+const CommonNamespaces = z.enum(CANONICAL_NAMESPACES);
 
 const BlockchainSchema = z.union([CommonChains, z.string()]);
 
@@ -153,6 +148,22 @@ export const contract = oc.router({
       z.object({
         price: z.number().nullable().describe('Current price in USD, null if unavailable'),
         timestamp: z.number().nullable().describe('Unix timestamp when price was last updated'),
+      }),
+    ),
+
+  getSyncStatus: oc
+    .route({
+      method: 'GET',
+      path: '/sync-status',
+      summary: 'Get sync status',
+      description: 'Returns the current status of the background asset registry synchronization.',
+    })
+    .output(
+      z.object({
+        status: z.enum(['idle', 'running', 'error']).describe('Current sync status'),
+        lastSuccessAt: z.number().nullable().describe('Unix timestamp of last successful sync'),
+        lastErrorAt: z.number().nullable().describe('Unix timestamp of last error'),
+        errorMessage: z.string().nullable().describe('Error message from last failed sync'),
       }),
     )
 });

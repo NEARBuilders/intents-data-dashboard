@@ -39,6 +39,12 @@ export class AssetEnrichmentService extends Context.Tag("AssetEnrichmentService"
     readonly getStoredAssets: () => Effect.Effect<AssetType[], Error>;
     readonly sync: () => Effect.Effect<{ status: string }, Error>;
     readonly getPrice: (assetId: string) => Effect.Effect<{ price: number | null; timestamp: number | null }, Error>;
+    readonly getSyncStatus: () => Effect.Effect<{
+      status: 'idle' | 'running' | 'error';
+      lastSuccessAt: number | null;
+      lastErrorAt: number | null;
+      errorMessage: string | null;
+    }, Error>;
   }
 >() { }
 
@@ -141,6 +147,13 @@ export const AssetEnrichmentServiceLive = Layer.effect(
           });
         }
 
+        const fallbackReason =
+          local && local.decimals === 0
+            ? "local asset found but decimals is 0"
+            : asset && asset.decimals === 0
+              ? "registry asset found but decimals is 0"
+              : "no asset metadata found in store or registries";
+
         const chainId = descriptor?.chainId ?? getChainIdFromBlockchain(identity.blockchain) ?? undefined;
         const fallbackSymbol = descriptor?.symbol || identity.blockchain.toUpperCase();
         const fallbackDecimals = 
@@ -148,6 +161,18 @@ export const AssetEnrichmentServiceLive = Layer.effect(
           (identity.namespace === 'erc20' || identity.namespace === 'native' ? 18 :
            identity.namespace === 'spl' ? 9 :
            identity.namespace === 'nep141' ? 24 : 0);
+
+        console.warn("[AssetEnrichment] Using fallback metadata", {
+          identity,
+          criteria,
+          descriptor,
+          reason: fallbackReason,
+          fallback: {
+            symbol: fallbackSymbol,
+            decimals: fallbackDecimals,
+            chainId,
+          },
+        });
 
         const fallbackAsset = canonicalToAsset(identity, {
           symbol: fallbackSymbol,
@@ -274,53 +299,62 @@ export const AssetEnrichmentServiceLive = Layer.effect(
       sync: () =>
         Effect.gen(function* () {
           const syncTask = Effect.gen(function* () {
+            yield* store.setSyncStatus('assets', 'running', null, null, null);
             console.log("Background sync started...");
             const startTime = Date.now();
 
-            const uniswapCount = yield* uniswapRegistry.sync().pipe(
-              Effect.catchAll((error) => {
-                console.error("Uniswap sync failed:", error);
-                return Effect.succeed(0);
-              })
-            );
-            console.log(`Uniswap sync complete: ${uniswapCount} assets`);
+            try {
+              const uniswapCount = yield* uniswapRegistry.sync().pipe(
+                Effect.catchAll((error) => {
+                  console.error("Uniswap sync failed:", error);
+                  return Effect.succeed(0);
+                })
+              );
+              console.log(`Uniswap sync complete: ${uniswapCount} assets`);
 
-            const coingeckoCount = yield* coingeckoRegistry.sync().pipe(
-              Effect.catchAll((error) => {
-                console.error("CoinGecko sync failed:", error);
-                return Effect.succeed(0);
-              })
-            );
-            console.log(`CoinGecko sync complete: ${coingeckoCount} assets`);
+              const coingeckoCount = yield* coingeckoRegistry.sync().pipe(
+                Effect.catchAll((error) => {
+                  console.error("CoinGecko sync failed:", error);
+                  return Effect.succeed(0);
+                })
+              );
+              console.log(`CoinGecko sync complete: ${coingeckoCount} assets`);
 
-            const jupiterCount = yield* jupiterRegistry.sync().pipe(
-              Effect.catchAll((error) => {
-                console.error("Jupiter sync failed:", error);
-                return Effect.succeed(0);
-              })
-            );
-            console.log(`Jupiter sync complete: ${jupiterCount} assets`);
+              const jupiterCount = yield* jupiterRegistry.sync().pipe(
+                Effect.catchAll((error) => {
+                  console.error("Jupiter sync failed:", error);
+                  return Effect.succeed(0);
+                })
+              );
+              console.log(`Jupiter sync complete: ${jupiterCount} assets`);
 
-            const intearCount = yield* intearRegistry.sync().pipe(
-              Effect.catchAll((error) => {
-                console.error("Intear sync failed:", error);
-                return Effect.succeed(0);
-              })
-            );
-            console.log(`Intear sync complete: ${intearCount} assets`);
+              const intearCount = yield* intearRegistry.sync().pipe(
+                Effect.catchAll((error) => {
+                  console.error("Intear sync failed:", error);
+                  return Effect.succeed(0);
+                })
+              );
+              console.log(`Intear sync complete: ${intearCount} assets`);
 
-            const nearBlocksCount = yield* nearBlocksRegistry.sync().pipe(
-              Effect.catchAll((error) => {
-                console.error("NearBlocks sync failed:", error);
-                return Effect.succeed(0);
-              })
-            );
-            console.log(`NearBlocks sync complete: ${nearBlocksCount} assets`);
+              const nearBlocksCount = yield* nearBlocksRegistry.sync().pipe(
+                Effect.catchAll((error) => {
+                  console.error("NearBlocks sync failed:", error);
+                  return Effect.succeed(0);
+                })
+              );
+              console.log(`NearBlocks sync complete: ${nearBlocksCount} assets`);
 
-            const duration = Date.now() - startTime;
-            console.log(
-              `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount + intearCount + nearBlocksCount} assets in ${duration}ms`
-            );
+              const duration = Date.now() - startTime;
+              console.log(
+                `Background sync complete! Total: ${uniswapCount + coingeckoCount + jupiterCount + intearCount + nearBlocksCount} assets in ${duration}ms`
+              );
+
+              yield* store.setSyncStatus('assets', 'idle', new Date(), null, null);
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.error("Sync failed with error:", errorMessage);
+              yield* store.setSyncStatus('assets', 'error', null, new Date(), errorMessage);
+            }
           });
 
           yield* Effect.forkDaemon(syncTask);
@@ -331,6 +365,11 @@ export const AssetEnrichmentServiceLive = Layer.effect(
       getPrice: (assetId) =>
         Effect.gen(function* () {
           return yield* coingeckoRegistry.getPrice(assetId);
+        }),
+
+      getSyncStatus: () =>
+        Effect.gen(function* () {
+          return yield* store.getSyncStatus('assets');
         }),
     };
   })

@@ -131,6 +131,15 @@ export default createPlugin({
           }).pipe(Effect.provide(context.appLayer))
         );
       }),
+
+      getSyncStatus: builder.getSyncStatus.handler(async () => {
+        return await Effect.runPromise(
+          Effect.gen(function* () {
+            const service = yield* AssetEnrichmentService;
+            return yield* service.getSyncStatus();
+          }).pipe(Effect.provide(context.appLayer))
+        );
+      }),
     };
   },
 });

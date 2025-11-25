@@ -35,14 +35,14 @@ export const JupiterRegistryLive = Layer.effect(
           );
           if (!response.ok) {
             const errorMsg = `Jupiter search failed for "${query}": ${response.status} ${response.statusText}`;
-            console.error(errorMsg);
+            console.error(`[AssetSync][Jupiter][error] msg=Search failed query="${query}" status=${response.status}`);
             throw new Error(errorMsg);
           }
           return (await response.json()) as JupiterToken[];
         },
         catch: (error) => {
           const errorMsg = `Jupiter search error for "${query}": ${error}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][Jupiter][error] msg=${errorMsg}`);
           return new Error(errorMsg);
         },
       });
@@ -74,6 +74,7 @@ export const JupiterRegistryLive = Layer.effect(
     return {
       sync: () =>
         Effect.gen(function* () {
+          console.log("[AssetSync][Jupiter][complete] synced=0 reason=No bulk sync implemented");
           return 0;
         }),
 
@@ -119,8 +120,19 @@ export const JupiterRegistryLive = Layer.effect(
             return null;
           }
 
-          const asset = yield* convertToAsset(selectedToken);
-          yield* store.upsert(asset);
+          const asset = yield* convertToAsset(selectedToken).pipe(
+            Effect.catchAll((error) => {
+              console.error(`[AssetSync][Jupiter][error] msg=Failed to convert token id=${selectedToken.id}`, error);
+              return Effect.fail(error);
+            })
+          );
+          
+          yield* store.upsert(asset).pipe(
+            Effect.catchAll((error) => {
+              console.error(`[AssetSync][Jupiter][error] msg=Failed to store asset reference=${asset.reference}`, error);
+              return Effect.fail(error);
+            })
+          );
 
           return asset;
         }).pipe(Effect.catchAll(() => Effect.succeed(null))),

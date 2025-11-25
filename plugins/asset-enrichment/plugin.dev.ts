@@ -5,7 +5,7 @@ import packageJson from './package.json' with { type: 'json' };
 
 export default {
   pluginId: packageJson.name, // DO NOT CHANGE
-  port: 3014,
+  port: 3010,
   config: {
     // Update these variables to what's required for your plugin
     variables: {

@@ -1,5 +1,4 @@
 import type AcrossPlugin from "@data-provider/across";
-import type AssetEnrichmentPlugin from "@data-provider/asset-enrichment";
 import type NearIntentsPlugin from "@data-provider/near-intents";
 import type { PluginClient } from "@data-provider/shared-contract";
 import { createPluginRuntime } from "every-plugin";
@@ -8,19 +7,16 @@ import { Effect } from "every-plugin/effect";
 type AggregatorRegistry = {
   "@data-provider/near-intents": typeof NearIntentsPlugin;
   "@data-provider/across": typeof AcrossPlugin;
-  "@data-provider/asset-enrichment": typeof AssetEnrichmentPlugin;
 };
 
 const PLUGIN_URLS = {
   production: {
     "@data-provider/near-intents": "https://elliot-braem-862-data-provider-near-intents-data--2a21768a2-ze.zephyrcloud.app/remoteEntry.js",
     "@data-provider/across": "https://elliot-braem-861-data-provider-across-data-provid-8e6d9e9d5-ze.zephyrcloud.app/remoteEntry.js",
-    "@data-provider/asset-enrichment": "https://elliot-braem-860-data-provider-asset-enrichment-d-1dce9d585-ze.zephyrcloud.app/remoteEntry.js",
   },
   development: {
     "@data-provider/near-intents": "http://localhost:3015/remoteEntry.js",
     "@data-provider/across": "http://localhost:3016/remoteEntry.js",
-    "@data-provider/asset-enrichment": "http://localhost:3017/remoteEntry.js",
   }
 } as const;
 
@@ -30,8 +26,6 @@ export interface PluginRuntimeConfig {
     NEAR_INTENTS_API_KEY: string;
     DUNE_API_KEY: string;
     REDIS_URL: string;
-    DATABASE_URL: string,
-    DATABASE_AUTH_TOKEN: string
   };
 }
 
@@ -45,7 +39,6 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           registry: {
             "@data-provider/near-intents": { remoteUrl: urls["@data-provider/near-intents"] },
             "@data-provider/across": { remoteUrl: urls["@data-provider/across"] },
-            "@data-provider/asset-enrichment": { remoteUrl: urls["@data-provider/asset-enrichment"] },
           },
           secrets: config.secrets,
         });
@@ -64,20 +57,12 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           secrets: {}
         });
 
-        const enrichAsset = await runtime.usePlugin("@data-provider/asset-enrichment", {
-          variables: {},
-          secrets: {
-            DATABASE_URL: config.secrets.DATABASE_URL,
-            DATABASE_AUTH_TOKEN: config.secrets.DATABASE_AUTH_TOKEN
-          }
-        });
-
         const providers: Record<string, PluginClient> = {
           "near_intents": nearIntents.client,
           "across": across.client,
         };
 
-        return { runtime, providers, enrichAssetClient: enrichAsset.client };
+        return { runtime, providers };
       },
       catch: (error) => new Error(`Failed to initialize plugin runtime: ${error}`)
     }),

@@ -43,7 +43,7 @@ export const IntearRegistryLive = Layer.effect(
           const response = await fetch("https://prices.intear.tech/tokens");
           if (!response.ok) {
             const errorMsg = `Failed to fetch Intear tokens: ${response.status} ${response.statusText}`;
-            console.error(errorMsg);
+            console.error(`[AssetSync][Intear][error] msg=Failed to fetch tokens status=${response.status}`);
             throw new Error(errorMsg);
           }
           const data = (await response.json()) as IntearTokensResponse;
@@ -51,7 +51,7 @@ export const IntearRegistryLive = Layer.effect(
         },
         catch: (error) => {
           const errorMsg = `Intear fetch error: ${error}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][Intear][error] msg=${errorMsg}`);
           return new Error(errorMsg);
         },
       });
@@ -90,16 +90,16 @@ export const IntearRegistryLive = Layer.effect(
     return {
       sync: () =>
         Effect.gen(function* () {
-          console.log("Starting Intear sync: fetching all tokens...");
+          console.log("[AssetSync][Intear][start] target=All NEAR tokens from Intear");
           
           const tokens = yield* fetchAllTokens().pipe(
             Effect.catchAll((error) => {
-              console.error("Failed to fetch Intear tokens:", error);
+              console.error("[AssetSync][Intear][error] msg=Failed to fetch tokens", error);
               return Effect.succeed([]);
             })
           );
 
-          console.log(`Intear: Retrieved ${tokens.length} tokens`);
+          console.log(`[AssetSync][Intear][fetch-complete] tokensRetrieved=${tokens.length}`);
 
           let syncedCount = 0;
           const assets: (AssetType & { source: string; verified: boolean })[] = [];
@@ -108,12 +108,12 @@ export const IntearRegistryLive = Layer.effect(
             const token = tokens[i]!;
             
             if ((i + 1) % 100 === 0 || i === tokens.length - 1) {
-              console.log(`Intear: Converting token ${i + 1}/${tokens.length}...`);
+              console.log(`[AssetSync][Intear][convert-progress] converted=${i + 1} total=${tokens.length}`);
             }
 
             const asset = yield* convertToAsset(token).pipe(
               Effect.catchAll((error) => {
-                console.error(`Failed to convert token ${token.account_id}:`, error);
+                console.error(`[AssetSync][Intear][error] msg=Failed to convert token accountId=${token.account_id}`, error);
                 return Effect.succeed(null);
               })
             );
@@ -123,24 +123,24 @@ export const IntearRegistryLive = Layer.effect(
             }
           }
 
-          console.log(`Intear: Upserting ${assets.length} assets to database...`);
+          console.log(`[AssetSync][Intear][store-start] assets=${assets.length}`);
           for (let i = 0; i < assets.length; i++) {
             const asset = assets[i]!;
             
             if ((i + 1) % 100 === 0 || i === assets.length - 1) {
-              console.log(`Intear: Stored ${i + 1}/${assets.length} assets...`);
+              console.log(`[AssetSync][Intear][store-progress] stored=${i + 1} total=${assets.length}`);
             }
 
             yield* store.upsert(asset).pipe(
               Effect.catchAll((error) => {
-                console.error(`Failed to store token ${asset.reference}:`, error);
+                console.error(`[AssetSync][Intear][error] msg=Failed to store token reference=${asset.reference}`, error);
                 return Effect.void;
               })
             );
             syncedCount++;
           }
 
-          console.log(`Intear sync complete: ${syncedCount} tokens synced`);
+          console.log(`[AssetSync][Intear][complete] synced=${syncedCount}`);
           return syncedCount;
         }),
 

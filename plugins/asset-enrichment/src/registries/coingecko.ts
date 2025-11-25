@@ -119,14 +119,14 @@ export const CoingeckoRegistryLive = Layer.scoped(
         const response = await fetch("https://api.coingecko.com/api/v3/coins/list");
         if (!response.ok) {
           const errorMsg = `Failed to fetch CoinGecko list: ${response.status} ${response.statusText}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][CoinGecko][error] msg=Failed to fetch coins list status=${response.status}`);
           throw new Error(errorMsg);
         }
         return (await response.json()) as CoingeckoCoin[];
       },
       catch: (error) => {
         const errorMsg = `CoinGecko fetch error: ${error}`;
-        console.error(errorMsg);
+        console.error(`[AssetSync][CoinGecko][error] msg=${errorMsg}`);
         return new Error(errorMsg);
       },
     });
@@ -144,14 +144,14 @@ export const CoingeckoRegistryLive = Layer.scoped(
           const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`);
           if (!response.ok) {
             const errorMsg = `Failed to fetch CoinGecko markets: ${response.status} ${response.statusText}`;
-            console.error(errorMsg);
+            console.error(`[AssetSync][CoinGecko][error] msg=Failed to fetch markets status=${response.status}`);
             throw new Error(errorMsg);
           }
           return (await response.json()) as CoingeckoMarket[];
         },
         catch: (error) => {
           const errorMsg = `CoinGecko markets fetch error: ${error}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][CoinGecko][error] msg=${errorMsg}`);
           return new Error(errorMsg);
         },
       });
@@ -164,14 +164,14 @@ export const CoingeckoRegistryLive = Layer.scoped(
           );
           if (!response.ok) {
             const errorMsg = `Failed to fetch coin detail for ${coinId}: ${response.status} ${response.statusText}`;
-            console.error(errorMsg);
+            console.error(`[AssetSync][CoinGecko][error] msg=Failed to fetch coin detail coinId=${coinId} status=${response.status}`);
             throw new Error(errorMsg);
           }
           return (await response.json()) as CoingeckoCoinDetail;
         },
         catch: (error) => {
           const errorMsg = `CoinGecko detail fetch error for ${coinId}: ${error}`;
-          console.error(errorMsg);
+          console.error(`[AssetSync][CoinGecko][error] msg=${errorMsg}`);
           return new Error(errorMsg);
         },
       });
@@ -270,7 +270,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
           });
           const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?${params}`);
           if (!response.ok) {
-            console.error(`Failed to fetch CoinGecko price for ${coingeckoId}: ${response.status}`);
+            console.error(`[AssetSync][CoinGecko][error] msg=Failed to fetch price coingeckoId=${coingeckoId} status=${response.status}`);
             return { price: null, timestamp: null };
           }
           const data = await response.json() as Record<string, { usd?: number; last_updated_at?: number }>;
@@ -289,7 +289,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
     return {
       sync: () =>
         Effect.gen(function* () {
-          console.log("Phase 1: Syncing CoinGecko coins list for fuzzy search...");
+          console.log("[AssetSync][CoinGecko][start] phase=1 target=Coins list for fuzzy search");
           const coinsList = yield* rateLimiter(fetchCoinsList);
 
           const chunkSize = 500;
@@ -298,7 +298,7 @@ export const CoingeckoRegistryLive = Layer.scoped(
             chunks.push(coinsList.slice(i, i + chunkSize));
           }
 
-          console.log(`Processing ${coinsList.length} coins in ${chunks.length} batches...`);
+          console.log(`[AssetSync][CoinGecko][phase1-progress] totalCoins=${coinsList.length} batches=${chunks.length}`);
           for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i]!;
             yield* Effect.tryPromise({
@@ -315,21 +315,30 @@ export const CoingeckoRegistryLive = Layer.scoped(
                   .onConflictDoNothing();
               },
               catch: () => new Error("Failed to batch insert coingecko IDs"),
-            }).pipe(Effect.catchAll(() => Effect.void));
+            }).pipe(Effect.catchAll((error) => {
+              console.error(`[AssetSync][CoinGecko][error] msg=Failed to insert batch`, error);
+              return Effect.void;
+            }));
 
             if ((i + 1) % 10 === 0) {
-              console.log(`Processed ${(i + 1) * chunkSize} / ${coinsList.length} coins...`);
+              console.log(`[AssetSync][CoinGecko][phase1-progress] processed=${(i + 1) * chunkSize} total=${coinsList.length}`);
             }
           }
 
-          console.log(`Phase 1 complete: ${coinsList.length} coins indexed`);
+          console.log(`[AssetSync][CoinGecko][phase1-complete] coinsIndexed=${coinsList.length}`);
 
-          console.log("Phase 2: Fetching markets for native coins and top 250...");
+          console.log("[AssetSync][CoinGecko][phase2-start] target=Native coins and top 250 markets");
           const nativeMarkets = yield* rateLimiter(fetchMarkets(nativeCoinIds)).pipe(
-            Effect.catchAll(() => Effect.succeed([]))
+            Effect.catchAll((error) => {
+              console.error("[AssetSync][CoinGecko][error] msg=Failed to fetch native markets", error);
+              return Effect.succeed([]);
+            })
           );
           const top250Markets = yield* rateLimiter(fetchMarkets(undefined, 250)).pipe(
-            Effect.catchAll(() => Effect.succeed([]))
+            Effect.catchAll((error) => {
+              console.error("[AssetSync][CoinGecko][error] msg=Failed to fetch top 250 markets", error);
+              return Effect.succeed([]);
+            })
           );
 
           const allMarkets = [...nativeMarkets, ...top250Markets];
@@ -348,7 +357,10 @@ export const CoingeckoRegistryLive = Layer.scoped(
                       namespace: "native",
                       reference: "coin",
                     })
-                  ).pipe(Effect.catchAll(() => Effect.succeed(null)));
+                  ).pipe(Effect.catchAll((error) => {
+                    console.error(`[AssetSync][CoinGecko][error] msg=Failed to create identity blockchain=${blockchain}`, error);
+                    return Effect.succeed(null);
+                  }));
 
                   if (identity) {
                     const asset: AssetType & { source: string; verified: boolean } = {
@@ -364,7 +376,10 @@ export const CoingeckoRegistryLive = Layer.scoped(
                       verified: true,
                     };
 
-                    yield* store.upsert(asset).pipe(Effect.catchAll(() => Effect.void));
+                    yield* store.upsert(asset).pipe(Effect.catchAll((error) => {
+                      console.error(`[AssetSync][CoinGecko][error] msg=Failed to store asset assetId=${asset.assetId}`, error);
+                      return Effect.void;
+                    }));
                     enhancedCount++;
                   }
                 }
@@ -372,7 +387,8 @@ export const CoingeckoRegistryLive = Layer.scoped(
             }
           }
 
-          console.log(`Phase 2 complete: ${enhancedCount} native assets enhanced`);
+          console.log(`[AssetSync][CoinGecko][phase2-complete] nativeAssetsEnhanced=${enhancedCount}`);
+          console.log(`[AssetSync][CoinGecko][complete] totalSynced=${coinsList.length + enhancedCount}`);
           return coinsList.length + enhancedCount;
         }),
 

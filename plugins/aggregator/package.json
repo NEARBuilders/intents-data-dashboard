@@ -38,6 +38,7 @@
   "dependencies": {
     "@defuse-protocol/crosschain-assetid": "^1.0.2",
     "@duneanalytics/client-sdk": "^0.3.4",
+    "@orpc/client": "^1.11.3",
     "ioredis": "^5.8.2"
   }
 }

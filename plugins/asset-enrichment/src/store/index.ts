@@ -18,6 +18,19 @@ export class AssetStore extends Context.Tag("AssetStore")<
     readonly find: (criteria: AssetCriteria) => Effect.Effect<(AssetType & { verified: boolean; source: string }) | null, Error>;
     readonly findMany: (criteria: AssetCriteria) => Effect.Effect<AssetType[], Error>;
     readonly delete: (assetId: string) => Effect.Effect<void, Error>;
+    readonly setSyncStatus: (
+      id: string,
+      status: 'idle' | 'running' | 'error',
+      lastSuccessAt: Date | null,
+      lastErrorAt: Date | null,
+      errorMessage: string | null
+    ) => Effect.Effect<void, Error>;
+    readonly getSyncStatus: (id: string) => Effect.Effect<{
+      status: 'idle' | 'running' | 'error';
+      lastSuccessAt: number | null;
+      lastErrorAt: number | null;
+      errorMessage: string | null;
+    }, Error>;
   }
 >() {}
 
@@ -205,6 +218,60 @@ export const AssetStoreLive = Layer.effect(
             await db.delete(schema.assets).where(eq(schema.assets.id, assetId));
           },
           catch: (error) => new Error(`Failed to delete asset: ${error}`),
+        }),
+
+      setSyncStatus: (id, status, lastSuccessAt, lastErrorAt, errorMessage) =>
+        Effect.tryPromise({
+          try: async () => {
+            await db
+              .insert(schema.syncState)
+              .values({
+                id,
+                status,
+                lastSuccessAt: lastSuccessAt || null,
+                lastErrorAt: lastErrorAt || null,
+                errorMessage: errorMessage || null,
+              })
+              .onConflictDoUpdate({
+                target: schema.syncState.id,
+                set: {
+                  status,
+                  lastSuccessAt: lastSuccessAt || null,
+                  lastErrorAt: lastErrorAt || null,
+                  errorMessage: errorMessage || null,
+                },
+              });
+          },
+          catch: (error) => new Error(`Failed to set sync status: ${error}`),
+        }),
+
+      getSyncStatus: (id) =>
+        Effect.tryPromise({
+          try: async () => {
+            const results = await db
+              .select()
+              .from(schema.syncState)
+              .where(eq(schema.syncState.id, id))
+              .limit(1);
+
+            if (results.length === 0) {
+              return {
+                status: 'idle' as const,
+                lastSuccessAt: null,
+                lastErrorAt: null,
+                errorMessage: null,
+              };
+            }
+
+            const row = results[0]!;
+            return {
+              status: row.status as 'idle' | 'running' | 'error',
+              lastSuccessAt: row.lastSuccessAt ? Math.floor(row.lastSuccessAt.getTime() / 1000) : null,
+              lastErrorAt: row.lastErrorAt ? Math.floor(row.lastErrorAt.getTime() / 1000) : null,
+              errorMessage: row.errorMessage,
+            };
+          },
+          catch: (error) => new Error(`Failed to get sync status: ${error}`),
         }),
     };
   })

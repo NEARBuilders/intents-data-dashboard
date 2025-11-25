@@ -5,6 +5,108 @@
  */
 
 /**
+ * Non-EVM blockchains canonical list
+ */
+export const NON_EVM_BLOCKCHAINS = [
+  "sol",
+  "near",
+  "ton",
+  "aptos",
+  "sui",
+  "btc",
+  "tron",
+  "stellar",
+  "cardano",
+  "zec",
+  "ltc",
+  "doge",
+  "xrp",
+  "dot",
+  "cosmos",
+  "osmo",
+  "algo",
+  "tezos",
+] as const;
+
+export type NonEvmBlockchain = typeof NON_EVM_BLOCKCHAINS[number];
+
+/**
+ * Canonical blockchain slugs - single source of truth
+ * All blockchain slugs exposed in APIs should come from this list
+ */
+export const CANONICAL_BLOCKCHAIN_SLUGS = [
+  // EVM chains
+  "eth",
+  "arbitrum",
+  "arbitrum-nova",
+  "optimism",
+  "base",
+  "zora",
+  "polygon",
+  "polygon-zkevm",
+  "bsc",
+  "opbnb",
+  "avax",
+  "fantom",
+  "celo",
+  "gnosis",
+  "zksync",
+  "linea",
+  "mantle",
+  "scroll",
+  "manta",
+  "mode",
+  "blast",
+  "lisk",
+  "redstone",
+  "plasma",
+  "bera",
+  "unichain",
+  "monad",
+  "worldchain",
+  "soneium",
+  "ink",
+  "gho",
+  "wan",
+  
+  // EVM Testnets
+  "eth-ropsten",
+  "eth-rinkeby",
+  "eth-goerli",
+  "eth-kovan",
+  "eth-sepolia",
+  "arbitrum-sepolia",
+  "base-sepolia",
+  "optimism-sepolia",
+  "polygon-mumbai",
+  
+  // Non-EVM chains
+  ...NON_EVM_BLOCKCHAINS,
+] as const;
+
+export type CanonicalBlockchain = typeof CANONICAL_BLOCKCHAIN_SLUGS[number];
+
+/**
+ * Canonical namespaces - single source of truth
+ * All asset namespaces exposed in APIs should come from this list
+ */
+export const CANONICAL_NAMESPACES = [
+  "erc20",
+  "erc721",
+  "erc1155",
+  "spl",
+  "nep141",
+  "nep171",
+  "near-nft",
+  "native",
+  "aptos-coin",
+  "iso4217",
+  "stellar-asset",
+] as const;
+
+export type CanonicalNamespace = typeof CANONICAL_NAMESPACES[number];
+
+/**
  * Primary EVM chain mappings (chainId -> canonical blockchain slug)
  * This is the single source of truth for EVM chains
  */
@@ -217,29 +319,6 @@ export function normalizeBlockchainSlug(blockchain: string): string {
   return BLOCKCHAIN_CANONICAL_MAP[lower] ?? lower;
 }
 
-export const NON_EVM_BLOCKCHAINS = [
-  "sol",
-  "near",
-  "ton",
-  "aptos",
-  "sui",
-  "btc",
-  "tron",
-  "stellar",
-  "cardano",
-  "zec",
-  "ltc",
-  "doge",
-  "xrp",
-  "dot",
-  "cosmos",
-  "osmo",
-  "algo",
-  "tezos",
-] as const;
-
-export type NonEvmBlockchain = typeof NON_EVM_BLOCKCHAINS[number];
-
 const NON_EVM_NAMESPACE_CONFIG: Record<
   string,
   { tokenNamespace: string; nativeNamespace: string; nativeReference: string }
@@ -258,7 +337,12 @@ const NON_EVM_NAMESPACE_CONFIG: Record<
     tokenNamespace: 'aptos-coin',
     nativeNamespace: 'aptos-coin',
     nativeReference: encodeURIComponent('0x1::aptos_coin::AptosCoin'),
-  }
+  },
+  stellar: {
+    tokenNamespace: 'stellar-asset',
+    nativeNamespace: 'stellar-asset',
+    nativeReference: 'native',
+  },
 };
 
 interface ChainIdNetworkChain {
@@ -395,7 +479,7 @@ export function isZeroAddress(address: string): boolean {
 
 /**
  * Get namespace and reference for a blockchain
- * Returns the appropriate namespace (e.g., erc20, spl, nep141) and reference
+ * Returns the appropriate namespace (e.g., erc20, spl, nep141, stellar-asset) and reference
  * based on whether the asset has an address/contract or is native
  * 
  * Automatically normalizes EVM zero address (0x000...000) to native:coin

@@ -27,3 +27,11 @@ export const coingeckoIds = sqliteTable('coingecko_ids', {
 }, (table) => ([
   index('coingecko_symbol_idx').on(table.symbol),
 ]));
+
+export const syncState = sqliteTable('sync_state', {
+  id: text('id').primaryKey(),
+  status: text('status').notNull(),
+  lastSuccessAt: integer('last_success_at', { mode: 'timestamp' }),
+  lastErrorAt: integer('last_error_at', { mode: 'timestamp' }),
+  errorMessage: text('error_message'),
+});
