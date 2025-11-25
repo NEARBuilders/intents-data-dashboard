@@ -39,6 +39,7 @@ export default createPlugin({
 
       const enrichAssetClient = createAssetEnrichmentClient(config.secrets.ASSET_ENRICHMENT_URL);
 
+      // @ts-expect-error some inability to type assert the enrichAssetClient
       const service = new DataAggregatorService(dune, providers, enrichAssetClient, redis);
 
       return { service, providers, redis };
