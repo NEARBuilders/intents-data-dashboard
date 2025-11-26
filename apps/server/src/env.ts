@@ -10,9 +10,6 @@ export const serverEnv = createEnv({
 
     NEAR_INTENTS_API_KEY: z.string().min(1),
     DUNE_API_KEY: z.string().min(1),
-
-    DATABASE_URL: z.string(),
-    DATABASE_AUTH_TOKEN: z.string()
   },
   runtimeEnv: {
     REDIS_URL: process.env.REDIS_URL,
@@ -22,9 +19,6 @@ export const serverEnv = createEnv({
 
     NEAR_INTENTS_API_KEY: process.env.NEAR_INTENTS_API_KEY,
     DUNE_API_KEY: process.env.DUNE_API_KEY,
-
-    DATABASE_URL: process.env.DATABASE_URL,
-    DATABASE_AUTH_TOKEN: process.env.DATABASE_AUTH_TOKEN
   },
   skipValidation: process.env.SKIP_ENV_VALIDATION === 'true',
 })
