@@ -55,6 +55,7 @@ export function createProviderRouter<TProviderAsset>(
   >((asset: AssetType) => service.transformAssetToProvider(asset));
 
   return {
+    // @ts-expect-error - builder handler types not fully inferred
     getVolumes: builder.getVolumes.handler(async ({ input }) => {
       const volumes = await service.getVolumes(input.includeWindows || ["24h"]);
       return { volumes };
@@ -94,6 +95,7 @@ export function createProviderRouter<TProviderAsset>(
       };
     }),
 
+    // @ts-expect-error - builder handler types not fully inferred
     getRates: builder.getRates.use(transformRouteMiddleware).handler(async ({ input, context }) => {
       if (!context.route) {
         return { rates: [] };
@@ -132,6 +134,7 @@ export function createProviderRouter<TProviderAsset>(
       return { rates };
     }),
 
+    // @ts-expect-error - builder handler types not fully inferred
     getLiquidity: builder.getLiquidity.use(transformRouteMiddleware).handler(async ({ input, context }) => {
       if (!context.route) {
         return { liquidity: [] };

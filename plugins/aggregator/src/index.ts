@@ -10,9 +10,7 @@ import { DataAggregatorService } from "./service";
 import { RedisService } from "./services/redis";
 
 export default createPlugin({
-  variables: z.object({
-    isDevelopment: z.boolean().optional().default(false),
-  }),
+  variables: z.object({}),
 
   secrets: z.object({
     DUNE_API_KEY: z.string(),
@@ -33,7 +31,6 @@ export default createPlugin({
       yield* redis.healthCheck();
 
       const { providers } = yield* getPluginRuntime({
-        isDevelopment: config.variables.isDevelopment,
         secrets: config.secrets,
       });
 

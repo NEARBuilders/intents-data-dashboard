@@ -16,7 +16,6 @@ export async function initializePlugins(config: {
     REDIS_URL: string,
     DUNE_API_KEY: string,
     NEAR_INTENTS_API_KEY: string,
-    ASSET_ENRICHMENT_URL: string,
   },
 }) {
   const runtime = createPluginRuntime({
