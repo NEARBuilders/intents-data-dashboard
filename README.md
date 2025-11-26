@@ -19,14 +19,33 @@ The web UI will be available at `http://localhost:3001`
 
 ## Contributing
 
-### Adding a Plugin
+### Adding a New Provider
 
-1. Copy the template: `cp -r plugins/_plugin_template plugins/your-provider-plugin`
-2. Update `plugin.dev.ts` with your provider configuration
-3. Implement provider methods in `src/service.ts`
-4. Run tests: `bun run test`
+1. **Generate plugin from template**:
 
-See `plugins/_plugin_template/README.md` for detailed implementation guidance.
+   ```bash
+   bun run generate
+   ```
+
+   Follow the prompts to create a new plugin.
+
+2. **Implement the data provider methods** in `src/service.ts`:
+   - `getVolumes()` - Fetch volume metrics for time windows
+   - `getListedAssets()` - Return all supported assets
+   - `getRates()` - Get exchange rate quotes
+   - `getLiquidityDepth()` - Measure liquidity depth at slippage thresholds
+
+3. **Register your plugin** in `packages/api/src/plugins.ts`:
+   - Add your plugin to the `PLUGIN_URLS` configuration
+   - Import and add type declaration
+   - Include in `initializePlugins()` function
+
+4. **Test your implementation**:
+
+   ```bash
+   cd plugins/your-provider
+   bun run test
+   ```
 
 ## License
 
