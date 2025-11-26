@@ -252,121 +252,169 @@ export class DataAggregatorService {
 
 
   async getRates(input: {
-    routes: Array<{
+    route: {
       source: AssetType;
       destination: AssetType;
-    }>;
+    };
     amount: string;
     providers?: ProviderIdentifier[];
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Partial<Record<ProviderIdentifier, EnrichedRateType[]>>;
-    aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
-    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
-    const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+    return await Effect.runPromise(
+      Effect.gen(this, function* () {
+        const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+        const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
-    const canonicalRoutes = await Promise.all(
-      input.routes.map(async (r) => ({
-        source: await this.enrichAsset(r.source),
-        destination: await this.enrichAsset(r.destination),
-      }))
-    );
+        const [enrichedSource, enrichedDest] = yield* Effect.all([
+          Effect.tryPromise(() => this.enrichAsset(input.route.source)),
+          Effect.tryPromise(() => this.enrichAsset(input.route.destination))
+        ]);
 
-    const enrichedAssetsData = await this.getListedAssets({ providers: targetProviders });
-    const assetSupportIndex = buildAssetSupportIndex(enrichedAssetsData.data);
-    const result = await aggregateRates(
-      this.providers,
-      { ...input, routes: canonicalRoutes, targetProviders },
-      assetSupportIndex
-    );
+        const canonicalRoute = { source: enrichedSource, destination: enrichedDest };
 
-    const uniqueAssetIds = new Set<string>();
-    for (const route of canonicalRoutes) {
-      uniqueAssetIds.add(route.source.assetId);
-      uniqueAssetIds.add(route.destination.assetId);
-    }
+        const result = yield* Effect.tryPromise(() => 
+          aggregateRates(this.providers, {
+            route: canonicalRoute,
+            amount: input.amount,
+            targetProviders
+          })
+        );
 
-    const priceMap = new Map<string, number>();
-    await Promise.all(
-      Array.from(uniqueAssetIds).map(async (assetId) => {
-        try {
-          const priceData = await this.assetEnrichmentClient.getPrice({ assetId });
-          if (priceData.price !== null) {
-            priceMap.set(assetId, priceData.price);
+        const uniqueAssetIds = new Set<string>();
+        for (const rates of Object.values(result.data)) {
+          for (const rate of rates) {
+            uniqueAssetIds.add(rate.source.assetId);
+            uniqueAssetIds.add(rate.destination.assetId);
           }
-        } catch (error) {
-          console.warn(`Failed to fetch price for ${assetId}:`, error);
         }
+
+        const priceResults = yield* Effect.forEach(
+          Array.from(uniqueAssetIds),
+          (assetId) => Effect.tryPromise({
+            try: async () => {
+              const priceData = await this.assetEnrichmentClient.getPrice({ assetId });
+              return priceData.price !== null ? { assetId, price: priceData.price } : null;
+            },
+            catch: () => null
+          }).pipe(Effect.option),
+          { concurrency: "unbounded" }
+        );
+
+        const priceMap = new Map<string, number>();
+        for (const priceResult of priceResults) {
+          if (priceResult._tag === 'Some' && priceResult.value) {
+            priceMap.set(priceResult.value.assetId, priceResult.value.price);
+          }
+        }
+
+        const enrichedData: Partial<Record<ProviderIdentifier, EnrichedRateType[]>> = {};
+        for (const [providerId, rates] of Object.entries(result.data)) {
+          enrichedData[providerId as ProviderIdentifier] = rates.map((rate: RateType) => {
+            const sourcePrice = priceMap.get(rate.source.assetId);
+            const destPrice = priceMap.get(rate.destination.assetId);
+
+            let amountInUsd: number | undefined;
+            let amountOutUsd: number | undefined;
+            let totalFeesUsd: number | undefined;
+
+            if (sourcePrice && rate.amountIn) {
+              const amountInFloat = parseFloat(rate.amountIn) / Math.pow(10, rate.source.decimals);
+              amountInUsd = amountInFloat * sourcePrice;
+            }
+
+            if (destPrice && rate.amountOut) {
+              const amountOutFloat = parseFloat(rate.amountOut) / Math.pow(10, rate.destination.decimals);
+              amountOutUsd = amountOutFloat * destPrice;
+            }
+
+            if (amountInUsd !== undefined && amountOutUsd !== undefined) {
+              totalFeesUsd = amountInUsd - amountOutUsd;
+            }
+
+            return {
+              ...rate,
+              amountInUsd,
+              amountOutUsd,
+              totalFeesUsd,
+            };
+          });
+        }
+
+        return { ...result, data: enrichedData, measuredAt: new Date().toISOString() };
       })
     );
-
-    const enrichedData: Partial<Record<ProviderIdentifier, EnrichedRateType[]>> = {};
-    for (const [providerId, rates] of Object.entries(result.data)) {
-      enrichedData[providerId as ProviderIdentifier] = rates.map((rate: RateType) => {
-        const sourcePrice = priceMap.get(rate.source.assetId);
-        const destPrice = priceMap.get(rate.destination.assetId);
-
-        let amountInUsd: number | undefined;
-        let amountOutUsd: number | undefined;
-        let totalFeesUsd: number | undefined;
-
-        if (sourcePrice && rate.amountIn) {
-          const amountInFloat = parseFloat(rate.amountIn) / Math.pow(10, rate.source.decimals);
-          amountInUsd = amountInFloat * sourcePrice;
-        }
-
-        if (destPrice && rate.amountOut) {
-          const amountOutFloat = parseFloat(rate.amountOut) / Math.pow(10, rate.destination.decimals);
-          amountOutUsd = amountOutFloat * destPrice;
-        }
-
-        if (amountInUsd !== undefined && amountOutUsd !== undefined) {
-          totalFeesUsd = amountInUsd - amountOutUsd;
-        }
-
-        return {
-          ...rate,
-          amountInUsd,
-          amountOutUsd,
-          totalFeesUsd,
-        };
-      });
-    }
-
-    return { ...result, data: enrichedData, measuredAt: new Date().toISOString() };
   }
 
   async getLiquidity(input: {
-    routes: Array<{
+    route: {
       source: AssetType;
       destination: AssetType;
-    }>;
+    };
     providers?: ProviderIdentifier[];
   }): Promise<{
     providers: ProviderIdentifier[];
     data: Record<ProviderIdentifier, LiquidityDepthType[]>;
-    aggregateTotal?: DailyVolumeType[];
     measuredAt: string;
   }> {
-    const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
-    const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
+    return await Effect.runPromise(
+      Effect.gen(this, function* () {
+        const availableProviders = Object.keys(this.providers) as ProviderIdentifier[];
+        const targetProviders = input.providers?.filter(p => availableProviders.includes(p)) ?? availableProviders;
 
-    const canonicalRoutes = await Promise.all(
-      input.routes.map(async (r) => ({
-        source: await this.enrichAsset(r.source),
-        destination: await this.enrichAsset(r.destination),
-      }))
-    );
+        const [enrichedSource, enrichedDest] = yield* Effect.all([
+          Effect.tryPromise(() => this.enrichAsset(input.route.source)),
+          Effect.tryPromise(() => this.enrichAsset(input.route.destination))
+        ]);
 
-    const enrichedAssetsData = await this.getListedAssets({ providers: targetProviders });
-    const assetSupportIndex = buildAssetSupportIndex(enrichedAssetsData.data);
-    const result = await aggregateLiquidity(
-      this.providers,
-      { ...input, routes: canonicalRoutes, targetProviders },
-      assetSupportIndex
+        const canonicalRoute = { source: enrichedSource, destination: enrichedDest };
+
+        const result = yield* Effect.tryPromise(() =>
+          aggregateLiquidity(this.providers, {
+            route: canonicalRoute,
+            targetProviders
+          })
+        );
+
+        const sourcePrice = yield* Effect.tryPromise({
+          try: async () => {
+            const priceData = await this.assetEnrichmentClient.getPrice({ 
+              assetId: enrichedSource.assetId 
+            });
+            return priceData.price;
+          },
+          catch: () => null
+        }).pipe(Effect.option);
+
+        const enrichedData: Record<ProviderIdentifier, LiquidityDepthType[]> = {} as Record<ProviderIdentifier, LiquidityDepthType[]>;
+        
+        for (const [providerId, liquidityDepths] of Object.entries(result.data)) {
+          enrichedData[providerId as ProviderIdentifier] = liquidityDepths.map((depth: LiquidityDepthType) => {
+            const enrichedThresholds = depth.thresholds.map(threshold => {
+              let maxAmountInUsd: number | undefined;
+              
+              if (sourcePrice._tag === 'Some' && sourcePrice.value !== null) {
+                const amountInFloat = parseFloat(threshold.maxAmountIn) / Math.pow(10, enrichedSource.decimals);
+                maxAmountInUsd = amountInFloat * sourcePrice.value;
+              }
+              
+              return {
+                ...threshold,
+                maxAmountInUsd,
+              };
+            });
+            
+            return {
+              ...depth,
+              thresholds: enrichedThresholds,
+            };
+          });
+        }
+
+        return { ...result, data: enrichedData, measuredAt: new Date().toISOString() };
+      })
     );
-    return { ...result, measuredAt: new Date().toISOString() };
   }
 }

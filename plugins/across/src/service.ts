@@ -1,6 +1,7 @@
 import { assetToCanonicalIdentity, DataProviderService as BaseDataProviderService, calculateEffectiveRate, canonicalToAsset, getChainIdFromBlockchain, getBlockchainFromChainId, getDefaultRecipient } from '@data-provider/plugin-utils';
 import type { AssetType } from "@data-provider/shared-contract";
 import { AcrossApiClient, AcrossAssetType } from './client';
+import { Effect } from 'every-plugin/effect';
 
 import type {
   LiquidityDepthType,
@@ -138,7 +139,7 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
     }
 
     const recipient = getDefaultRecipient(destinationBlockchain);
-    const depositor = getDefaultRecipient('eth');
+    const depositor = getDefaultRecipient(getBlockchainFromChainId(route.source.chainId) ?? "eth");
 
     try {
       const approval = await this.client.fetchApproval({
@@ -174,28 +175,35 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
   }
 
   /**
-   * Fetch liquidity depth using Across limits API with verified cost measurement.
+   * Fetch liquidity depth using smart probing with parallel API calls.
+   * Tests multiple amounts concurrently and uses binary search for precise threshold detection.
    */
   async getLiquidityDepth(
     route: RouteType<AcrossAssetType>
   ): Promise<LiquidityDepthType<AcrossAssetType>[]> {
-    const liquidity: LiquidityDepthType<AcrossAssetType>[] = [];
+    const self = this;
 
-    try {
-      const limits = await this.client.fetchLimits({
-        inputToken: route.source.address,
-        outputToken: route.destination.address,
-        originChainId: route.source.chainId,
-        destinationChainId: route.destination.chainId
+    const result = await Effect.gen(function* () {
+      const limits = yield* Effect.tryPromise({
+        try: () => self.client.fetchLimits({
+          inputToken: route.source.address,
+          outputToken: route.destination.address,
+          originChainId: route.source.chainId,
+          destinationChainId: route.destination.chainId
+        }),
+        catch: (error) => new Error(`Failed to fetch limits: ${error}`)
       });
 
       const baselineAmount = limits.minDeposit;
-      const baselineFees = await this.client.fetchSuggestedFees({
-        inputToken: route.source.address,
-        outputToken: route.destination.address,
-        originChainId: route.source.chainId,
-        destinationChainId: route.destination.chainId,
-        amount: baselineAmount
+      const baselineFees = yield* Effect.tryPromise({
+        try: () => self.client.fetchSuggestedFees({
+          inputToken: route.source.address,
+          outputToken: route.destination.address,
+          originChainId: route.source.chainId,
+          destinationChainId: route.destination.chainId,
+          amount: baselineAmount
+        }),
+        catch: (error) => new Error(`Failed to fetch baseline fees: ${error}`)
       });
 
       const baselineRate = calculateEffectiveRate(
@@ -205,75 +213,221 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
         route.destination.decimals
       );
 
-      const thresholds: Array<{ maxAmountIn: string; slippageBps: number }> = [];
-
-      const candidateAmounts = [
-        { amount: limits.recommendedDepositInstant, label: 'recommended' },
-        { amount: limits.maxDepositInstant, label: 'max' }
+      const decimals = route.source.decimals;
+      const unit = BigInt(10 ** decimals);
+      const probeAmounts = [
+        { amount: BigInt(1000) * unit, index: 0 },
+        { amount: BigInt(5000) * unit, index: 1 },
+        { amount: BigInt(10000) * unit, index: 2 },
+        { amount: BigInt(20000) * unit, index: 3 },
+        { amount: BigInt(50000) * unit, index: 4 },
+        { amount: BigInt(100000) * unit, index: 5 },
+        { amount: BigInt(200000) * unit, index: 6 },
+        { amount: BigInt(500000) * unit, index: 7 },
       ];
 
-      for (const candidate of candidateAmounts) {
-        try {
-          const fees = await this.client.fetchSuggestedFees({
-            inputToken: route.source.address,
-            outputToken: route.destination.address,
-            originChainId: route.source.chainId,
-            destinationChainId: route.destination.chainId,
-            amount: candidate.amount
+      console.log(`[Across] Testing ${probeAmounts.length} amounts in parallel for ${route.source.symbol} -> ${route.destination.symbol}`);
+
+      const probeResults = yield* Effect.forEach(
+        probeAmounts,
+        ({ amount, index }) => Effect.gen(function* () {
+          const result = yield* Effect.tryPromise({
+            try: async () => {
+              const fees = await self.client.fetchSuggestedFees({
+                inputToken: route.source.address,
+                outputToken: route.destination.address,
+                originChainId: route.source.chainId,
+                destinationChainId: route.destination.chainId,
+                amount: amount.toString()
+              });
+
+              const currentRate = calculateEffectiveRate(
+                amount.toString(),
+                (BigInt(amount.toString()) - BigInt(fees.totalRelayFee.total)).toString(),
+                route.source.decimals,
+                route.destination.decimals
+              );
+
+              const slippageBps = Math.abs(currentRate / baselineRate - 1) * 10000;
+
+              return { amount, index, slippageBps, success: true as const };
+            },
+            catch: () => ({ amount, index, success: false as const })
           });
 
-          const currentRate = calculateEffectiveRate(
-            candidate.amount,
-            (BigInt(candidate.amount) - BigInt(fees.totalRelayFee.total)).toString(),
-            route.source.decimals,
-            route.destination.decimals
-          );
+          return result;
+        }),
+        { concurrency: "unbounded" }
+      );
 
-          const slippageBps = Math.abs(currentRate / baselineRate - 1) * 10000;
+      probeResults.sort((a, b) => a.index - b.index);
 
-          if (slippageBps <= 50) {
-            const existing50 = thresholds.find(t => t.slippageBps === 50);
-            if (!existing50 || parseFloat(candidate.amount) > parseFloat(existing50.maxAmountIn)) {
-              if (existing50) {
-                existing50.maxAmountIn = candidate.amount;
-              } else {
-                thresholds.push({ maxAmountIn: candidate.amount, slippageBps: 50 });
-              }
-            }
+      const successfulProbes = probeResults.filter(r => r.success && 'slippageBps' in r);
+      console.log(`[Across] Successfully probed ${successfulProbes.length}/${probeAmounts.length} amounts`);
+
+      let lastSuccess50bps: bigint | undefined;
+      let firstFailure50bps: bigint | undefined;
+      let lastSuccess100bps: bigint | undefined;
+      let firstFailure100bps: bigint | undefined;
+
+      for (const result of probeResults) {
+        if (result.success && 'slippageBps' in result) {
+          if (result.slippageBps <= 50) {
+            lastSuccess50bps = result.amount;
+          } else if (!firstFailure50bps) {
+            firstFailure50bps = result.amount;
           }
 
-          if (slippageBps <= 100) {
-            const existing100 = thresholds.find(t => t.slippageBps === 100);
-            if (!existing100 || parseFloat(candidate.amount) > parseFloat(existing100.maxAmountIn)) {
-              if (existing100) {
-                existing100.maxAmountIn = candidate.amount;
-              } else {
-                thresholds.push({ maxAmountIn: candidate.amount, slippageBps: 100 });
-              }
-            }
+          if (result.slippageBps <= 100) {
+            lastSuccess100bps = result.amount;
+          } else if (!firstFailure100bps) {
+            firstFailure100bps = result.amount;
           }
 
-          console.log(`[Across] ${candidate.label} amount ${candidate.amount} has ${slippageBps.toFixed(2)}bps slippage`);
-        } catch (error) {
-          console.error(`[Across] Failed to probe ${candidate.label} amount:`, error);
+          if (firstFailure50bps && firstFailure100bps) {
+            break;
+          }
+        } else {
+          if (!firstFailure50bps) firstFailure50bps = result.amount;
+          if (!firstFailure100bps) firstFailure100bps = result.amount;
+          break;
         }
       }
 
-      liquidity.push({
+      let maxAmount50bps: string | undefined;
+      let maxAmount100bps: string | undefined;
+
+      const binarySearchEffects: Effect.Effect<void, Error>[] = [];
+
+      if (lastSuccess50bps && firstFailure50bps && lastSuccess50bps < firstFailure50bps) {
+        console.log(`[Across] Binary searching for 50bps limit between ${lastSuccess50bps} and ${firstFailure50bps}`);
+        binarySearchEffects.push(
+          Effect.tryPromise({
+            try: async () => {
+              maxAmount50bps = await self.binarySearchMaxAmount(
+                route,
+                baselineRate,
+                lastSuccess50bps!,
+                firstFailure50bps!,
+                50
+              );
+            },
+            catch: (error) => new Error(`Binary search 50bps failed: ${error}`)
+          }).pipe(Effect.catchAll(() => Effect.void))
+        );
+      } else if (lastSuccess50bps) {
+        maxAmount50bps = lastSuccess50bps.toString();
+      }
+
+      if (lastSuccess100bps && firstFailure100bps && lastSuccess100bps < firstFailure100bps) {
+        console.log(`[Across] Binary searching for 100bps limit between ${lastSuccess100bps} and ${firstFailure100bps}`);
+        binarySearchEffects.push(
+          Effect.tryPromise({
+            try: async () => {
+              maxAmount100bps = await self.binarySearchMaxAmount(
+                route,
+                baselineRate,
+                lastSuccess100bps!,
+                firstFailure100bps!,
+                100
+              );
+            },
+            catch: (error) => new Error(`Binary search 100bps failed: ${error}`)
+          }).pipe(Effect.catchAll(() => Effect.void))
+        );
+      } else if (lastSuccess100bps) {
+        maxAmount100bps = lastSuccess100bps.toString();
+      }
+
+      if (binarySearchEffects.length > 0) {
+        yield* Effect.all(binarySearchEffects, { concurrency: "unbounded" });
+      }
+
+      const thresholds = [];
+      if (maxAmount50bps) {
+        thresholds.push({
+          maxAmountIn: maxAmount50bps,
+          slippageBps: 50,
+        });
+      }
+      if (maxAmount100bps) {
+        thresholds.push({
+          maxAmountIn: maxAmount100bps,
+          slippageBps: 100,
+        });
+      }
+
+      console.log(`[Across] Measured liquidity - 50bps: ${maxAmount50bps || 'N/A'}, 100bps: ${maxAmount100bps || 'N/A'}`);
+
+      return {
         route,
         thresholds,
         measuredAt: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error(`[Across] Failed to fetch liquidity for ${route.source.symbol}:`, error);
-      liquidity.push({
-        route,
-        thresholds: [],
-        measuredAt: new Date().toISOString(),
-      });
+      };
+    }).pipe(
+      Effect.catchAll((error) => {
+        console.error(`[Across] Failed to fetch liquidity for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
+        return Effect.succeed({
+          route,
+          thresholds: [],
+          measuredAt: new Date().toISOString(),
+        });
+      }),
+      Effect.runPromise
+    );
+
+    return [result];
+  }
+
+  private async binarySearchMaxAmount(
+    route: RouteType<AcrossAssetType>,
+    baselineRate: number,
+    minAmount: bigint,
+    maxAmount: bigint,
+    slippageThresholdBps: number
+  ): Promise<string | undefined> {
+    const maxIterations = 10;
+    let iterations = 0;
+    let low = minAmount;
+    let high = maxAmount;
+    let bestAmount: bigint | undefined;
+
+    while (low <= high && iterations < maxIterations) {
+      iterations++;
+      const mid = (low + high) / BigInt(2);
+
+      try {
+        const fees = await this.client.fetchSuggestedFees({
+          inputToken: route.source.address,
+          outputToken: route.destination.address,
+          originChainId: route.source.chainId,
+          destinationChainId: route.destination.chainId,
+          amount: mid.toString()
+        });
+
+        const currentRate = calculateEffectiveRate(
+          mid.toString(),
+          (BigInt(mid.toString()) - BigInt(fees.totalRelayFee.total)).toString(),
+          route.source.decimals,
+          route.destination.decimals
+        );
+
+        const slippageBps = Math.abs(currentRate / baselineRate - 1) * 10000;
+
+        if (slippageBps <= slippageThresholdBps) {
+          bestAmount = mid;
+          low = mid + BigInt(1);
+        } else {
+          high = mid - BigInt(1);
+        }
+      } catch (error) {
+        console.warn(`[Across] Binary search probe failed at ${mid}:`, error);
+        high = mid - BigInt(1);
+      }
     }
 
-    return liquidity;
+    console.log(`[Across] Binary search completed in ${iterations} iterations for ${slippageThresholdBps}bps`);
+    return bestAmount?.toString();
   }
 
   /**

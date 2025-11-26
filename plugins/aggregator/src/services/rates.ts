@@ -1,65 +1,63 @@
 import type { AssetType, RateType } from "@data-provider/shared-contract";
 import type { ProviderIdentifier } from "../contract";
-import { getProvidersForRoute } from "./assets";
+import { Effect } from "every-plugin/effect";
 
 export async function aggregateRates(
   providers: Partial<Record<ProviderIdentifier, any>>,
   input: {
-    routes: Array<{ source: AssetType; destination: AssetType }>;
+    route: { source: AssetType; destination: AssetType };
     amount: string;
     targetProviders: ProviderIdentifier[];
-  },
-  assetSupportIndex: Map<string, Set<ProviderIdentifier>>
+  }
 ): Promise<{
   providers: ProviderIdentifier[];
   data: Record<ProviderIdentifier, RateType[]>;
 }> {
-  const providerRouteMap = new Map<ProviderIdentifier, typeof input.routes>();
+  return await Effect.runPromise(
+    Effect.gen(function* () {
+      const results = yield* Effect.forEach(
+        input.targetProviders,
+        (providerId) => Effect.gen(function* () {
+          const client = providers[providerId];
+          if (!client) return null;
 
-  for (const route of input.routes) {
-    const supportingProviders = getProvidersForRoute(route, assetSupportIndex);
+          const result = yield* Effect.tryPromise({
+            try: () => client.getRates({
+              route: input.route,
+              amount: input.amount
+            }),
+            catch: (error) => {
+              console.error(`[Aggregator] Failed to get rates from ${providerId} for route ${input.route.source.symbol}->${input.route.destination.symbol}:`, error);
+              return error;
+            }
+          }).pipe(Effect.option);
 
-    const filteredProviders = input.targetProviders.filter(p => supportingProviders.includes(p));
+          if (result._tag === 'Some') {
+            const ratesResult = result.value as { rates: RateType[] };
+            if (ratesResult.rates.length > 0) {
+              return { providerId, rates: ratesResult.rates };
+            }
+          }
+          return null;
+        }),
+        { concurrency: "unbounded" }
+      );
 
-    for (const providerId of filteredProviders) {
-      if (!providerRouteMap.has(providerId)) {
-        providerRouteMap.set(providerId, []);
+      const data: Partial<Record<ProviderIdentifier, RateType[]>> = {};
+      const successfulProviders: ProviderIdentifier[] = [];
+
+      for (const result of results) {
+        if (result) {
+          const { providerId, rates } = result;
+          data[providerId] = rates;
+          successfulProviders.push(providerId);
+        }
       }
-      providerRouteMap.get(providerId)!.push(route);
-    }
-  }
 
-  const results = await Promise.allSettled(
-    Array.from(providerRouteMap.entries()).map(async ([providerId, routes]) => {
-      const client = providers[providerId];
-      if (!client) return null;
-
-      try {
-        const result = await client.getRates({
-          routes,
-          amount: input.amount
-        });
-        return { providerId, rates: result.rates };
-      } catch (error) {
-        console.error(`[Aggregator] Failed to get rates from ${providerId}:`, error);
-        return null;
-      }
+      return {
+        providers: successfulProviders,
+        data: data as Record<ProviderIdentifier, RateType[]>,
+      };
     })
   );
-
-  const data: Partial<Record<ProviderIdentifier, RateType[]>> = {};
-  const successfulProviders: ProviderIdentifier[] = [];
-
-  for (const result of results) {
-    if (result?.status === 'fulfilled' && result.value) {
-      const { providerId, rates } = result.value;
-      data[providerId] = rates;
-      successfulProviders.push(providerId);
-    }
-  }
-
-  return {
-    providers: successfulProviders,
-    data: data as Record<ProviderIdentifier, RateType[]>,
-  };
 }

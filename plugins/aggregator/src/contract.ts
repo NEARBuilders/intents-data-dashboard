@@ -90,7 +90,19 @@ export type EnrichedRateType = z.infer<typeof EnrichedRate>;
 export const RateData = createProviderDataSchema(EnrichedRate);
 export type RateDataType = z.infer<typeof RateData>;
 
-export const LiquidityData = createProviderDataSchema(LiquidityDepth);
+export const EnrichedLiquidityThreshold = z.object({
+  maxAmountIn: z.string().describe("Maximum input amount in smallest units"),
+  maxAmountInUsd: z.number().optional().describe("USD value of maximum input amount"),
+  slippageBps: z.number().describe("Slippage in basis points"),
+});
+export type EnrichedLiquidityThresholdType = z.infer<typeof EnrichedLiquidityThreshold>;
+
+export const EnrichedLiquidityDepth = LiquidityDepth.extend({
+  thresholds: z.array(EnrichedLiquidityThreshold),
+});
+export type EnrichedLiquidityDepthType = z.infer<typeof EnrichedLiquidityDepth>;
+
+export const LiquidityData = createProviderDataSchema(EnrichedLiquidityDepth);
 export type LiquidityDataType = z.infer<typeof LiquidityData>;
 
 export const ListedAssetsData = createProviderDataSchema(Asset);
@@ -256,13 +268,13 @@ export const contract = oc.router({
       method: "POST",
       path: "/rates",
       summary: "Rates",
-      description: "Get quoted exchange rates for specified routes with a specific amount across providers.",
+      description: "Get quoted exchange rates for a specific route with a specific amount across providers.",
     })
     .input(
       z.object({
-        routes: z
-          .array(z.object({ source: Asset, destination: Asset }))
-          .describe("Array of routes to quote."),
+        route: z
+          .object({ source: Asset, destination: Asset })
+          .describe("Route to quote."),
         amount: z
           .string()
           .describe("Input amount (as string to preserve precision)."),
@@ -288,13 +300,13 @@ export const contract = oc.router({
       method: "POST",
       path: "/liquidity",
       summary: "Liquidity",
-      description: "Retrieve liquidity depth information for specified routes, showing slippage at different order sizes.",
+      description: "Retrieve liquidity depth information for a specific route, showing slippage at different order sizes.",
     })
     .input(
       z.object({
-        routes: z
-          .array(z.object({ source: Asset, destination: Asset }))
-          .describe("Array of routes to check liquidity for."),
+        route: z
+          .object({ source: Asset, destination: Asset })
+          .describe("Route to check liquidity for."),
         providers: z
           .array(ProviderIdentifierEnum)
           .optional()

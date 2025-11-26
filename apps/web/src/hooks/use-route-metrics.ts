@@ -22,7 +22,7 @@ export function useRates(
     queryFn: () => {
       if (!route) return null;
       return client.getRates({
-        routes: [route],
+        route,
         amount,
         providers,
       });
@@ -43,7 +43,7 @@ export function useLiquidity(
     queryFn: () => {
       if (!route) return null;
       return client.getLiquidity({
-        routes: [route],
+        route,
         providers,
       });
     },
@@ -102,8 +102,6 @@ export function useRouteQuotes() {
   const [destAsset] = useAtom(destAssetAtom);
   const [amount] = useAtom(amountAtom);
   const [selectedProvider] = useAtom(selectedProviderAtom);
-
-  console.log("selectedProvider", selectedProvider)
 
   const providers: ProviderIdentifier[] = useMemo(() => {
     const list: ProviderIdentifier[] = ["near_intents"];

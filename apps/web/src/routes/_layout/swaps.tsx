@@ -100,8 +100,8 @@ function SwapsPage() {
   }, [search.source, search.destination, sourceAsset?.assetId, destAsset?.assetId, setCompareEnabled]);
 
   return (
-    <div className="w-full h-full">
-      <section className="relative w-full  pt-12">
+    <div className="w-full h-full space-y-4 md:space-y-6">
+      <section className="relative w-full pt-6 md:pt-8 pb-4 md:pb-6">
         <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] text-center">
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 tracking-tight">
             Head to Head Comparisons
@@ -131,7 +131,7 @@ function SwapsPage() {
 
 function ComparisonTableSkeleton() {
   return (
-    <section className="relative w-full py-10 md:py-12 lg:py-16">
+    <section className="relative w-full py-4 md:py-6">
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
         <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-8">
           <div className="h-64 flex items-center justify-center">
@@ -145,7 +145,7 @@ function ComparisonTableSkeleton() {
 
 function SwapPairSelectorSkeleton() {
   return (
-    <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
+    <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
       <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-6">
         <div className="h-32 flex items-center justify-center">
           <span className="text-white text-sm">Loading swap selector...</span>
@@ -157,7 +157,7 @@ function SwapPairSelectorSkeleton() {
 
 function MetricsTableSkeleton() {
   return (
-    <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-16">
+    <section className="relative w-full py-4 md:py-6">
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
         <div className="bg-[#0e0e0e] border border-[#343434] rounded-[14px] p-8">
           <div className="h-64 flex items-center justify-center">

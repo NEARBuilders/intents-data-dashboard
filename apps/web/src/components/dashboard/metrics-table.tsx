@@ -2,12 +2,10 @@ import { useRouteQuotes, useVolumes } from "@/hooks/use-route-metrics";
 import {
   destAssetAtom,
   selectedProviderAtom,
-  sourceAssetAtom
+  sourceAssetAtom,
 } from "@/store/swap";
 import {
-  formatCurrency,
-  formatPercentage,
-  formatVolume,
+  formatCurrency
 } from "@/utils/comparison";
 import { useAtom } from "@effect-atom/atom-react";
 import { useMemo } from "react";
@@ -114,78 +112,77 @@ export const MetricsTable = () => {
   };
 
   const swapMetrics: MetricRow[] = useMemo(() => {
-    const nearCost = nearIntentsFee ?? undefined;
-    const competitorCost = providerFee ?? undefined;
-    const nearLiq = nearIntentsLiquidity?.thresholds?.[0]?.slippageBps ?? null;
-    const competitorLiq =
-      selectedProviderLiquidity?.thresholds?.[0]?.slippageBps ?? null;
+    const nearReceive = nearIntentsRate?.amountOutUsd ?? null;
+    const competitorReceive = selectedProviderRate?.amountOutUsd ?? null;
+
+    const nearCost = nearIntentsFee ?? null;
+    const competitorCost = providerFee ?? null;
+
+    const nearLiq05 =
+      nearIntentsLiquidity?.thresholds?.[0]?.maxAmountInUsd ?? null;
+    const competitorLiq05 =
+      selectedProviderLiquidity?.thresholds?.[0]?.maxAmountInUsd ?? null;
+
+    const nearLiq10 =
+      nearIntentsLiquidity?.thresholds?.[1]?.maxAmountInUsd ?? null;
+    const competitorLiq10 =
+      selectedProviderLiquidity?.thresholds?.[1]?.maxAmountInUsd ?? null;
+
+    const isNearUnsupported = !nearIntentsQuote;
+    const isProviderUnsupported = !selectedProviderQuote;
 
     return [
       {
+        label: "Receive (USD)",
+        tooltip: "Amount you will receive from this swap in USD",
+        leftValue: nearReceive !== null ? formatCurrency(nearReceive) : null,
+        rightValue: competitorReceive !== null ? formatCurrency(competitorReceive) : null,
+        leftIndicator: getIndicator(nearReceive, competitorReceive, false),
+        rightIndicator: getIndicator(competitorReceive, nearReceive, false),
+        leftLoading: quotesLoading,
+        rightLoading: quotesLoading,
+        leftUnsupported: isNearUnsupported,
+        rightUnsupported: isProviderUnsupported,
+      },
+      {
         label: "Estimated Cost",
-        leftValue: formatCurrency(nearCost),
-        rightValue: formatCurrency(competitorCost),
+        tooltip: "Total fees estimated for this swap in USD",
+        leftValue: nearCost !== null ? formatCurrency(nearCost) : null,
+        rightValue: competitorCost !== null ? formatCurrency(competitorCost) : null,
         leftIndicator: getIndicator(nearCost, competitorCost, true),
         rightIndicator: getIndicator(competitorCost, nearCost, true),
+        leftLoading: quotesLoading,
+        rightLoading: quotesLoading,
+        leftUnsupported: isNearUnsupported,
+        rightUnsupported: isProviderUnsupported,
       },
       {
-        label: "Fees Generated",
-        leftValue: null,
-        rightValue: null,
-        leftIndicator: "up",
-        rightIndicator: "down",
+        label: "Liquidity (≤0.5% Slippage)",
+        tooltip: "Maximum swap size in USD before exceeding 0.5% slippage",
+        leftValue: nearLiq05 !== null ? formatCurrency(nearLiq05) : null,
+        rightValue: competitorLiq05 !== null ? formatCurrency(competitorLiq05) : null,
+        leftIndicator: getIndicator(nearLiq05, competitorLiq05, false),
+        rightIndicator: getIndicator(competitorLiq05, nearLiq05, false),
+        leftLoading: quotesLoading,
+        rightLoading: quotesLoading,
+        leftUnsupported:
+          isNearUnsupported || !nearIntentsLiquidity?.thresholds?.[0],
+        rightUnsupported:
+          isProviderUnsupported || !selectedProviderLiquidity?.thresholds?.[0],
       },
       {
-        label: "Liquidity Depth",
-        leftValue: formatPercentage(nearLiq ?? undefined),
-        rightValue: formatPercentage(competitorLiq ?? undefined),
-        leftIndicator: getIndicator(nearLiq, competitorLiq, true),
-        rightIndicator: getIndicator(competitorLiq, nearLiq, true),
-      },
-      {
-        label: "Total Volume",
-        leftValue: formatVolume(nearIntentsVolume.total),
-        rightValue: formatVolume(selectedProviderVolume.total),
-        leftIndicator: getIndicator(
-          nearIntentsVolume.total,
-          selectedProviderVolume.total,
-          false
-        ),
-        rightIndicator: getIndicator(
-          selectedProviderVolume.total,
-          nearIntentsVolume.total,
-          false
-        ),
-      },
-      {
-        label: "30D Volume",
-        leftValue: formatVolume(nearIntentsVolume.thirtyDay),
-        rightValue: formatVolume(selectedProviderVolume.thirtyDay),
-        leftIndicator: getIndicator(
-          nearIntentsVolume.thirtyDay,
-          selectedProviderVolume.thirtyDay,
-          false
-        ),
-        rightIndicator: getIndicator(
-          selectedProviderVolume.thirtyDay,
-          nearIntentsVolume.thirtyDay,
-          false
-        ),
-      },
-      {
-        label: "1D Volume",
-        leftValue: formatVolume(nearIntentsVolume.latest),
-        rightValue: formatVolume(selectedProviderVolume.latest),
-        leftIndicator: getIndicator(
-          nearIntentsVolume.latest,
-          selectedProviderVolume.latest,
-          false
-        ),
-        rightIndicator: getIndicator(
-          selectedProviderVolume.latest,
-          nearIntentsVolume.latest,
-          false
-        ),
+        label: "Liquidity (≤1.0% Slippage)",
+        tooltip: "Maximum swap size in USD before exceeding 1.0% slippage",
+        leftValue: nearLiq10 !== null ? formatCurrency(nearLiq10) : null,
+        rightValue: competitorLiq10 !== null ? formatCurrency(competitorLiq10) : null,
+        leftIndicator: getIndicator(nearLiq10, competitorLiq10, false),
+        rightIndicator: getIndicator(competitorLiq10, nearLiq10, false),
+        leftLoading: quotesLoading,
+        rightLoading: quotesLoading,
+        leftUnsupported:
+          isNearUnsupported || !nearIntentsLiquidity?.thresholds?.[1],
+        rightUnsupported:
+          isProviderUnsupported || !selectedProviderLiquidity?.thresholds?.[1],
       },
     ];
   }, [
@@ -193,8 +190,9 @@ export const MetricsTable = () => {
     providerFee,
     nearIntentsLiquidity,
     selectedProviderLiquidity,
-    nearIntentsVolume,
-    selectedProviderVolume,
+    nearIntentsQuote,
+    selectedProviderQuote,
+    quotesLoading,
   ]);
 
   if (quotesLoading && !selectedRoute) {
@@ -202,7 +200,7 @@ export const MetricsTable = () => {
   }
 
   return (
-    <section className="relative w-full bg-[#090909] py-10 md:py-12 lg:py-16">
+    <section className="relative w-full">
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
         <div className="max-w-[900px] mx-auto">
           <VersusComparisonTable

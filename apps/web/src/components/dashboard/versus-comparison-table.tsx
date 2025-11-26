@@ -6,17 +6,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAtom } from "@effect-atom/atom-react";
-import { selectedProviderAtom, compareEnabledAtom } from "@/store/swap";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useProviders } from "@/lib/aggregator/hooks";
+import { compareEnabledAtom, selectedProviderAtom } from "@/store/swap";
+import { useAtom } from "@effect-atom/atom-react";
 import { useMemo } from "react";
 
 export interface MetricRow {
   label: string;
+  tooltip?: string;
   leftValue: string | number | null | undefined;
   rightValue: string | number | null | undefined;
   leftIndicator?: "up" | "down";
   rightIndicator?: "up" | "down";
+  leftLoading?: boolean;
+  rightLoading?: boolean;
+  leftUnsupported?: boolean;
+  rightUnsupported?: boolean;
 }
 
 interface VersusComparisonTableProps {
@@ -77,27 +88,30 @@ export const VersusComparisonTable = ({
     >
       <CardContent className="p-0">
         <div className="border-b border-[#343434]">
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-4 px-6 py-4">
-            <div className="flex items-center gap-3 justify-end">
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 md:gap-4 px-3 md:px-6 py-3 md:py-4">
+            <div className="flex items-center gap-2 md:gap-3 justify-center">
               {nearIntentsInfo?.logoUrl && (
                 <img
                   src={nearIntentsInfo.logoUrl}
                   alt={nearIntentsInfo.label}
-                  className="h-10 md:h-12 lg:h-14 object-cover"
+                  className="h-8 md:h-10 lg:h-12 object-cover"
                 />
               )}
             </div>
 
-            <div className="flex items-center justify-center px-4">
-              <span className="font-bold text-white text-3xl md:text-4xl lg:text-5xl tracking-[-1.44px]">
+            <div className="flex items-center justify-center px-2 md:px-4 w-[80px] md:w-[180px]">
+              <span className="font-bold text-white text-2xl md:text-3xl lg:text-5xl tracking-[-1.44px]">
                 vs
               </span>
             </div>
 
-            <div className="flex items-center gap-3 justify-start">
+            <div className="flex items-center gap-2 md:gap-3 justify-center">
               {showProviderSelector || !selectedProviderInfo ? (
-                <Select value={selectedProvider} onValueChange={handleProviderChange}>
-                  <SelectTrigger className="w-[200px] lg:w-[240px] h-[42px] bg-[#242424] border-[#343434] rounded-[5px] text-lg tracking-[-0.54px] text-white hover:bg-[#2a2a2a] focus:ring-1 focus:ring-[#343434]">
+                <Select
+                  value={selectedProvider}
+                  onValueChange={handleProviderChange}
+                >
+                  <SelectTrigger className="w-[120px] md:w-[180px] lg:w-[220px] h-[38px] md:h-[42px] bg-[#242424] border-[#343434] rounded-[5px] text-sm md:text-lg tracking-[-0.54px] text-white hover:bg-[#2a2a2a] focus:ring-1 focus:ring-[#343434]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#242424] border-[#343434]">
@@ -132,10 +146,10 @@ export const VersusComparisonTable = ({
                     <img
                       src={selectedProviderInfo.logoUrl}
                       alt={selectedProviderInfo.label}
-                      className="h-8 md:h-10 lg:h-12 object-cover"
+                      className="h-6 md:h-8 lg:h-10 object-cover"
                     />
                   )}
-                  <span className="font-bold text-white text-xl tracking-[-0.54px]">
+                  <span className="font-bold text-white text-sm md:text-lg lg:text-xl tracking-[-0.54px] truncate">
                     {selectedProviderInfo?.label}
                   </span>
                 </>
@@ -148,26 +162,58 @@ export const VersusComparisonTable = ({
           {metrics.map((metric, index) => (
             <div
               key={index}
-              className="grid grid-cols-[1fr_auto_1fr] gap-4 px-6 py-3"
+              className="grid grid-cols-[1fr_auto_1fr] gap-1 md:gap-4 px-3 md:px-6 py-2 md:py-3"
             >
-              <div className="flex items-center justify-end">
-                <span className="font-medium text-white text-xl">
-                  {formatValue(metric.leftValue)}
-                </span>
-                <IndicatorIcon type={metric.leftIndicator} />
+              <div className="flex items-center justify-center">
+                {metric.leftLoading ? (
+                  <span className="text-gray-400 animate-spin">⟳</span>
+                ) : metric.leftUnsupported || metric.leftValue === null || metric.leftValue === undefined ? (
+                  <span className="text-red-500 text-base md:text-xl">❌</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-white text-sm md:text-lg lg:text-xl truncate">
+                      {formatValue(metric.leftValue)}
+                    </span>
+                    <IndicatorIcon type={metric.leftIndicator} />
+                  </>
+                )}
               </div>
 
-              <div className="flex items-center justify-center px-4 min-w-[160px]">
-                <span className="text-gray-400 text-sm text-center">
-                  {metric.label}
-                </span>
+              <div className="flex items-center justify-center px-1 md:px-4 w-[80px] md:w-[180px] flex-shrink-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-400 text-xs md:text-sm text-center truncate">
+                    {metric.label}
+                  </span>
+                  {metric.tooltip && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-500 text-gray-500 cursor-help hover:border-gray-400 hover:text-gray-400 transition-colors">
+                            <span className="text-[10px] font-semibold">i</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">{metric.tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center justify-start">
-                <span className="font-medium text-white text-xl">
-                  {formatValue(metric.rightValue)}
-                </span>
-                <IndicatorIcon type={metric.rightIndicator} />
+              <div className="flex items-center justify-center">
+                {metric.rightLoading ? (
+                  <span className="text-gray-400 animate-spin text-sm md:text-base">⟳</span>
+                ) : metric.rightUnsupported || metric.rightValue === null || metric.rightValue === undefined ? (
+                  <span className="text-red-500 text-base md:text-xl">❌</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-white text-sm md:text-lg lg:text-xl truncate">
+                      {formatValue(metric.rightValue)}
+                    </span>
+                    <IndicatorIcon type={metric.rightIndicator} />
+                  </>
+                )}
               </div>
             </div>
           ))}

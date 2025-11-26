@@ -1,4 +1,4 @@
-import { DataProviderService as BaseDataProviderService, assetToCanonicalIdentity, canonicalToAsset, getChainId } from "@data-provider/plugin-utils";
+import { DataProviderService as BaseDataProviderService, assetToCanonicalIdentity, canonicalToAsset, getChainIdFromBlockchain } from "@data-provider/plugin-utils";
 import type { AssetType } from "@data-provider/shared-contract";
 import { ProviderApiClient, ProviderAssetType } from "./client";
 import type {
@@ -37,7 +37,7 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
    */
   async transformAssetToProvider(asset: AssetType): Promise<ProviderAssetType> {
     const identity = await assetToCanonicalIdentity(asset);
-    const chainId = await getChainId(identity.blockchain);
+    const chainId = getChainIdFromBlockchain(identity.blockchain);
     if (!chainId) {
       throw new Error(`Unsupported chain: ${identity.blockchain}`);
     }
@@ -66,7 +66,7 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   /**
    * Fetch volume metrics for specified time windows.
    */
-  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {
+  async getVolumes(windows: TimeWindow[], route?: RouteType<ProviderAssetType>): Promise<VolumeWindowType[]> {
     const response = await this.client.fetchVolumes(windows);
     return response.volumes.map(volume => ({
       window: volume.window as TimeWindow,
@@ -90,11 +90,11 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   }
 
   /**
-   * Fetch rate quotes for route/notional combinations.
+   * Fetch rate quotes for route/amount combination.
    * Accepts provider-specific route format.
    * TODO: Implement provider's quote API endpoint
    */
-  async getRates(route: RouteType<ProviderAssetType>, notionals: string[]): Promise<RateType<ProviderAssetType>[]> {
+  async getRates(route: RouteType<ProviderAssetType>, amount: string): Promise<RateType<ProviderAssetType>[]> {
     return [];
   }
 

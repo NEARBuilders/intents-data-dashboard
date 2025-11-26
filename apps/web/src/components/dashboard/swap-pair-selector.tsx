@@ -18,6 +18,7 @@ import { useAtom } from "@effect-atom/atom-react";
 import { useEffect, useMemo, useState } from "react";
 import { AssetSelect } from "./asset-select";
 import { NetworkSelect } from "./network-select";
+import { Button } from "../ui/button";
 
 export const SwapPairSelector = () => {
   const search = Route.useSearch();
@@ -158,29 +159,10 @@ export const SwapPairSelector = () => {
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
-      <p className="text-base md:text-lg text-gray-300 text-center mb-6">
-        Compare a cross-chain swap route between the selected platform and NEAR
-        Intents.
-      </p>
-
-      <div className="max-w-md mx-auto mb-6">
-        <label className="block text-sm font-medium text-gray-400 mb-2">
-          Amount
-        </label>
-        <Input
-          type="number"
-          min={0}
-          step="any"
-          placeholder="Enter amount"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value) || 0)}
-          className="w-full bg-[#1a1a1a] border-[#343434] text-white placeholder:text-gray-500 text-lg h-12"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-end">
-        <div className="flex flex-col items-end gap-3">
-          <div className="text-xs text-gray-400 uppercase tracking-wider">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-start sm:items-end">
+        <div className="flex flex-col items-start sm:items-end gap-3">
+          <div className="text-xs text-gray-400 uppercase tracking-wider text-left sm:text-right">
             SWAP FROM
           </div>
 
@@ -212,7 +194,7 @@ export const SwapPairSelector = () => {
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            className="text-gray-400"
+            className="text-gray-400 rotate-90 sm:rotate-0"
           >
             <path
               strokeLinecap="round"
@@ -224,7 +206,7 @@ export const SwapPairSelector = () => {
         </div>
 
         <div className="space-y-3">
-          <div className="text-xs text-gray-400 uppercase tracking-wider">
+          <div className="text-xs text-gray-400 uppercase tracking-wider text-left">
             SWAP TO
           </div>
 
@@ -248,21 +230,42 @@ export const SwapPairSelector = () => {
             disabled={!selectedToChain || toAssets.length === 0}
           />
         </div>
-      </div>
+        </div>
 
-      <div className="flex justify-center mt-8">
-        <button
-          onClick={handleCompare}
-          disabled={
-            !selectedFromAsset ||
-            !selectedToAsset ||
-            compareEnabled ||
-            amount <= 0
-          }
-          className="px-8 py-3 bg-[#0e0e0e] border border-[#343434] hover:bg-[#1a1a1a] disabled:bg-[#0a0a0a] disabled:border-[#2a2a2a] disabled:cursor-not-allowed text-white font-medium rounded-lg text-base transition-all duration-200"
-        >
-          {compareEnabled ? "Comparing..." : "Compare Routes"}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-sm font-semibold text-gray-300 mb-2.5">
+              Amount (USD)
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step="any"
+              placeholder="Enter USD amount"
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value) || 0)}
+              className="w-full bg-[#252525] border-[#343434] text-white placeholder:text-gray-500 text-base md:text-lg font-semibold h-14 md:h-16 px-4 md:px-6 rounded-lg"
+            />
+                {/* {amount > 0 && sourceAsset?.priceUsd && (
+              <div className="mt-2 text-sm text-gray-400">
+                ≈ {(amount / sourceAsset.priceUsd).toFixed(6)} {sourceAsset.symbol}
+              </div>
+            )} */}
+          </div>
+
+          <Button
+            onClick={handleCompare}
+            disabled={
+              !selectedFromAsset ||
+              !selectedToAsset ||
+              compareEnabled ||
+              amount <= 0
+            }
+            className="cursor-pointer w-full sm:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-[#252525] border border-[#343434] hover:bg-[#2b2b2b] disabled:bg-[#1a1a1a] disabled:border-[#2a2a2a] disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base md:text-lg transition-all duration-200 h-14 md:h-16 flex items-center justify-center whitespace-nowrap"
+          >
+            {compareEnabled ? "Comparing..." : "Compare"}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -31,8 +31,8 @@ export function formatVolume(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
-export function formatCurrency(value: number | undefined): string {
-  if (value === undefined) return "N/A";
+export function formatCurrency(value: number | null | undefined): string {
+  if (value === undefined || value === null) return "N/A";
   return `$${value.toFixed(2)}`;
 }
 

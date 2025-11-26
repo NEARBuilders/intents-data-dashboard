@@ -51,12 +51,15 @@ export class HttpClient {
 
     return pRetry(
       () => this.config.rateLimiter.schedule(async () => {
+        const fetchHeaders: Record<string, string> = { ...headers };
+        
+        if (params.body !== undefined) {
+          fetchHeaders['Content-Type'] = 'application/json';
+        }
+
         const response = await fetch(fullUrl, {
           method: params.method,
-          headers: {
-            'Content-Type': 'application/json',
-            ...headers
-          },
+          headers: fetchHeaders,
           body: params.body ? JSON.stringify(params.body) : undefined,
           signal: AbortSignal.timeout(timeout)
         });
