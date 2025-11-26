@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/tooltip";
 import { useProviders } from "@/lib/aggregator/hooks";
 import { compareEnabledAtom, selectedProviderAtom } from "@/store/swap";
+import { Route } from "@/routes/_layout/swaps";
 import { useAtom } from "@effect-atom/atom-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 export interface MetricRow {
   label: string;
@@ -54,6 +55,7 @@ export const VersusComparisonTable = ({
   className = "",
   showProviderSelector = false,
 }: VersusComparisonTableProps) => {
+  const navigate = Route.useNavigate();
   const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom);
   const [, setCompareEnabled] = useAtom(compareEnabledAtom);
   const { data: providersData } = useProviders();
@@ -61,9 +63,23 @@ export const VersusComparisonTable = ({
   const handleProviderChange = (provider: string) => {
     setSelectedProvider(provider);
     setCompareEnabled(false);
+    navigate({
+      search: (prev) => ({ ...prev, provider }),
+    });
   };
 
   const providersInfo = providersData?.providers || [];
+
+  useEffect(() => {
+    if (providersInfo.length > 0 && !selectedProvider) {
+      const firstProvider = providersInfo.find(
+        (p) => p.id !== "near_intents" && p.supportedData?.includes("assets")
+      );
+      if (firstProvider) {
+        setSelectedProvider(firstProvider.id);
+      }
+    }
+  }, [providersInfo, selectedProvider, setSelectedProvider]);
 
   const nearIntentsInfo = useMemo(() => {
     return providersInfo.find((p: any) => p.id === "near_intents");
@@ -112,7 +128,25 @@ export const VersusComparisonTable = ({
                   onValueChange={handleProviderChange}
                 >
                   <SelectTrigger className="w-[120px] md:w-[180px] lg:w-[220px] h-[38px] md:h-[42px] bg-[#242424] border-[#343434] rounded-[5px] text-sm md:text-lg tracking-[-0.54px] text-white hover:bg-[#2a2a2a] focus:ring-1 focus:ring-[#343434]">
-                    <SelectValue />
+                    {selectedProviderInfo ? (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
+                          {selectedProviderInfo.logoUrl ? (
+                            <img
+                              src={selectedProviderInfo.logoUrl}
+                              alt={selectedProviderInfo.label}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-[#202027]" />
+                          )}
+                        </div>
+                        <span className="text-md">{selectedProviderInfo.label}</span>
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="Select Provider" />
+                    )}
                   </SelectTrigger>
                   <SelectContent className="bg-[#242424] border-[#343434]">
                     {providerOptions.map((option) => (

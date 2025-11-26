@@ -81,17 +81,17 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           secrets: {}
         });
 
-        const lifi = await runtime.usePlugin("@data-provider/lifi", {
-          variables: {},
-          secrets: {}
-        });
+        // const lifi = await runtime.usePlugin("@data-provider/lifi", {
+        //   variables: {},
+        //   secrets: {}
+        // });
 
-        const axelar = await runtime.usePlugin("@data-provider/axelar", {
-          variables: {},
-          secrets: {}
-        });
+        // const axelar = await runtime.usePlugin("@data-provider/axelar", {
+        //   variables: {},
+        //   secrets: {}
+        // });
 
-        const cctp = await runtime.usePlugin("@data-provider/cctp", {
+        const circle_cctp = await runtime.usePlugin("@data-provider/cctp", {
           variables: {},
           secrets: {}
         });
@@ -101,26 +101,26 @@ export function getPluginRuntime(config: PluginRuntimeConfig) {
           secrets: {}
         });
 
-        const debridge = await runtime.usePlugin("@data-provider/debridge", {
-          variables: {},
-          secrets: {}
-        });
+        // const debridge = await runtime.usePlugin("@data-provider/debridge", {
+        //   variables: {},
+        //   secrets: {}
+        // });
 
-        const wormhole = await runtime.usePlugin("@data-provider/wormhole", {
-          variables: {},
-          secrets: {}
-        });
+        // const wormhole = await runtime.usePlugin("@data-provider/wormhole", {
+        //   variables: {},
+        //   secrets: {}
+        // });
 
         const providers: Record<string, PluginClient> = {
           "near_intents": nearIntents.client,
           "across": across.client,
           "layerzero": layerzero.client,
-          "lifi": lifi.client,
-          "axelar": axelar.client,
-          "cctp": cctp.client,
-          "cbridge": cbridge.client,
-          "debridge": debridge.client,
-          "wormhole": wormhole.client,
+          // "lifi": lifi.client,
+          // "axelar": axelar.client,
+          "circle_cctp": circle_cctp.client,
+          // "cbridge": cbridge.client,
+          // "debridge": debridge.client,
+          // "wormhole": wormhole.client,
         };
 
         return { runtime, providers };

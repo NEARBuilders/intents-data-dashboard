@@ -16,7 +16,7 @@ export const sourceAssetAtom = Atom.make<Asset | null>(null)
 export const destAssetAtom = Atom.make<Asset | null>(null)
 
 export const amountAtom = Atom.make<number>(100)
-export const selectedProviderAtom = Atom.make<string>("")
+export const selectedProviderAtom = Atom.make<string>("across")
 export const compareEnabledAtom = Atom.make<boolean>(false)
 
 export const getDefaultSourceNetwork = (networks?: Network[]): string | undefined => {

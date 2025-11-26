@@ -8,7 +8,7 @@ declare module "every-plugin" {
 }
 
 const PLUGIN_URLS = {
-  "@data-provider/aggregator": "https://elliot-braem-932-data-provider-aggregator-data-pr-585f55fda-ze.zephyrcloud.app/remoteEntry.js",
+  "@data-provider/aggregator": "https://elliot-braem-935-data-provider-aggregator-data-pr-124dc64bd-ze.zephyrcloud.app/remoteEntry.js",
 } as const;
 
 export async function initializePlugins(config: {
