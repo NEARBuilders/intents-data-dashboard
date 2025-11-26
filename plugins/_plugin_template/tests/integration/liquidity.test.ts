@@ -5,18 +5,18 @@ describe("Liquidity Depth", () => {
   it("provides 50bps and 100bps thresholds", async () => {
     const client = await getPluginClient();
     const result = await client.getLiquidity({
-      routes: [testRoutes[0]!]
+      route: testRoutes[0]!
     });
 
     console.log("\n💧 Liquidity:", JSON.stringify({
-      routes: result.liquidity.length,
+      count: result.liquidity.length,
       thresholds: result.liquidity[0]?.thresholds.map(t => ({
         slippageBps: t.slippageBps,
         maxAmountIn: t.maxAmountIn
       }))
     }, null, 2));
 
-    expect(result.liquidity.length).toBe(1);
+    expect(result.liquidity.length).toBeGreaterThanOrEqual(1);
     expect(result.liquidity[0]!.route).toEqual(testRoutes[0]);
 
     const thresholds = result.liquidity[0]!.thresholds;

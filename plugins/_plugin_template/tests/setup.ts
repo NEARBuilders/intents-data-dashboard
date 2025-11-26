@@ -1,5 +1,5 @@
 import Plugin from "@/index";
-import pluginDevConfig, { testRoutes, testNotionals } from "../plugin.dev";
+import pluginDevConfig, { testRoutes } from "../plugin.dev";
 import { createLocalPluginRuntime } from "every-plugin/testing";
 
 const TEST_PLUGIN_ID = pluginDevConfig.pluginId;
@@ -28,4 +28,4 @@ export async function getPluginClient() {
 }
 
 // Re-export test data
-export { testRoutes, testNotionals };
+export { testRoutes };
