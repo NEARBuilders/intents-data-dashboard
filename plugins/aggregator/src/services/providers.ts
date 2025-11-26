@@ -25,14 +25,14 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "ccip",
     label: "CCIP (Chainlink)",
     category: "GMP",
-    supportedData: ["volumes"],
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "celer",
     label: "Celer cBridge",
     category: "Pool-based Bridge",
     logoUrl: "/images/provider-icons/cbridge.png",
-    supportedData: ["volumes"],
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "chainflip",
@@ -77,7 +77,7 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     label: "LayerZero",
     category: "GMP",
     logoUrl: "/images/provider-icons/layerzero.png",
-    supportedData: ["volumes"],
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "mayan",

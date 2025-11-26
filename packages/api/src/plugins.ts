@@ -8,12 +8,7 @@ declare module "every-plugin" {
 }
 
 const PLUGIN_URLS = {
-  production: {
-    "@data-provider/aggregator": "https://elliot-braem-908-data-provider-aggregator-data-pr-822b07b86-ze.zephyrcloud.app/remoteEntry.js",
-  },
-  development: {
-    "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
-  }
+  "@data-provider/aggregator": "https://elliot-braem-932-data-provider-aggregator-data-pr-585f55fda-ze.zephyrcloud.app/remoteEntry.js",
 } as const;
 
 export async function initializePlugins(config: {
@@ -23,22 +18,16 @@ export async function initializePlugins(config: {
     NEAR_INTENTS_API_KEY: string,
     ASSET_ENRICHMENT_URL: string,
   },
-  isDevelopment?: boolean,
-  registry?: typeof PLUGIN_URLS
 }) {
-  const urls = (config.registry || PLUGIN_URLS)[config.isDevelopment ? 'development' : 'production'];
-
   const runtime = createPluginRuntime({
     registry: {
-      "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
+      "@data-provider/aggregator": { remoteUrl: PLUGIN_URLS["@data-provider/aggregator"] },
     },
     secrets: config.secrets,
   });
 
   const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
-    variables: {
-      isDevelopment: config.isDevelopment ?? false,
-    },
+    variables: {},
     secrets: config.secrets,
   });
 

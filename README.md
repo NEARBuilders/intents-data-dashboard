@@ -1,18 +1,20 @@
-# NEAR Intents Data Dashboard
+![NEAR Intents - Competitor Comparison](apps/web/public/metadata.png)
 
 A dashboard for all things NEAR intents, providing bridge data and analytics across multiple providers.
 
-**Live deployment:** [intents.everything.dev](https://intents.everything.dev)
+**Live deployment:** [compareintents.xyz](https://compareintents.xyz)
 
 ## Development
 
 ```bash
+# Start docker (Redis for cache)
+docker compose up -d
+
 # Install dependencies
 bun install
 
 # Start development
-bun run dev:plugins    # Start plugin server first
-bun run dev            # Then start web + server
+bun run dev            # Start web + server
 ```
 
 The web UI will be available at `http://localhost:3001`

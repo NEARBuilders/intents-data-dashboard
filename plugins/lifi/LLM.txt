@@ -1,0 +1,416 @@
+# Data Provider Plugin Template Guide
+
+This guide explains how to build data provider plugins for the NEAR Intents framework. Data provider plugins connect external bridge/cross-chain protocols to the NEAR Intents ecosystem, providing standardized access to volume metrics, asset listings, rate quotes, and liquidity data.
+
+## Architecture Overview
+
+Every data provider plugin consists of four core files:
+
+1. **contract.ts** - Defines provider-specific schemas and shared contract re-exports
+2. **client.ts** - HTTP client for external API communication with rate limiting
+3. **service.ts** - Business logic layer that calls provider APIs
+4. **index.ts** - Router layer with transformation functions and middleware
+
+## Data Provider Plugin Architecture
+
+Data provider plugins have a specialized architecture that handles the complexity of working with multiple data formats and external APIs. This section covers the patterns specific to data provider plugins.
+
+### Multi-Endpoint Architecture
+
+Data provider plugins expose 4 separate data endpoints plus a health check:
+
+- `getVolumes` - Volume metrics for time windows
+- `getListedAssets` - All supported assets
+- `getRates` - Rate quote for a route and amount
+- `getLiquidity` - Liquidity depth data for a route
+- `ping` - Health check endpoint
+
+Each endpoint can be tested and used independently, providing flexibility for different use cases.
+
+### Two-Format Architecture
+
+Data provider plugins work with two distinct data formats:
+
+**Provider Format** (internal):
+- Matches the external API's native format
+- Defined in `contract.ts` as `ProviderAsset` and `ProviderRoute`
+- Used exclusively by the service layer
+- Examples: `chainId` vs `chainName`, `domainId` for CCTP
+
+**NEAR Intents Format** (external):
+- Standardized format from `shared-contract`
+- What clients consume via the plugin API
+- Used by router layer for transformations
+- Consistent `blockchain`, `assetId` fields across all plugins
+
+### Layer Separation
+
+**Service Layer** (`service.ts`):
+- Works exclusively in provider format
+- Calls external APIs via the client layer
+- No knowledge of NEAR Intents format
+- Returns standardized internal types
+
+**Router Layer** (`index.ts`):
+- Handles transformation between formats
+- Uses middleware for automatic route transformation
+- Applies `transformAsset` to convert responses
+- Orchestrates the complete request/response flow
+
+### Middleware Pattern
+
+Data provider plugins use oRPC middleware to automatically transform routes:
+
+```typescript
+// Routes that need route transformation use middleware
+getRates: builder.getRates.use(transformRouteMiddleware).handler(...)
+getLiquidity: builder.getLiquidity.use(transformRouteMiddleware).handler(...)
+
+// Routes that don't need transformation work directly
+getVolumes: builder.getVolumes.handler(...)
+getListedAssets: builder.getListedAssets.handler(...)
+ping: builder.ping.handler(...)
+```
+
+The middleware automatically:
+1. Accepts canonical Asset format routes from clients
+2. Transforms route assets to provider-specific format
+3. Adds transformed route to handler context
+4. Passes it to service methods
+
+### Transformation Functions
+
+**transformRoute** (NEAR Intents → Provider):
+- Converts standardized routes to provider-specific format
+- Handles different chain identifiers (chainId, chainName, domainId)
+- Returns null for unsupported blockchains
+- Used by middleware before service calls
+
+**transformAsset** (Provider → NEAR Intents):
+- Converts provider assets to standardized format
+- Creates NEAR Intents `assetId` (nep141:address format)
+- Maps blockchain names and chain IDs
+- Used by router handlers on responses
+
+### Provider Schema Customization
+
+Different providers use different field names. Customize schemas in `contract.ts`:
+
+```typescript
+// Default (Across, cBridge, deBridge, Li.Fi)
+export const ProviderAsset = z.object({
+  chainId: z.string(), // Standard chain ID
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+
+// Axelar (uses chain names)
+export const ProviderAsset = z.object({
+  chainName: z.string(), // "ethereum" instead of "1"
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+
+// CCTP (uses domain IDs)
+export const ProviderAsset = z.object({
+  domainId: z.string(), // Circle's domain identifier
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+```
+
+### Complete Workflow
+
+```
+Client Request (NEAR Intents routes)
+    ↓
+Middleware (transformRoute: NEAR Intents → Provider)
+    ↓
+Service Layer (calls provider API in Provider format)
+    ↓
+API Response (Provider format data)
+    ↓
+Router Layer (transformAsset: Provider → NEAR Intents)
+    ↓
+Client Response (NEAR Intents format)
+```
+
+### Integration Testing
+
+Data provider plugins use integration tests that validate the full stack:
+
+```typescript
+describe('Plugin Integration', () => {
+  it('getRates transforms route and returns quotes', async () => {
+    const { client } = await runtime.usePlugin('@data-provider/template', {
+      variables: { baseUrl: 'http://test' },
+      secrets: { apiKey: 'test-key' }
+    });
+
+    const result = await client.getRates({
+      route: testRoutes[0], // Canonical Asset format
+      amount: '1000000'
+    });
+
+    // Validates complete transformation pipeline
+    expect(result.rates.length).toBeGreaterThan(0);
+    expect(result.rates[0].source.assetId).toMatch(/^1cs_v1:/);
+  });
+
+  it('getListedAssets returns canonical assets', async () => {
+    const { client } = await runtime.usePlugin('@data-provider/template', {
+      variables: { baseUrl: 'http://test' },
+      secrets: { apiKey: 'test-key' }
+    });
+
+    const result = await client.getListedAssets();
+
+    expect(result.assets.length).toBeGreaterThan(0);
+    expect(result.assets[0].assetId).toMatch(/^1cs_v1:/);
+    expect(result.measuredAt).toBeDefined();
+  });
+});
+```
+
+### Common Patterns
+
+**HTTP Client with Rate Limiting**:
+```typescript
+const http = createHttpClient({
+  baseUrl: 'https://api.provider.com',
+  headers: { 'Authorization': `Bearer ${apiKey}` },
+  rateLimiter: createRateLimiter(10), // 10 req/sec
+  timeout: 30000,
+  retries: 3
+});
+```
+
+**Error Handling**:
+```typescript
+getData(id: string) {
+  return Effect.tryPromise({
+    try: async () => {
+      const response = await this.client.callAPI(id);
+      if (response.status === 429) {
+        throw new Error('Rate limited');
+      }
+      return response.data;
+    },
+    catch: (error: unknown) => {
+      if (error instanceof Error && error.message.includes('Rate limited')) {
+        throw errors.RATE_LIMITED({ message: "API rate limit exceeded" });
+      }
+      throw errors.SERVICE_UNAVAILABLE({ message: error.message });
+    }
+  });
+}
+```
+
+```
+plugins/your-plugin/
+├── src/
+│   ├── contract.ts    # Provider-specific schemas
+│   ├── client.ts      # HTTP client with rate limiting
+│   ├── service.ts     # Business logic layer
+│   └── index.ts       # Router with transformations
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+## Best Practices
+
+### Type Safety
+- Always use `z.infer<typeof Schema>` for types
+- Use `satisfies` to check object literals match schemas
+- Type `catch` parameters as `unknown` and handle safely
+
+### Resource Management
+- Use `Effect.acquireRelease` for resources that need cleanup
+- Use `Effect.forkScoped` for background tasks (auto-cleanup)
+- Use `Queue.bounded` instead of unbounded queues
+- Return context from initialize with all resources
+
+### Error Handling
+- Always wrap external calls in `Effect.tryPromise`
+- Provide meaningful error messages with context
+- Use `CommonPluginErrors` in handlers for standard errors
+- Re-throw configuration errors after catching
+
+### Testing
+- Use `createLocalPluginRuntime` for testing
+- Mock external APIs with MSW or similar
+- Test error cases and edge conditions
+- Test streaming procedures thoroughly
+
+### Performance
+- Use `Promise.all` for parallel operations
+- Implement pagination for large result sets
+- Add appropriate timeouts to external calls
+- Use streaming for large datasets
+
+### Security
+- Never log secrets or sensitive data
+- Validate all external inputs with Zod schemas
+- Use HTTPS for external API calls
+- Sanitize error messages
+- Use template injection for secrets ()
+
+## Documentation & Deployment
+
+After building your plugin, document it well and deploy it so others can use it.
+
+### Writing Good READMEs
+
+Your plugin should have a user-friendly README and the technical LLM.txt (this file) for builders.
+
+**README.md Structure:**
+- **Title and Description** - What your plugin does, who it's for
+- **Installation** - How to add to registry
+- **Usage Examples** - Copy-paste ready code for common use cases
+- **Configuration** - What variables/secrets are needed
+- **Link to LLM.txt** - Point developers to this detailed guide
+
+Example README structure:
+```markdown
+# My Plugin
+
+A plugin for connecting to [External Service] APIs.
+
+## Installation
+
+Add to your registry:
+```javascript
+const registry = {
+  "my-org/my-plugin": {
+    remoteUrl: "https://cdn.example.com/plugins/my-plugin/remoteEntry.js",
+    version: "1.0.0"
+  }
+};
+```
+
+## Usage
+
+```typescript
+const { client } = await runtime.usePlugin("my-org/my-plugin", {
+  variables: { apiUrl: "https://api.external.com" },
+  secrets: { apiKey: "" }
+});
+
+// Single query
+const data = await client.getData({ id: "123" });
+
+// Streaming
+for await (const item of client.streamData({ query: "search" })) {
+  console.log(item);
+}
+```
+
+## Configuration
+
+Required secrets:
+- `API_KEY` - Your external service API key
+
+Optional variables:
+- `timeout` - Request timeout in milliseconds (default: 10000)
+
+---
+
+**For developers building integrations, see [LLM.txt](./LLM.txt).**
+```
+
+### Build Process
+
+Use the included rspack config for Module Federation builds:
+
+```bash
+# Development server with hot reload
+npm run dev         # Serves at http://localhost:3014
+
+# Production build
+npm run build       # Creates dist/ with remoteEntry.js
+```
+
+The build config handles:
+- **Module Federation** - Shares dependencies to reduce bundle size
+- **Zephyr Integration** - For easy CDN deployment
+- **Source Maps** - For debugging remote plugins
+
+### Registry Configuration
+
+Deploy and register your plugin for others to use.
+
+**Local Development Registry:**
+For testing during development - no deployment needed:
+
+```typescript
+import { createLocalPluginRuntime } from "every-plugin/runtime";
+import MyPlugin from "./src/index";
+
+const runtime = createLocalPluginRuntime(
+  { registry: {} },  // Empty registry - plugins loaded locally
+  { "my-plugin": MyPlugin }  // Direct import, same API
+);
+```
+
+**Remote Production Registry:**
+Deploy to a CDN/hosting service, then register:
+
+```typescript
+// Method 1: Localhost for testing
+const runtime = createPluginRuntime({
+  registry: {
+    "my-org/my-plugin": {
+      remoteUrl: "http://localhost:3014/remoteEntry.js",  // From dev server
+      version: "1.0.0"
+    }
+  }
+});
+
+// Method 2: Remote CDN (after deployment)
+const runtime = createPluginRuntime({
+  registry: {
+    "my-org/my-plugin": {
+      remoteUrl: "https://cdn.zephyr.com/v123/plugins/my-plugin/remoteEntry.js",
+      version: "1.0.0"
+    }
+  }
+});
+
+// Same usage API for both!
+const { client } = await runtime.usePlugin("my-org/my-plugin", {
+  variables: { timeout: 30000 },
+  secrets: { apiKey: "" }  // Template injection
+});
+```
+
+**Deployment Options:**
+1. **Zephyr** - Automatic CDN deployment (`npm run deploy`)
+2. **Manual Upload** - Build then upload `dist/remoteEntry.js` to CDN
+3. **Self-hosted** - Serve from your own infrastructure
+
+Once deployed, share the `remoteUrl` so others can add to their registries.
+
+## Common Pitfalls
+
+1. **Don't return raw Effects from handlers** - use `Effect.runPromise`
+2. **Use async function* for streaming** - not generators that return Effects
+3. **Type catch parameters as unknown** - then check instanceof Error
+4. **Use yield* in Effect.gen** - not regular yield
+5. **Return context from initialize** - don't store globally
+6. **Use Effect.forkScoped for background tasks** - ensures cleanup
+7. **Use Effect.acquireRelease for resources** - ensures cleanup on shutdown
+
+## Next Steps
+
+1. Copy the template to your new plugin directory
+2. Update `contract.ts` with your API procedures
+3. Implement `service.ts` with your external API client
+4. Wire everything in `index.ts`
+5. Add tests in `tests`
+6. Update `package.json` with dependencies
+7. Build with `npm run build`
+8. Test with `createLocalPluginRuntime`

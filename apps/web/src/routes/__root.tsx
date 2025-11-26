@@ -26,17 +26,82 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'NEAR Intents',
+        title: 'NEAR Intents - Competitor Comparison | compareintents.xyz',
       },
       {
         name: 'description',
-        content: 'NEAR Intents platform comparison dashboard',
+        content: 'Compare NEAR Intents with leading cross-chain bridge and intent protocols including LayerZero, Wormhole, Axelar, deBridge, Across, and more. Interactive dashboard showing capabilities, features, and performance metrics.',
+      },
+      {
+        name: 'keywords',
+        content: 'NEAR Intents, cross-chain bridge, intent protocols, LayerZero, Wormhole, Axelar, deBridge, Across, CBridge, CCTP, LiFi, bridge comparison, blockchain interoperability',
+      },
+      {
+        name: 'author',
+        content: 'NEAR Intents',
+      },
+      {
+        name: 'theme-color',
+        content: '#000000',
+      },
+      {
+        property: 'og:type',
+        content: 'website',
+      },
+      {
+        property: 'og:url',
+        content: 'https://compareintents.xyz',
+      },
+      {
+        property: 'og:title',
+        content: 'NEAR Intents - Competitor Comparison',
+      },
+      {
+        property: 'og:description',
+        content: 'Compare NEAR Intents with leading cross-chain bridge and intent protocols. Interactive dashboard showing capabilities, features, and performance metrics.',
+      },
+      {
+        property: 'og:image',
+        content: 'https://compareintents.xyz/metadata.png',
+      },
+      {
+        property: 'og:site_name',
+        content: 'NEAR Intents Competitor Comparison',
+      },
+      {
+        name: 'twitter:card',
+        content: 'summary_large_image',
+      },
+      {
+        name: 'twitter:url',
+        content: 'https://compareintents.xyz',
+      },
+      {
+        name: 'twitter:title',
+        content: 'NEAR Intents - Competitor Comparison',
+      },
+      {
+        name: 'twitter:description',
+        content: 'Compare NEAR Intents with leading cross-chain bridge and intent protocols. Interactive dashboard showing capabilities, features, and performance metrics.',
+      },
+      {
+        name: 'twitter:image',
+        content: 'https://compareintents.xyz/metadata.png',
       },
     ],
     links: [
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'canonical',
+        href: 'https://compareintents.xyz',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        href: '/metadata.png',
       },
     ],
   }),
