@@ -1,10 +1,8 @@
-import { createPluginRuntime } from "every-plugin";
 import type AggregatorPlugin from "@data-provider/aggregator";
+import { createPluginRuntime } from "every-plugin";
 
-declare module "every-plugin" {
-  interface RegisteredPlugins {
-    "@data-provider/aggregator": typeof AggregatorPlugin;
-  }
+type ApiRegistry = {
+  "@data-provider/aggregator": typeof AggregatorPlugin;
 }
 
 const PLUGIN_URLS = {
@@ -18,7 +16,7 @@ export async function initializePlugins(config: {
     NEAR_INTENTS_API_KEY: string,
   },
 }) {
-  const runtime = createPluginRuntime({
+  const runtime = createPluginRuntime<ApiRegistry>({
     registry: {
       "@data-provider/aggregator": { remoteUrl: PLUGIN_URLS["@data-provider/aggregator"] },
     },
