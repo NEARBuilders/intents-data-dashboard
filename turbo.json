@@ -1,7 +1,7 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"ui": "tui",
-	"globalEnv": ["NODE_ENV", "VITE_SERVER_URL"],
+	"globalEnv": ["NODE_ENV", "VITE_SERVER_URL", "VITE_ASSET_ENRICHMENT_URL"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
