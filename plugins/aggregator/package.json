@@ -11,7 +11,6 @@
   "devDependencies": {
     "@data-provider/asset-enrichment": "workspace:*",
     "@data-provider/across": "workspace:*",
-    "@data-provider/axelar": "workspace:*",
     "@data-provider/cbridge": "workspace:*",
     "@data-provider/cctp": "workspace:*",
     "@data-provider/debridge": "workspace:*",
