@@ -1,4 +1,5 @@
 import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
+import { z } from 'every-plugin/zod';
 
 /**
  * Across Protocol API Client
@@ -10,6 +11,21 @@ import { createHttpClient, createRateLimiter, type HttpClient } from '@data-prov
  * - Timeout handling for slow responses
  * - Consistent error handling and logging
  */
+
+/**
+ * Across asset type for provider-specific format
+ */
+export const AcrossAsset = z.object({
+  chainId: z.number(),
+  address: z.string(),
+  symbol: z.string(),
+  decimals: z.number(),
+  name: z.string().optional(),
+  logoUrl: z.string().optional(),
+  priceUsd: z.string().optional(),
+});
+
+export type AcrossAssetType = z.infer<typeof AcrossAsset>;
 
 /**
  * Available routes response from Across API
@@ -28,15 +44,37 @@ export interface AcrossAvailableRoute {
  * Suggested fees response from Across API
  */
 export interface AcrossSuggestedFeesResponse {
-  estimatedFillTimeSec: number;
-  relayFeePct: string; // Percentage in basis points
-  relayFeeTotal: string; // Total relay fee amount in destination token wei
-  capitalFeePct: string; // Capital fee percentage
-  capitalFeeTotal: string; // Capital fee amount
-  relayGasFeePct: string; // Gas fee percentage
-  relayGasFeeTotal: string; // Gas fee amount
-  lpFeePct: string; // LP fee percentage (0 if no pool used)
+  totalRelayFee: {
+    pct: string;
+    total: string;
+  };
+  relayerCapitalFee: {
+    pct: string;
+    total: string;
+  };
+  relayerGasFee: {
+    pct: string;
+    total: string;
+  };
+  lpFee: {
+    pct: string;
+    total: string;
+  };
   timestamp: string;
+  isAmountTooLow: boolean;
+  quoteBlock: string;
+  spokePoolAddress: string;
+  exclusiveRelayer: string;
+  exclusivityDeadline: string;
+  expectedFillTimeSec: string;
+  fillDeadline: string;
+  limits: {
+    minDeposit: string;
+    maxDeposit: string;
+    maxDepositInstant: string;
+    maxDepositShortDelay: string;
+    recommendedDepositInstant: string;
+  };
 }
 
 /**
@@ -51,16 +89,19 @@ export interface AcrossLimitsResponse {
 }
 
 /**
- * Token response from Across API
+ * Swap approval response from Across API
  */
-export interface AcrossTokenResponse {
-  chainId: number;
-  address: string;
-  name: string;
-  symbol: string;
-  decimals: number;
-  logoUrl?: string;
-  priceUsd?: string;
+export interface AcrossApprovalResponse {
+  inputAmount: string;
+  expectedOutputAmount: string;
+  minOutputAmount: string;
+  expectedFillTime: number;
+  fees: {
+    total: {
+      amount: string;
+      pct: string;
+    };
+  };
 }
 
 /**
@@ -107,8 +148,8 @@ export class AcrossApiClient {
    * Fetch supported tokens from Across API.
    * Returns all supported tokens across chains.
    */
-  async fetchTokens(): Promise<AcrossTokenResponse[]> {
-    return this.http.get<AcrossTokenResponse[]>('/swap/tokens');
+  async fetchTokens(): Promise<AcrossAssetType[]> {
+    return this.http.get<AcrossAssetType[]>('/swap/tokens');
   }
 
   /**
@@ -147,6 +188,33 @@ export class AcrossApiClient {
         outputToken: params.outputToken,
         originChainId: params.originChainId,
         destinationChainId: params.destinationChainId,
+      }
+    });
+  }
+
+  /**
+   * Fetch swap approval from Across API.
+   * Returns executable transaction data with expected output amounts.
+   */
+  async fetchApproval(params: {
+    inputToken: string;
+    outputToken: string;
+    originChainId: number;
+    destinationChainId: number;
+    amount: string;
+    depositor: string;
+    recipient: string;
+  }): Promise<AcrossApprovalResponse> {
+    return this.http.get<AcrossApprovalResponse>('/swap/approval', {
+      params: {
+        tradeType: 'exactInput',
+        inputToken: params.inputToken,
+        outputToken: params.outputToken,
+        originChainId: params.originChainId,
+        destinationChainId: params.destinationChainId,
+        amount: params.amount,
+        depositor: params.depositor,
+        recipient: params.recipient,
       }
     });
   }

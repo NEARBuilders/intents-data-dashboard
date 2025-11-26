@@ -1,12 +1,16 @@
 {
   "name": "@data-provider/axelar",
   "version": "0.0.1",
-  "description": "Axelar bridge data provider plugin for every-plugin framework",
+  "description": "Template plugin for every-plugin framework",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "type": "module",
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@data-provider/plugin-utils": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.3"
   },
   "devDependencies": {
     "@data-provider/shared-contract": "workspace:*",
@@ -27,14 +31,8 @@
     "build": "rspack build",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
     "dev": "rspack serve",
-    "test": "vitest run; vitest run --config vitest.integration.config.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
     "coverage": "vitest run --coverage"
-  },
-  "dependencies": {
-    "@axelar-network/axelarjs-sdk": "^0.17.9",
-    "@data-provider/plugin-utils": "workspace:*"
   }
 }

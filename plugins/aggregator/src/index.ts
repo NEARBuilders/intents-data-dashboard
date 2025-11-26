@@ -3,20 +3,22 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 
+import { createAssetEnrichmentClient } from "./clients/asset-enrichment-client";
 import { contract } from "./contract";
+import { getPluginRuntime } from "./plugins";
 import { DataAggregatorService } from "./service";
-import { initializeProviderRuntime } from "./plugins";
 import { RedisService } from "./services/redis";
-import { IconResolverService } from "./services/icon-resolver";
 
 export default createPlugin({
-  variables: z.object({}),
+  variables: z.object({
+    isDevelopment: z.boolean().optional().default(false),
+  }),
 
   secrets: z.object({
     DUNE_API_KEY: z.string(),
-    NEAR_INTENTS_API_KEY: z.string(),
     REDIS_URL: z.string().default("redis://localhost:6379"),
-    COINMARKETCAP_API_KEY: z.string().optional()
+    NEAR_INTENTS_API_KEY: z.string(),
+    ASSET_ENRICHMENT_URL: z.string().default("http://localhost:6767/api/rpc"),
   }),
 
   contract,
@@ -30,17 +32,17 @@ export default createPlugin({
       const redis = new RedisService(config.secrets.REDIS_URL);
       yield* redis.healthCheck();
 
-      const { runtime, providers } = yield* initializeProviderRuntime({
-        NEAR_INTENTS_API_KEY: config.secrets.NEAR_INTENTS_API_KEY
+      const { providers } = yield* getPluginRuntime({
+        isDevelopment: config.variables.isDevelopment,
+        secrets: config.secrets,
       });
 
-      const iconResolver = new IconResolverService(redis, config.secrets.COINMARKETCAP_API_KEY);
+      const enrichAssetClient = createAssetEnrichmentClient(config.secrets.ASSET_ENRICHMENT_URL);
 
-      const service = new DataAggregatorService(dune, providers, redis, iconResolver);
+      // @ts-expect-error some inability to type assert the enrichAssetClient
+      const service = new DataAggregatorService(dune, providers, enrichAssetClient, redis);
 
-      console.log("Aggregator plugin initialized with provider plugins, Redis, and icon resolver");
-
-      return { service, runtime, providers, redis, iconResolver };
+      return { service, providers, redis };
     }),
 
   shutdown: () => Effect.void,
@@ -55,34 +57,38 @@ export default createPlugin({
       }),
 
       sync: builder.sync.handler(async ({ input }) => {
-        await service.startSync(input.datasets);
-        
         const cleared: string[] = [];
-        
+
         if (!input.datasets || input.datasets.includes('volumes')) {
           const count = await Effect.runPromise(redis.clear('volumes:*'));
           cleared.push(`volumes (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('rates')) {
           const count = await Effect.runPromise(redis.clear('rates:*'));
           cleared.push(`rates (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('liquidity')) {
           const count = await Effect.runPromise(redis.clear('liquidity:*'));
           cleared.push(`liquidity (${count} keys)`);
         }
-        
+
         if (!input.datasets || input.datasets.includes('assets')) {
-          const count = await Effect.runPromise(redis.clear('assets:*'));
-          cleared.push(`assets (${count} keys)`);
+          const count = await Effect.runPromise(redis.clear('enriched-assets:*'));
+          cleared.push(`enriched-assets (${count} keys)`);
         }
-        
+
         console.log('Cache cleared:', cleared.join(', '));
-        
+
+        if (!input.datasets || input.datasets.includes('assets')) {
+          service.rebuildAssetsCache().catch((error) => {
+            console.error('[Aggregator] Failed to rebuild assets cache:', error);
+          });
+        }
+
         return {
-          status: "sync_initiated" as const,
+          status: "started" as const,
           timestamp: new Date().toISOString(),
         };
       }),

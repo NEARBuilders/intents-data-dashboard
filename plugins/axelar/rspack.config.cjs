@@ -16,9 +16,4 @@ module.exports = withZephyr({
   },
 })({
   plugins: [new EveryPluginDevServer()],
-  externals: {
-    'sodium-native': 'commonjs sodium-native',
-    'require-addon': 'commonjs require-addon',
-  },
-  externalsType: 'commonjs',
 });

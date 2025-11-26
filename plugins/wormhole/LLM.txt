@@ -1,570 +1,224 @@
-# every-plugin Template Guide
+# Data Provider Plugin Template Guide
 
-This guide explains how to build plugins for the every-plugin framework. The template demonstrates a simple, clean pattern using plain TypeScript classes. Advanced patterns (background processing, queues, etc.) are covered at the end.
+This guide explains how to build data provider plugins for the NEAR Intents framework. Data provider plugins connect external bridge/cross-chain protocols to the NEAR Intents ecosystem, providing standardized access to volume metrics, asset listings, rate quotes, and liquidity data.
 
 ## Architecture Overview
 
-Every plugin consists of three core files:
+Every data provider plugin consists of four core files:
 
-1. **contract.ts** - Defines the plugin's public API using oRPC
-2. **service.ts** - Plain class that wraps your external API  
-3. **index.ts** - Wires everything together with createPlugin
+1. **contract.ts** - Defines provider-specific schemas and shared contract re-exports
+2. **client.ts** - HTTP client for external API communication with rate limiting
+3. **service.ts** - Business logic layer that calls provider APIs
+4. **index.ts** - Router layer with transformation functions and middleware
+
+## Data Provider Plugin Architecture
+
+Data provider plugins have a specialized architecture that handles the complexity of working with multiple data formats and external APIs. This section covers the patterns specific to data provider plugins.
+
+### Multi-Endpoint Architecture
+
+Data provider plugins expose 4 separate data endpoints plus a health check:
+
+- `getVolumes` - Volume metrics for time windows
+- `getListedAssets` - All supported assets
+- `getRates` - Rate quote for a route and amount
+- `getLiquidity` - Liquidity depth data for a route
+- `ping` - Health check endpoint
+
+Each endpoint can be tested and used independently, providing flexibility for different use cases.
+
+### Two-Format Architecture
+
+Data provider plugins work with two distinct data formats:
+
+**Provider Format** (internal):
+- Matches the external API's native format
+- Defined in `contract.ts` as `ProviderAsset` and `ProviderRoute`
+- Used exclusively by the service layer
+- Examples: `chainId` vs `chainName`, `domainId` for CCTP
+
+**NEAR Intents Format** (external):
+- Standardized format from `shared-contract`
+- What clients consume via the plugin API
+- Used by router layer for transformations
+- Consistent `blockchain`, `assetId` fields across all plugins
+
+### Layer Separation
+
+**Service Layer** (`service.ts`):
+- Works exclusively in provider format
+- Calls external APIs via the client layer
+- No knowledge of NEAR Intents format
+- Returns standardized internal types
+
+**Router Layer** (`index.ts`):
+- Handles transformation between formats
+- Uses middleware for automatic route transformation
+- Applies `transformAsset` to convert responses
+- Orchestrates the complete request/response flow
+
+### Middleware Pattern
+
+Data provider plugins use oRPC middleware to automatically transform routes:
+
+```typescript
+// Routes that need route transformation use middleware
+getRates: builder.getRates.use(transformRouteMiddleware).handler(...)
+getLiquidity: builder.getLiquidity.use(transformRouteMiddleware).handler(...)
+
+// Routes that don't need transformation work directly
+getVolumes: builder.getVolumes.handler(...)
+getListedAssets: builder.getListedAssets.handler(...)
+ping: builder.ping.handler(...)
+```
+
+The middleware automatically:
+1. Accepts canonical Asset format routes from clients
+2. Transforms route assets to provider-specific format
+3. Adds transformed route to handler context
+4. Passes it to service methods
+
+### Transformation Functions
+
+**transformRoute** (NEAR Intents → Provider):
+- Converts standardized routes to provider-specific format
+- Handles different chain identifiers (chainId, chainName, domainId)
+- Returns null for unsupported blockchains
+- Used by middleware before service calls
+
+**transformAsset** (Provider → NEAR Intents):
+- Converts provider assets to standardized format
+- Creates NEAR Intents `assetId` (nep141:address format)
+- Maps blockchain names and chain IDs
+- Used by router handlers on responses
+
+### Provider Schema Customization
+
+Different providers use different field names. Customize schemas in `contract.ts`:
+
+```typescript
+// Default (Across, cBridge, deBridge, Li.Fi)
+export const ProviderAsset = z.object({
+  chainId: z.string(), // Standard chain ID
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+
+// Axelar (uses chain names)
+export const ProviderAsset = z.object({
+  chainName: z.string(), // "ethereum" instead of "1"
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+
+// CCTP (uses domain IDs)
+export const ProviderAsset = z.object({
+  domainId: z.string(), // Circle's domain identifier
+  address: z.string().optional(),
+  symbol: z.string(),
+  decimals: z.number()
+});
+```
+
+### Complete Workflow
+
+```
+Client Request (NEAR Intents routes)
+    ↓
+Middleware (transformRoute: NEAR Intents → Provider)
+    ↓
+Service Layer (calls provider API in Provider format)
+    ↓
+API Response (Provider format data)
+    ↓
+Router Layer (transformAsset: Provider → NEAR Intents)
+    ↓
+Client Response (NEAR Intents format)
+```
+
+### Integration Testing
+
+Data provider plugins use integration tests that validate the full stack:
+
+```typescript
+describe('Plugin Integration', () => {
+  it('getRates transforms route and returns quotes', async () => {
+    const { client } = await runtime.usePlugin('@data-provider/template', {
+      variables: { baseUrl: 'http://test' },
+      secrets: { apiKey: 'test-key' }
+    });
+
+    const result = await client.getRates({
+      route: testRoutes[0], // Canonical Asset format
+      amount: '1000000'
+    });
+
+    // Validates complete transformation pipeline
+    expect(result.rates.length).toBeGreaterThan(0);
+    expect(result.rates[0].source.assetId).toMatch(/^1cs_v1:/);
+  });
+
+  it('getListedAssets returns canonical assets', async () => {
+    const { client } = await runtime.usePlugin('@data-provider/template', {
+      variables: { baseUrl: 'http://test' },
+      secrets: { apiKey: 'test-key' }
+    });
+
+    const result = await client.getListedAssets();
+
+    expect(result.assets.length).toBeGreaterThan(0);
+    expect(result.assets[0].assetId).toMatch(/^1cs_v1:/);
+    expect(result.measuredAt).toBeDefined();
+  });
+});
+```
+
+### Common Patterns
+
+**HTTP Client with Rate Limiting**:
+```typescript
+const http = createHttpClient({
+  baseUrl: 'https://api.provider.com',
+  headers: { 'Authorization': `Bearer ${apiKey}` },
+  rateLimiter: createRateLimiter(10), // 10 req/sec
+  timeout: 30000,
+  retries: 3
+});
+```
+
+**Error Handling**:
+```typescript
+getData(id: string) {
+  return Effect.tryPromise({
+    try: async () => {
+      const response = await this.client.callAPI(id);
+      if (response.status === 429) {
+        throw new Error('Rate limited');
+      }
+      return response.data;
+    },
+    catch: (error: unknown) => {
+      if (error instanceof Error && error.message.includes('Rate limited')) {
+        throw errors.RATE_LIMITED({ message: "API rate limit exceeded" });
+      }
+      throw errors.SERVICE_UNAVAILABLE({ message: error.message });
+    }
+  });
+}
+```
 
 ```
 plugins/your-plugin/
 ├── src/
-│   ├── contract.ts    # API contract (procedures, schemas)
-│   ├── service.ts     # Service class with Effect error handling
-│   ├── index.ts       # Plugin implementation (createPlugin)
-│   └── __tests__/     # Integration & unit tests
+│   ├── contract.ts    # Provider-specific schemas
+│   ├── client.ts      # HTTP client with rate limiting
+│   ├── service.ts     # Business logic layer
+│   └── index.ts       # Router with transformations
 ├── package.json
 ├── tsconfig.json
 └── README.md
-```
-
-## Step-by-Step: Building a Plugin
-
-### Step 1: Define Your Contract (contract.ts)
-
-The contract defines what procedures your plugin exposes.
-
-```typescript
-import { CommonPluginErrors } from "every-plugin";
-import { eventIterator, oc } from "every-plugin/orpc";
-import { z } from "every-plugin/zod";
-
-// Define schemas for your data types
-export const ItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  createdAt: z.string().datetime(),
-});
-
-// Create the contract
-export const contract = oc.router({
-  // Single item fetch
-  getById: oc
-    .route({ method: 'GET', path: '/items/{id}' })
-    .input(z.object({ id: z.string() }))
-    .output(z.object({ item: ItemSchema }))
-    .errors(CommonPluginErrors),
-
-  // Server-side streaming
-  search: oc
-    .route({ method: 'GET', path: '/search' })
-    .input(z.object({
-      query: z.string(),
-      limit: z.number().default(10)
-    }))
-    .output(eventIterator(z.object({
-      item: ItemSchema,
-      score: z.number()
-    })))
-    .errors(CommonPluginErrors),
-
-  // Health check
-  ping: oc
-    .route({ method: 'GET', path: '/ping' })
-    .output(z.object({ 
-      status: z.literal('ok'),
-      timestamp: z.string() 
-    }))
-    .errors(CommonPluginErrors),
-});
-```
-
-**Key Concepts:**
-- Use `z.object()` for complex types
-- Use `eventIterator()` for streaming procedures
-- Always include `.errors(CommonPluginErrors)` for standard error handling
-- Define meaningful HTTP methods and paths
-
-### Step 2: Create Your Service (service.ts)
-
-The service wraps your external API using a plain TypeScript class with Effect error handling:
-
-```typescript
-import { Effect } from "every-plugin/effect";
-import { z } from "every-plugin/zod";
-import type { ItemSchema } from "./contract";
-
-type Item = z.infer<typeof ItemSchema>;
-
-/**
- * Service that wraps your external API with Effect-based error handling.
- */
-export class YourService {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly apiKey: string,
-    private readonly timeout: number
-  ) {}
-
-  getById(id: string) {
-    return Effect.tryPromise({
-      try: async () => {
-        const response = await fetch(`${this.baseUrl}/items/${id}`, {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-          signal: AbortSignal.timeout(this.timeout)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Item ${id} not found`);
-        }
-        
-        const data = await response.json();
-        return {
-          id: data.id,
-          title: data.title,
-          createdAt: new Date(data.created_at).toISOString(),
-        } satisfies Item;
-      },
-      catch: (error: unknown) => 
-        new Error(`Failed to fetch item: ${error instanceof Error ? error.message : String(error)}`)
-    });
-  }
-
-  search(query: string, limit: number) {
-    return Effect.gen(function* () {
-      // Mock streaming search results  
-      const generator: AsyncGenerator<{ item: Item; score: number }> = (async function* () {
-        for (let i = 0; i < limit; i++) {
-          yield {
-            item: {
-              id: `${query}-${i}`,
-              title: `${query} result ${i + 1}`,
-              createdAt: new Date().toISOString(),
-            },
-            score: Math.max(0.1, 1 - i * 0.1),
-          };
-        }
-      })();
-      
-      return generator;
-    });
-  }
-
-  ping() {
-    return Effect.tryPromise({
-      try: async () => {
-        await fetch(`${this.baseUrl}/health`);
-        return {
-          status: "ok" as const,
-          timestamp: new Date().toISOString()
-        };
-      },
-      catch: (error: unknown) => 
-        new Error(`Health check failed: ${error instanceof Error ? error.message : String(error)}`)
-    });
-  }
-}
-```
-
-**Key Concepts:**
-- Plain class with constructor accepting config values
-- Use `Effect.tryPromise` to wrap async operations
-- Use `Effect.gen` for complex flows with multiple steps  
-- Return `AsyncGenerator` for streaming data
-- Always type `catch` parameter as `unknown` and handle safely
-- Use `satisfies` to ensure type safety
-
-### Step 3: Create the Plugin (index.ts)
-
-Wire everything together using `createPlugin`:
-
-```typescript
-import { createPlugin } from "every-plugin";
-import { Effect } from "every-plugin/effect";
-import { implement } from "every-plugin/orpc";
-import { z } from "every-plugin/zod";
-import { contract } from "./contract";
-import { YourService } from "./service";
-
-export default createPlugin({
-  variables: z.object({
-    baseUrl: z.string().url(),
-    timeout: z.number().default(10000),
-  }),
-  
-  secrets: z.object({
-    apiKey: z.string(),
-  }),
-  
-  contract,
-  
-  initialize: (config) =>
-    Effect.gen(function* () {
-      // Create service instance with config
-      const service = new YourService(
-        config.variables.baseUrl,
-        config.secrets.apiKey,
-        config.variables.timeout
-      );
-      
-      // Test the connection
-      yield* service.ping();
-      
-      return { service };
-    }),
-  
-  shutdown: () => Effect.void,
-  
-  createRouter: (context, builder) => {
-    const { service } = context;
-    // builder is already: implement(contract).$context<TContext>()
-
-    return {
-      getById: builder.getById.handler(async ({ input }) => {
-        const item = await Effect.runPromise(service.getById(input.id));
-        return { item };
-      }),
-
-      search: builder.search.handler(async function* ({ input }) {
-        const generator = await Effect.runPromise(
-          service.search(input.query, input.limit)
-        );
-
-        for await (const result of generator) {
-          yield result;
-        }
-      }),
-
-      ping: builder.ping.handler(async () => {
-        return await Effect.runPromise(service.ping());
-      }),
-    };
-  }
-});
-```
-
-**Key Concepts:**
-- Use `Effect.gen` with `yield*` in initialize
-- Create service with `new YourService(config...)`
-- Return a context object from initialize
-- Use `Effect.runPromise` to execute Effects in handlers
-- Streaming handlers use `async function*` and `yield` items
-
-## Advanced Patterns
-
-The template keeps things simple. Here are patterns you can add when needed:
-
-### Background Processing Patterns
-
-Plugins often need to continuously process data or broadcast events to multiple clients. Here are the two main approaches:
-
-#### Event Broadcasting with MemoryPublisher (Default for Streaming)
-
-**When to Use**: Broadcasting events to multiple consumers (pub/sub), streaming to HTTP clients, serverless compatibility.
-
-MemoryPublisher provides **broadcast semantics** - all subscribers receive the same events. This is the correct pattern for plugins that mount onto HTTP servers where multiple clients stream data from the same plugin instance.
-
-```typescript
-import { Effect } from "every-plugin/effect";
-import { MemoryPublisher } from "every-plugin/orpc";
-
-// Define event channels and their payloads
-type BackgroundEvents = {
-  'background-updates': {
-    id: string;
-    index: number;
-    timestamp: number;
-  };
-};
-
-// In initialize
-initialize: (config) =>
-  Effect.gen(function* () {
-    const service = new YourService(/* ... */);
-
-    // Create publisher for broadcasting events (scoped resource)
-    const publisher = new MemoryPublisher<BackgroundEvents>({
-      resumeRetentionSeconds: 60 * 2, // Retain events for 2 minutes to support resume
-    });
-
-    // Start background producer (auto-cleanup with forkScoped)
-    yield* Effect.forkScoped(
-      Effect.gen(function* () {
-        let i = 0;
-        while (true) {
-          i++;
-          // Poll external API or generate events
-          const event = {
-            id: `bg-${i}`,
-            index: i,
-            timestamp: Date.now(),
-          };
-
-          // Publish to all subscribers
-          yield* Effect.tryPromise(() =>
-            publisher.publish('background-updates', event)
-          ).pipe(
-            Effect.catchAll((error) => {
-              console.log(`Publish failed for event ${i}:`, error);
-              return Effect.void;
-            })
-          );
-
-          // Wait before next poll
-          yield* Effect.sleep("30 seconds");
-        }
-      })
-    );
-
-    return { service, publisher };
-  }),
-
-// In createRouter - subscribe to broadcast stream
-createRouter: (context, builder) => {
-  const { service, publisher } = context;
-
-  return {
-    // ... other handlers
-
-    // Background streaming with resume support and event metadata access
-    listenBackground: builder.listenBackground.handler(async function* ({
-      input,
-      signal,
-      lastEventId
-    }) {
-      let count = 0;
-      const maxResults = input.maxResults;
-      const iterator = publisher.subscribe('background-updates', {
-        signal,
-        lastEventId
-      });
-
-      for await (const event of iterator) {
-        if (maxResults && count >= maxResults) break;
-
-        // Optional: Access SSE metadata with getEventMeta(event)
-        // Provides: { id: string, retry: number, comments: string[] }
-
-        yield event;
-        count++;
-      }
-    }),
-
-    // Manual event publishing endpoint
-    enqueueBackground: builder.enqueueBackground.handler(async ({ input }) => {
-      const event = {
-        id: input.id || `manual-${Date.now()}`,
-        index: -1,
-        timestamp: Date.now(),
-      };
-
-      await publisher.publish('background-updates', event);
-      return { ok: true };
-    })
-  };
-}
-```
-
-**Key Benefits of MemoryPublisher:**
-- **Broadcast Semantics**: All connected clients get the same events
-- **Serverless Resume**: `lastEventId` + `resumeRetentionSeconds` support reconnection after timeouts
-- **Effect Integration**: Uses `Effect.acquireRelease` for lifecycle management
-- **Distributed Ready**: Drop-in replacement with Redis publishers for multi-instance scaling
-
-**Scaling to Redis:**
-```typescript
-// Development: MemoryPublisher (single instance)
-import { MemoryPublisher } from 'every-plugin/orpc';
-const publisher = new MemoryPublisher<Events>({ resumeRetentionSeconds: 120 });
-
-// Production: IORedisPublisher (multi-instance)
-import { IORedisPublisher } from 'every-plugin/orpc';
-import Redis from 'ioredis';
-const redis = new Redis(process.env.REDIS_URL);
-const publisher = new IORedisPublisher<Events>(redis, {
-  resumeRetentionSeconds: 120,
-  namespace: 'my-plugin'
-});
-```
-
-#### Work Distribution with Queues (Alternative Pattern)
-
-**When to Use**: Work distribution where each task is consumed by exactly one worker, job processing, scheduled tasks.
-
-Queue provides **work distribution semantics** - each item added to the queue gets consumed by one worker. Use this for background task processing, not for streaming to multiple clients.
-
-```typescript
-import { Effect, Queue } from "every-plugin/effect";
-
-// In initialize
-initialize: (config) =>
-  Effect.gen(function* () {
-    const service = new YourService(/* ... */);
-
-    // Create queue for work distribution (scoped resource)
-    const queue = yield* Effect.acquireRelease(
-      Queue.bounded(1000),
-      (q) => Queue.shutdown(q)
-    );
-
-    // Start background worker (one consumer)
-    yield* Effect.forkScoped(
-      Effect.gen(function* () {
-        while (true) {
-          // Take one item from queue (work distribution)
-          const task = yield* Queue.take(queue);
-
-          // Process task (exactly once semantics)
-          yield* service.processTask(task);
-
-          yield* Effect.yieldNow(); // Allow interruption
-        }
-      })
-    );
-
-    return { service, queue };
-  }),
-
-// In createRouter - enqueue work, not streaming
-const enqueueTask = builder.enqueueTask.handler(async ({ input }) => {
-  await Effect.runPromise(Queue.offer(context.queue, input.task));
-  return { queued: true };
-});
-```
-
-**Key Differences:**
-- **MemoryPublisher**: Broadcast all events to all subscribers (streaming pub/sub)
-- **Queue**: Distribute work - each item processed by one worker (job processing)
-
-**Important:**
-- Use `Effect.acquireRelease` for queue cleanup
-- Use `Effect.forkScoped` for background tasks (ensures cleanup)
-- Scoped resources are automatically cleaned up on shutdown
-
-### Error Handling
-
-Transform external errors to CommonPluginErrors:
-
-```typescript
-import { PluginConfigurationError } from "every-plugin";
-
-getById(id: string) {
-  return Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(`${this.baseUrl}/items/${id}`);
-      
-      if (response.status === 401) {
-        throw new PluginConfigurationError({
-          message: "Invalid API credentials",
-          retryable: false
-        });
-      }
-      
-      if (response.status === 429) {
-        throw new Error("Rate limited");
-      }
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      return await response.json();
-    },
-    catch: (error: unknown) => {
-      // Re-throw configuration errors
-      if (error instanceof PluginConfigurationError) throw error;
-      return new Error(`Fetch failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  });
-}
-
-// In createRouter - map to CommonPluginErrors
-const getById = builder.getById.handler(async ({ input, errors }) => {
-  try {
-    const item = await Effect.runPromise(service.getById(input.id));
-    return { item };
-  } catch (error) {
-    if (error instanceof PluginConfigurationError) {
-      throw errors.UNAUTHORIZED({
-        message: error.message,
-        data: { apiKeyProvided: true }
-      });
-    }
-
-    if (error instanceof Error && error.message.includes('Rate limited')) {
-      throw errors.RATE_LIMITED({
-        message: "API rate limit exceeded",
-        data: { retryAfter: 60, limitType: 'requests' as const }
-      });
-    }
-
-    throw errors.SERVICE_UNAVAILABLE({
-      message: error instanceof Error ? error.message : 'Unknown error',
-      data: { retryAfter: 30 }
-    });
-  }
-});
-```
-
-### Pagination with Streaming
-
-For APIs with cursor-based pagination:
-
-```typescript
-search(params: { query: string; limit: number; cursor?: string }) {
-  return Effect.gen(function* () {
-    const generator: AsyncGenerator<SearchResult> = (async function* () {
-      let cursor = params.cursor;
-      let fetched = 0;
-      
-      while (fetched < params.limit) {
-        const response = await fetch(
-          `${this.baseUrl}/search?q=${params.query}&cursor=${cursor || ''}`
-        );
-        const data = await response.json();
-        
-        for (const item of data.items) {
-          if (fetched >= params.limit) break;
-          yield transformItem(item);
-          fetched++;
-        }
-        
-        if (!data.next_cursor) break;
-        cursor = data.next_cursor;
-      }
-    })();
-    
-    return generator;
-  });
-}
-```
-
-### Webhook Mode
-
-For plugins that can operate via webhooks:
-
-```typescript
-// In contract.ts
-webhook: oc
-  .route({ method: 'POST', path: '/webhook' })
-  .input(WebhookPayloadSchema)
-  .output(z.object({ processed: z.boolean() }))
-  .errors(CommonPluginErrors),
-
-// In initialize - create queue for webhook events
-const webhookQueue = yield* Effect.acquireRelease(
-  Queue.bounded(1000),
-  (q) => Queue.shutdown(q)
-);
-
-// In createRouter
-const webhook = builder.webhook.handler(async ({ input }) => {
-  await Effect.runPromise(
-    Queue.offer(context.webhookQueue, transformWebhookData(input))
-  );
-  return { processed: true };
-});
-
-const stream = builder.stream.handler(async function* ({ input }) => {
-  while (true) {
-    const event = await Effect.runPromise(Queue.take(context.webhookQueue));
-    yield event;
-  }
-});
 ```
 
 ## Best Practices
@@ -603,54 +257,7 @@ const stream = builder.stream.handler(async function* ({ input }) => {
 - Validate all external inputs with Zod schemas
 - Use HTTPS for external API calls
 - Sanitize error messages
-- Use template injection for secrets ({{SECRET_NAME}})
-
-## Quick Reference
-
-### Minimal Plugin Structure
-
-```typescript
-// contract.ts
-export const contract = oc.router({
-  getData: oc.route({ method: 'GET', path: '/data' })
-    .input(z.object({ id: z.string() }))
-    .output(z.object({ data: DataSchema }))
-    .errors(CommonPluginErrors)
-});
-
-// service.ts
-export class MyService {
-  constructor(private apiKey: string, private baseUrl: string) {}
-  
-  getData(id: string) {
-    return Effect.tryPromise({
-      try: () => fetch(`${this.baseUrl}/data/${id}`).then(r => r.json()),
-      catch: (e: unknown) => new Error(`Failed: ${e}`)
-    });
-  }
-}
-
-// index.ts
-export default createPlugin({
-  variables: z.object({ apiUrl: z.string() }),
-  secrets: z.object({ apiKey: z.string() }),
-  contract,
-  initialize: (config) => Effect.gen(function* () {
-    const service = new MyService(config.secrets.apiKey, config.variables.apiUrl);
-    return { service };
-  }),
-  shutdown: () => Effect.void,
-  createRouter: (ctx, builder) => {
-    // builder is already: implement(contract).$context<TContext>()
-    return {
-      getData: builder.getData.handler(async ({ input }) => {
-        const data = await Effect.runPromise(ctx.service.getData(input.id));
-        return { data };
-      })
-    };
-  }
-});
-```
+- Use template injection for secrets ()
 
 ## Documentation & Deployment
 
@@ -690,7 +297,7 @@ const registry = {
 ```typescript
 const { client } = await runtime.usePlugin("my-org/my-plugin", {
   variables: { apiUrl: "https://api.external.com" },
-  secrets: { apiKey: "{{API_KEY}}" }
+  secrets: { apiKey: "" }
 });
 
 // Single query
@@ -752,7 +359,7 @@ const runtime = createLocalPluginRuntime(
 **Remote Production Registry:**
 Deploy to a CDN/hosting service, then register:
 
-```javascript
+```typescript
 // Method 1: Localhost for testing
 const runtime = createPluginRuntime({
   registry: {
@@ -776,7 +383,7 @@ const runtime = createPluginRuntime({
 // Same usage API for both!
 const { client } = await runtime.usePlugin("my-org/my-plugin", {
   variables: { timeout: 30000 },
-  secrets: { apiKey: "{{PROD_API_KEY}}" }  // Template injection
+  secrets: { apiKey: "" }  // Template injection
 });
 ```
 
@@ -803,14 +410,7 @@ Once deployed, share the `remoteUrl` so others can add to their registries.
 2. Update `contract.ts` with your API procedures
 3. Implement `service.ts` with your external API client
 4. Wire everything in `index.ts`
-5. Add tests in `__tests__/`
+5. Add tests in `tests`
 6. Update `package.json` with dependencies
 7. Build with `npm run build`
 8. Test with `createLocalPluginRuntime`
-
-## Related Examples
-
-- **[telegram](../telegram/)** - Webhook + polling modes, background processing
-- **[gopher-ai](../gopher-ai/)** - LLM API integration  
-- **[test-plugin](../../packages/core/__tests__/test-plugin/)** - Testing patterns
-- **[patterns.mdx](../../apps/docs/content/docs/plugins/patterns.mdx)** - More patterns and examples

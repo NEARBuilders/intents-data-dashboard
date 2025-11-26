@@ -9,50 +9,153 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LayoutRouteImport } from './routes/_layout'
+import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
+import { Route as LayoutVolumesRouteImport } from './routes/_layout/volumes'
+import { Route as LayoutSwapsRouteImport } from './routes/_layout/swaps'
+import { Route as LayoutAssetsRouteImport } from './routes/_layout/assets'
+import { Route as ApiAnalyticsEventsRouteImport } from './routes/api/analytics/events'
 
-const IndexRoute = IndexRouteImport.update({
+const LayoutRoute = LayoutRouteImport.update({
+  id: '/_layout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LayoutIndexRoute = LayoutIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutVolumesRoute = LayoutVolumesRouteImport.update({
+  id: '/volumes',
+  path: '/volumes',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSwapsRoute = LayoutSwapsRouteImport.update({
+  id: '/swaps',
+  path: '/swaps',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAssetsRoute = LayoutAssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const ApiAnalyticsEventsRoute = ApiAnalyticsEventsRouteImport.update({
+  id: '/api/analytics/events',
+  path: '/api/analytics/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/assets': typeof LayoutAssetsRoute
+  '/swaps': typeof LayoutSwapsRoute
+  '/volumes': typeof LayoutVolumesRoute
+  '/': typeof LayoutIndexRoute
+  '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/assets': typeof LayoutAssetsRoute
+  '/swaps': typeof LayoutSwapsRoute
+  '/volumes': typeof LayoutVolumesRoute
+  '/': typeof LayoutIndexRoute
+  '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_layout': typeof LayoutRouteWithChildren
+  '/_layout/assets': typeof LayoutAssetsRoute
+  '/_layout/swaps': typeof LayoutSwapsRoute
+  '/_layout/volumes': typeof LayoutVolumesRoute
+  '/_layout/': typeof LayoutIndexRoute
+  '/api/analytics/events': typeof ApiAnalyticsEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/assets' | '/swaps' | '/volumes' | '/' | '/api/analytics/events'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/assets' | '/swaps' | '/volumes' | '/' | '/api/analytics/events'
+  id:
+    | '__root__'
+    | '/_layout'
+    | '/_layout/assets'
+    | '/_layout/swaps'
+    | '/_layout/volumes'
+    | '/_layout/'
+    | '/api/analytics/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  LayoutRoute: typeof LayoutRouteWithChildren
+  ApiAnalyticsEventsRoute: typeof ApiAnalyticsEventsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_layout': {
+      id: '/_layout'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof LayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_layout/': {
+      id: '/_layout/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof LayoutIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/volumes': {
+      id: '/_layout/volumes'
+      path: '/volumes'
+      fullPath: '/volumes'
+      preLoaderRoute: typeof LayoutVolumesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/swaps': {
+      id: '/_layout/swaps'
+      path: '/swaps'
+      fullPath: '/swaps'
+      preLoaderRoute: typeof LayoutSwapsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/assets': {
+      id: '/_layout/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof LayoutAssetsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/api/analytics/events': {
+      id: '/api/analytics/events'
+      path: '/api/analytics/events'
+      fullPath: '/api/analytics/events'
+      preLoaderRoute: typeof ApiAnalyticsEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
+interface LayoutRouteChildren {
+  LayoutAssetsRoute: typeof LayoutAssetsRoute
+  LayoutSwapsRoute: typeof LayoutSwapsRoute
+  LayoutVolumesRoute: typeof LayoutVolumesRoute
+  LayoutIndexRoute: typeof LayoutIndexRoute
+}
+
+const LayoutRouteChildren: LayoutRouteChildren = {
+  LayoutAssetsRoute: LayoutAssetsRoute,
+  LayoutSwapsRoute: LayoutSwapsRoute,
+  LayoutVolumesRoute: LayoutVolumesRoute,
+  LayoutIndexRoute: LayoutIndexRoute,
+}
+
+const LayoutRouteWithChildren =
+  LayoutRoute._addFileChildren(LayoutRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  LayoutRoute: LayoutRouteWithChildren,
+  ApiAnalyticsEventsRoute: ApiAnalyticsEventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

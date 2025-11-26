@@ -2,24 +2,27 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 
-import { contract } from "./contract";
-import { DataProviderService } from "./service";
+import { createProviderRouter } from "@data-provider/plugin-utils";
+import { DeBridgeApiClient } from "./client";
+import { contract } from "@data-provider/shared-contract";
+import { DeBridgeService } from "./service";
 
 /**
  * deBridge DLN Data Provider Plugin
  *
- * Collects cross-chain bridge metrics from deBridge Liquidity Network.
+ * Provides cross-chain bridge metrics from deBridge Liquidity Network (DLN).
  * deBridge enables fast, single-transaction cross-chain swaps without locking assets.
- * 
- * Features:
- * - Production-grade rate limiting (Bottleneck)
- * - Precise decimal arithmetic (decimal.js)
- * - Exponential backoff with jitter
- * - Comprehensive error handling
+ *
+ * Key Features:
+ * - DefiLlama integration for volume metrics
+ * - Comprehensive asset listing from supported-chains-info API
+ * - Single-call liquidity detection using maxTheoreticalAmount
+ * - Accurate fee calculation from USD value differences
+ * - Rate limiting and automatic retries
  */
 export default createPlugin({
   variables: z.object({
-    baseUrl: z.string().url().default("https://dln.debridge.finance/v1.0"),
+    baseUrl: z.string().url().default("https://dln.debridge.finance"),
     defillamaBaseUrl: z.string().url().default("https://bridges.llama.fi"),
     timeout: z.number().min(1000).max(60000).default(30000),
     maxRequestsPerSecond: z.number().min(1).max(100).default(10),
@@ -31,28 +34,17 @@ export default createPlugin({
 
   contract,
 
-  initialize: (config: any) =>
+  initialize: (config) =>
     Effect.gen(function* () {
-      // Create service instance with config
-      const service = new DataProviderService(
+      const client = new DeBridgeApiClient(
         config.variables.baseUrl,
         config.variables.defillamaBaseUrl,
-        config.secrets?.apiKey ?? "not-required",
+        config.secrets.apiKey,
         config.variables.timeout,
         config.variables.maxRequestsPerSecond
       );
 
-      // Test the connection during initialization, but don't fail hard in dev environments.
-      yield* Effect.catchAll(
-        service.ping(),
-        (error) =>
-          Effect.sync(() => {
-            console.warn(
-              "[deBridge] Ping failed during initialization:",
-              error instanceof Error ? error.message : String(error),
-            );
-          }),
-      );
+      const service = new DeBridgeService(client);
 
       return { service };
     }),
@@ -61,18 +53,6 @@ export default createPlugin({
 
   createRouter: (context, builder) => {
     const { service } = context;
-
-    return {
-      getSnapshot: builder.getSnapshot.handler(async ({ input }) => {
-        const snapshot = await Effect.runPromise(
-          service.getSnapshot(input)
-        );
-        return snapshot;
-      }),
-
-      ping: builder.ping.handler(async () => {
-        return await Effect.runPromise(service.ping());
-      }),
-    };
+    return createProviderRouter(service, builder);
   }
 });

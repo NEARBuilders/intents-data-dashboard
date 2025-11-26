@@ -1,48 +1,58 @@
 import type {
+  AssetType,
   LiquidityDepthType,
   RateType,
   RouteType,
   TimeWindow,
-  VolumeWindowType,
-  SnapshotType
+  VolumeWindowType
 } from '@data-provider/shared-contract';
 
 /**
  * Base service class that all data provider plugins should extend.
- * Provides type-safe interfaces for provider-specific operations.
+ * 
+ * @template TAsset - The asset type used by this service (defaults to canonical AssetType).
+ * Plugins working with provider-specific formats should pass their asset type, while
+ * plugins using canonical formats can use the default.
  */
-export abstract class DataProviderService<TProviderAsset> {
+export abstract class DataProviderService<TAsset = AssetType> {
+  /**
+   * Transform canonical AssetType to provider-specific asset format.
+   * Used for input conversion (e.g., middleware transformations).
+   */
+  abstract transformAssetToProvider(asset: AssetType): Promise<TAsset>;
+
+  /**
+   * Transform provider-specific asset to canonical AssetType format.
+   * Used for output conversion (e.g., response transformations).
+   */
+  abstract transformAssetFromProvider(asset: TAsset): Promise<AssetType>;
+
   /**
    * Get volume metrics for the specified time windows.
+   * Optionally filter by specific route.
    */
-  abstract getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]>;
+  abstract getVolumes(windows: TimeWindow[], route?: RouteType<TAsset>): Promise<VolumeWindowType[]>;
 
   /**
    * Get list of assets supported by this provider.
+   * The asset format depends on the TAsset generic parameter.
    */
-  abstract getListedAssets(): Promise<TProviderAsset[]>;
+  abstract getListedAssets(): Promise<TAsset[]>;
 
   /**
-   * Get rate quotes for route/notional combinations.
+   * Get rate quote for route with specific amount.
+   * The asset format in route depends on the TAsset generic parameter.
    */
   abstract getRates(
-    routes: RouteType<TProviderAsset>[],
-    notionals: string[]
-  ): Promise<RateType<TProviderAsset>[]>;
+    route: RouteType<TAsset>,
+    amount: string
+  ): Promise<RateType<TAsset>[]>;
 
   /**
-   * Get liquidity depth information for routes.
+   * Get liquidity depth information for route.
+   * The asset format in route depends on the TAsset generic parameter.
    */
   abstract getLiquidityDepth(
-    routes: RouteType<TProviderAsset>[]
-  ): Promise<LiquidityDepthType<TProviderAsset>[]>;
-
-  /**
-   * Get complete snapshot of all data types.
-   */
-  abstract getSnapshot(params: {
-    routes: RouteType<TProviderAsset>[];
-    notionals?: string[];
-    includeWindows?: TimeWindow[];
-  }): Promise<SnapshotType<TProviderAsset>>;
+    route: RouteType<TAsset>
+  ): Promise<LiquidityDepthType<TAsset>[]>;
 }

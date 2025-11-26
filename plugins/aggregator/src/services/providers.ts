@@ -5,12 +5,14 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "across",
     label: "Across",
     category: "Intent-based Bridge",
-    supportedData: ["volumes", "assets"],
+    logoUrl: "/images/provider-icons/across.png",
+    supportedData: ["volumes", "assets", "rates", "liquidity"],
   },
   {
     id: "axelar",
     label: "Axelar",
     category: "GMP",
+    logoUrl: "/images/provider-icons/axelar.png",
     supportedData: ["volumes"],
   },
   {
@@ -23,13 +25,14 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "ccip",
     label: "CCIP (Chainlink)",
     category: "GMP",
-    supportedData: ["volumes"],
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "celer",
     label: "Celer cBridge",
     category: "Pool-based Bridge",
-    supportedData: ["volumes"],
+    logoUrl: "/images/provider-icons/cbridge.png",
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "chainflip",
@@ -41,12 +44,14 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "circle_cctp",
     label: "Circle CCTP",
     category: "Other Bridge",
+    logoUrl: "/images/provider-icons/cctp.png",
     supportedData: ["volumes"],
   },
   {
     id: "debridge",
     label: "deBridge (DLN)",
     category: "Intent-based Bridge",
+    logoUrl: "/images/provider-icons/debridge.png",
     supportedData: [],
   },
   {
@@ -71,7 +76,8 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "layerzero",
     label: "LayerZero",
     category: "GMP",
-    supportedData: ["volumes"],
+    logoUrl: "/images/provider-icons/layerzero.png",
+    supportedData: ["volumes", "assets"],
   },
   {
     id: "mayan",
@@ -89,7 +95,8 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "near_intents",
     label: "NEAR Intents",
     category: "Intent-based Bridge",
-    supportedData: ["volumes", "assets"],
+    logoUrl: "/images/provider-icons/near_intents.png",
+    supportedData: ["volumes", "assets", "rates", "liquidity"],
   },
   {
     id: "oneinch",
@@ -131,6 +138,7 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "wormhole",
     label: "Wormhole",
     category: "GMP",
+    logoUrl: "/images/provider-icons/wormhole.png",
     supportedData: ["volumes"],
   },
   {
@@ -143,6 +151,7 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "lifi",
     label: "LiFi",
     category: "Bridge Aggregator",
+    logoUrl: "/images/provider-icons/lifi.png",
     supportedData: ["volumes"],
   },
   {

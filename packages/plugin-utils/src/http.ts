@@ -51,23 +51,40 @@ export class HttpClient {
 
     return pRetry(
       () => this.config.rateLimiter.schedule(async () => {
+        const fetchHeaders: Record<string, string> = { ...headers };
+        
+        if (params.body !== undefined) {
+          fetchHeaders['Content-Type'] = 'application/json';
+        }
+
         const response = await fetch(fullUrl, {
           method: params.method,
-          headers: {
-            'Content-Type': 'application/json',
-            ...headers
-          },
+          headers: fetchHeaders,
           body: params.body ? JSON.stringify(params.body) : undefined,
           signal: AbortSignal.timeout(timeout)
         });
 
         // Don't retry 4xx errors (except 429 rate limit)
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          throw new AbortError(`HTTP ${response.status}`);
+          let errorBody = '';
+          try {
+            const text = await response.text();
+            errorBody = text.slice(0, 500);
+          } catch (e) {
+            errorBody = response.statusText;
+          }
+          throw new AbortError(`HTTP ${response.status}: ${errorBody}`);
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          let errorBody = '';
+          try {
+            const text = await response.text();
+            errorBody = text.slice(0, 500);
+          } catch (e) {
+            errorBody = response.statusText;
+          }
+          throw new Error(`HTTP ${response.status}: ${errorBody}`);
         }
 
         return response.json() as T;

@@ -2,66 +2,50 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 
-import { contract } from "./contract";
-import { DataProviderService } from "./service";
-import { HttpUtils } from "./utils/http";
+import { createProviderRouter } from "@data-provider/plugin-utils";
+import { LiFiApiClient } from "./client";
+import { contract } from "@data-provider/shared-contract";
+import { LiFiService } from "./service";
 
 /**
- * Data Provider Plugin Template - Template for building single-provider bridge data adapters.
+ * Li.Fi Data Provider Plugin
  *
- * This template demonstrates how to implement the data provider contract for one provider.
- * Choose ONE provider (LayerZero, Wormhole, CCTP, Across, deBridge, Axelar, Li.Fi) and
- * replace the mock implementation with actual API calls.
- * 
+ * Li.Fi is a cross-chain bridge aggregator that routes transfers across multiple bridges.
+ * This plugin integrates with Li.Fi API v1 and v2 to collect volume, rates, and liquidity data.
+ *
+ * Key features:
+ * - Multi-chain support across 20+ networks
+ * - Analytics API for real volume metrics
+ * - Quote API for rate estimation
+ * - Public API (no authentication required)
  */
 export default createPlugin({
   variables: z.object({
     baseUrl: z.string().url().default("https://li.quest/v1"),
-    // Rate limiter settings (make per-provider limits configurable via ENV)
-    rateLimitConcurrency: z.number().int().min(1).default(5),
-    rateLimitMinTimeMs: z.number().int().min(0).default(200),
+    timeout: z.number().min(1000).max(60000).default(10000),
   }),
 
-  // Li.Fi public endpoints do not require authentication
-  secrets: z.object({}).optional(),
+  secrets: z.object({}),
 
   contract,
 
-  initialize: (config: any) =>
+  initialize: (config) =>
     Effect.gen(function* () {
-      // Configure HTTP rate limiter from variables before creating the service
-      HttpUtils.configure({
-        maxConcurrent: config.variables.rateLimitConcurrency,
-        minTime: config.variables.rateLimitMinTimeMs,
-      });
-
-      // Create service instance with config
-      const service = new DataProviderService(
-        config.variables.baseUrl
+      const client = new LiFiApiClient(
+        config.variables.baseUrl,
+        config.variables.timeout
       );
 
-      // Test the connection during initialization
-      yield* service.ping();
+      const service = new LiFiService(client);
 
       return { service };
     }),
 
   shutdown: () => Effect.void,
 
-  createRouter: (context: any, builder: any) => {
-    const { service } = context as { service: any };
+  createRouter: (context, builder) => {
+    const { service } = context;
 
-    return {
-      getSnapshot: builder.getSnapshot.handler(async ({ input }: any) => {
-        const snapshot = await Effect.runPromise(
-          service.getSnapshot(input)
-        );
-        return snapshot;
-      }),
-
-      ping: builder.ping.handler(async () => {
-        return await Effect.runPromise(service.ping());
-      }),
-    };
+    return createProviderRouter(service, builder);
   }
 });

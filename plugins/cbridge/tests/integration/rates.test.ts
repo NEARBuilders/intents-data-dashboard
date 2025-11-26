@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getPluginClient, testRoutes, testNotionals } from "../setup";
+import { getPluginClient, testRoutes } from "../setup";
 
 describe("Rate Quotes", () => {
-  it("returns quotes for all route/notional combinations", async () => {
+  it("returns quote for route and amount", async () => {
     const client = await getPluginClient();
     const result = await client.getRates({
-      routes: [testRoutes[0]!],
-      notionals: testNotionals
+      route: testRoutes[0]!,
+      amount: "1000000"
     });
 
     console.log("\n💰 Rates:", JSON.stringify({
@@ -14,8 +14,7 @@ describe("Rate Quotes", () => {
       sample: result.rates.slice(0, 2).map(r => ({
         amountIn: r.amountIn,
         amountOut: r.amountOut,
-        effectiveRate: r.effectiveRate,
-        totalFeesUsd: r.totalFeesUsd
+        effectiveRate: r.effectiveRate
       }))
     }, null, 2));
 
@@ -26,9 +25,6 @@ describe("Rate Quotes", () => {
       expect(rate.amountIn).toBeDefined();
       expect(rate.amountOut).toBeDefined();
       expect(rate.effectiveRate).toBeGreaterThan(0);
-      if (rate.totalFeesUsd !== null) {
-        expect(rate.totalFeesUsd).toBeGreaterThanOrEqual(0);
-      }
       expect(rate.quotedAt).toBeDefined();
     });
   });

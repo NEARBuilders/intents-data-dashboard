@@ -15,18 +15,25 @@
       "@orpc/client": "^1.10.0",
       "@orpc/openapi": "^1.10.0",
       "@orpc/zod": "^1.10.0",
-      "every-plugin": "0.4.13"
+      "every-plugin": "0.4.17"
     }
   },
   "scripts": {
     "dev": "turbo dev --filter='./apps/*'",
     "dev:plugins": "turbo build --filter='./packages/*' && turbo dev --filter='./plugins/*'",
     "build": "turbo build",
-    "check-types": "turbo check-types"
+    "check-types": "turbo check-types",
+    "generate": "bun plop"
   },
   "devDependencies": {
-    "turbo": "^2.5.4",
-    "@types/node": "^22.13.11"
+    "@types/node": "^22.13.11",
+    "plop": "^4.0.4",
+    "turbo": "^2.5.4"
   },
-  "packageManager": "bun@1.3.0"
+  "packageManager": "bun@1.3.0",
+  "dependencies": {
+    "@types/bun": "^1.3.3",
+    "every-plugin": "^0.4.17",
+    "near-kit": "^0.4.4"
+  }
 }

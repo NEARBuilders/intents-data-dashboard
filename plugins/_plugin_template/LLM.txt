@@ -15,15 +15,15 @@ Every data provider plugin consists of four core files:
 
 Data provider plugins have a specialized architecture that handles the complexity of working with multiple data formats and external APIs. This section covers the patterns specific to data provider plugins.
 
-### Multi-Route Architecture
+### Multi-Endpoint Architecture
 
-Unlike simple plugins with one endpoint, data provider plugins expose 5 separate endpoints:
+Data provider plugins expose 4 separate data endpoints plus a health check:
 
 - `getVolumes` - Volume metrics for time windows
 - `getListedAssets` - All supported assets
-- `getRates` - Rate quotes for route/notional combinations
-- `getLiquidity` - Liquidity depth data
-- `getSnapshot` - Composite endpoint combining all data types
+- `getRates` - Rate quote for a route and amount
+- `getLiquidity` - Liquidity depth data for a route
+- `ping` - Health check endpoint
 
 Each endpoint can be tested and used independently, providing flexibility for different use cases.
 
@@ -63,20 +63,20 @@ Data provider plugins use oRPC middleware to automatically transform routes:
 
 ```typescript
 // Routes that need route transformation use middleware
-getRates: builder.getRates.use(transformRoutesMiddleware).handler(...)
-getLiquidity: builder.getLiquidity.use(transformRoutesMiddleware).handler(...)
-getSnapshot: builder.getSnapshot.use(transformRoutesMiddleware).handler(...)
+getRates: builder.getRates.use(transformRouteMiddleware).handler(...)
+getLiquidity: builder.getLiquidity.use(transformRouteMiddleware).handler(...)
 
 // Routes that don't need transformation work directly
 getVolumes: builder.getVolumes.handler(...)
 getListedAssets: builder.getListedAssets.handler(...)
+ping: builder.ping.handler(...)
 ```
 
 The middleware automatically:
-1. Accepts NEAR Intents format routes from clients
-2. Calls `transformRoute` to convert to provider format
-3. Adds transformed routes to handler context
-4. Passes them to service methods
+1. Accepts canonical Asset format routes from clients
+2. Transforms route assets to provider-specific format
+3. Adds transformed route to handler context
+4. Passes it to service methods
 
 ### Transformation Functions
 
@@ -144,21 +144,33 @@ Data provider plugins use integration tests that validate the full stack:
 
 ```typescript
 describe('Plugin Integration', () => {
-  it('getSnapshot transforms routes and returns data', async () => {
+  it('getRates transforms route and returns quotes', async () => {
     const { client } = await runtime.usePlugin('@data-provider/template', {
       variables: { baseUrl: 'http://test' },
       secrets: { apiKey: 'test-key' }
     });
 
-    const result = await client.getSnapshot({
-      routes: testRoutes, // NEAR Intents format
-      notionals: testNotionals,
-      includeWindows: ['24h']
+    const result = await client.getRates({
+      route: testRoutes[0], // Canonical Asset format
+      amount: '1000000'
     });
 
     // Validates complete transformation pipeline
-    expect(result.volumes).toBeDefined();
-    expect(result.listedAssets.assets[0].assetId).toMatch(/^nep141:/);
+    expect(result.rates.length).toBeGreaterThan(0);
+    expect(result.rates[0].source.assetId).toMatch(/^1cs_v1:/);
+  });
+
+  it('getListedAssets returns canonical assets', async () => {
+    const { client } = await runtime.usePlugin('@data-provider/template', {
+      variables: { baseUrl: 'http://test' },
+      secrets: { apiKey: 'test-key' }
+    });
+
+    const result = await client.getListedAssets();
+
+    expect(result.assets.length).toBeGreaterThan(0);
+    expect(result.assets[0].assetId).toMatch(/^1cs_v1:/);
+    expect(result.measuredAt).toBeDefined();
   });
 });
 ```

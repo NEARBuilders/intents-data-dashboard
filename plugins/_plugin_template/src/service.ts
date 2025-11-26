@@ -1,28 +1,30 @@
-import { DataProviderService as BaseDataProviderService } from "@data-provider/plugin-utils";
-import { ProviderApiClient } from "./client";
+import { DataProviderService as BaseDataProviderService, assetToCanonicalIdentity, canonicalToAsset, getChainIdFromBlockchain } from "@data-provider/plugin-utils";
+import type { AssetType } from "@data-provider/shared-contract";
+import { ProviderApiClient, ProviderAssetType } from "./client";
 import type {
   LiquidityDepthType,
-  ProviderAssetType,
   RateType,
   RouteType,
-  SnapshotType,
   TimeWindow,
   VolumeWindowType
-} from "./contract";
+} from "@data-provider/shared-contract";
 
 /**
  * Service Layer for Data Provider Business Logic
  *
- * This layer implements the core business logic for interacting with data provider APIs.
+ * This layer implements core business logic for interacting with data provider APIs.
  * Key characteristics:
- * - Works exclusively in provider-specific format (ProviderAssetType, ProviderRouteType)
- * - No knowledge of NEAR Intents format - that's handled by the router layer
+ * - Works exclusively in provider-specific format (ProviderAssetType)
  * - Each method maps directly to a provider API endpoint
- * - Returns standardized internal types with generic provider asset types
+ * - Returns data in provider format
  *
  * Architecture Flow:
- * Client Input (NEAR Intents) → Router (transformRoute) → Service (Provider format) → API Response
- * API Response → Service (standardize) → Router (transformAsset) → Client Output (NEAR Intents)
+ * 1. Router receives canonical asset IDs from client
+ * 2. Router converts canonical → provider format
+ * 3. Service queries provider API with provider format
+ * 4. Service returns data in provider format
+ * 5. Router converts provider → canonical format
+ * 6. Router returns canonical asset IDs to client
  */
 export class DataProviderService extends BaseDataProviderService<ProviderAssetType> {
   constructor(private readonly client: ProviderApiClient) {
@@ -30,9 +32,41 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   }
 
   /**
+   * Transform canonical AssetType to provider-specific format.
+   * Canonical 1cs_v1 → Provider (for middleware/requests)
+   */
+  async transformAssetToProvider(asset: AssetType): Promise<ProviderAssetType> {
+    const identity = await assetToCanonicalIdentity(asset);
+    const chainId = getChainIdFromBlockchain(identity.blockchain);
+    if (!chainId) {
+      throw new Error(`Unsupported chain: ${identity.blockchain}`);
+    }
+    return {
+      chainId: chainId.toString(),
+      address: identity.reference
+    };
+  }
+
+  /**
+   * Transform provider-specific asset to canonical AssetType format.
+   * Provider → Canonical 1cs_v1 (for responses)
+   */
+  async transformAssetFromProvider(asset: ProviderAssetType): Promise<AssetType> {
+    const identity = await assetToCanonicalIdentity({
+      chainId: asset.chainId,
+      address: asset.address!
+    });
+
+    return canonicalToAsset(identity, {
+      symbol: asset.symbol!,
+      decimals: asset.decimals!
+    });
+  }
+
+  /**
    * Fetch volume metrics for specified time windows.
    */
-  async getVolumes(windows: TimeWindow[]): Promise<VolumeWindowType[]> {
+  async getVolumes(windows: TimeWindow[], route?: RouteType<ProviderAssetType>): Promise<VolumeWindowType[]> {
     const response = await this.client.fetchVolumes(windows);
     return response.volumes.map(volume => ({
       window: volume.window as TimeWindow,
@@ -43,6 +77,7 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
 
   /**
    * Fetch list of assets supported by the provider.
+   * Returns provider-specific asset format.
    */
   async getListedAssets(): Promise<ProviderAssetType[]> {
     const response = await this.client.fetchAssets();
@@ -55,46 +90,20 @@ export class DataProviderService extends BaseDataProviderService<ProviderAssetTy
   }
 
   /**
-   * Fetch rate quotes for route/notional combinations.
+   * Fetch rate quotes for route/amount combination.
+   * Accepts provider-specific route format.
    * TODO: Implement provider's quote API endpoint
    */
-  async getRates(routes: RouteType<ProviderAssetType>[], notionals: string[]): Promise<RateType<ProviderAssetType>[]> {
+  async getRates(route: RouteType<ProviderAssetType>, amount: string): Promise<RateType<ProviderAssetType>[]> {
     return [];
   }
 
   /**
    * Fetch liquidity depth at 50bps and 100bps thresholds.
+   * Accepts provider-specific route format.
    * TODO: Implement provider's liquidity API or simulate with quotes
    */
-  async getLiquidityDepth(routes: RouteType<ProviderAssetType>[]): Promise<LiquidityDepthType<ProviderAssetType>[]> {
+  async getLiquidityDepth(route: RouteType<ProviderAssetType>): Promise<LiquidityDepthType<ProviderAssetType>[]> {
     return [];
-  }
-
-  /**
- * Get complete snapshot of provider data for given provider-formatted routes and notionals.
- * This is a coordinator method that calls the individual methods.
- * Returns provider format - transformation to NEAR Intents happens in router layer.
- */
-  async getSnapshot(params: {
-    routes: RouteType<ProviderAssetType>[];
-    notionals?: string[];
-    includeWindows?: TimeWindow[];
-  }): Promise<SnapshotType<ProviderAssetType>> {
-    const [volumes, listedAssets, rates, liquidity] = await Promise.all([
-      this.getVolumes(params.includeWindows || ["24h"]),
-      this.getListedAssets(),
-      params.notionals ? this.getRates(params.routes, params.notionals) : Promise.resolve([]),
-      this.getLiquidityDepth(params.routes)
-    ]);
-
-    return {
-      volumes,
-      listedAssets: {
-        assets: listedAssets,
-        measuredAt: new Date().toISOString()
-      },
-      ...(rates.length > 0 && { rates }),
-      ...(liquidity.length > 0 && { liquidity }),
-    };
   }
 }

@@ -11,6 +11,8 @@ import { toast } from "sonner";
 
 export const SERVER_URL = `${import.meta.env.VITE_SERVER_URL ?? "http://localhost:8787"}/api/rpc`;
 
+export const ASSET_ENRICHMENT_URL = `${import.meta.env.VITE_ASSET_ENRICHMENT_URL ?? "http://localhost:6767"}/api/rpc`;
+
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
@@ -83,6 +85,57 @@ const getORPCClient = createIsomorphicFn()
     return createORPCClient(link);
   });
 
+const getAssetEnrichmentClient = createIsomorphicFn()
+  .server(() => {
+    const link = new RPCLink({
+      url: ASSET_ENRICHMENT_URL,
+      headers: () => getRequestHeaders(),
+      interceptors: [
+        onError((error) => {
+          console.error("oRPC Asset-Enrichment Server Error:", error);
+          throw error;
+        }),
+      ],
+      fetch(url, options) {
+        return fetch(url, {
+          ...options,
+          credentials: "include",
+        });
+      },
+    });
+
+    return createORPCClient(link);
+  })
+  .client(() => {
+    const link = new RPCLink({
+      url: ASSET_ENRICHMENT_URL,
+      plugins: [
+        new BatchLinkPlugin({
+          exclude: ({ path }) => path[0] === 'sse',
+          groups: [{
+            condition: () => true,
+            context: {},
+          }],
+        }),
+      ],
+      interceptors: [
+        onError((error) => {
+          console.error("oRPC Asset-Enrichment Client Error:", error);
+        }),
+      ],
+      fetch(url, options) {
+        return fetch(url, {
+          ...options,
+          credentials: "include",
+        });
+      },
+    });
+
+    return createORPCClient(link);
+  });
+
 export const client: AppRouterClient = getORPCClient();
+
+export const assetEnrichmentClient  = getAssetEnrichmentClient();
 
 export const orpc = createTanstackQueryUtils(client);

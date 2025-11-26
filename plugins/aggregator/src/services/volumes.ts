@@ -1,7 +1,8 @@
-import { Effect } from "every-plugin/effect";
 import type { DuneClient } from "@duneanalytics/client-sdk";
+import { Effect } from "every-plugin/effect";
+import type { DailyVolumeType, ProviderIdentifier } from "../contract";
+import type { AssetType } from "@data-provider/shared-contract";
 import { ProviderIdentifierEnum } from "../contract";
-import type { ProviderIdentifier, AssetType, DailyVolumeType } from "../contract";
 import { RedisService } from "./redis";
 
 export interface DuneVolumeRow {
@@ -175,7 +176,7 @@ export function filterVolumeData(
 
   return {
     providers: filteredProviders,
-    data: filteredData  as Record<ProviderIdentifier, DailyVolumeType[]>,
+    data: filteredData as Record<ProviderIdentifier, DailyVolumeType[]>,
     aggregateTotal: rawData.aggregateTotal.filter(item =>
       (!filters.startDate || item.date >= filters.startDate) &&
       (!filters.endDate || item.date <= filters.endDate)
@@ -208,27 +209,27 @@ export function getVolumes(
 ): Effect.Effect<VolumeResult, Error> {
   return Effect.gen(function* () {
     const cacheKey = `volumes:raw:${JSON.stringify(input)}`;
-    
+
     if (redisService) {
       const cached = yield* redisService.get<VolumeResult>(cacheKey);
       if (cached) {
         return cached;
       }
     }
-    
+
     const queryResult = yield* Effect.tryPromise({
       try: () => duneClient.getLatestResult({ queryId: 5487957 }),
       catch: (error) => new Error(`Failed to fetch Dune data: ${error}`)
     });
-    
+
     const rawData = queryResult.result?.rows || [];
     const transformedData = transformDuneVolumeData(rawData as DuneVolumeRow[]);
     const filteredData = filterVolumeData(transformedData, input);
-    
+
     if (redisService) {
       yield* redisService.set(cacheKey, filteredData, 86400);
     }
-    
+
     return filteredData;
   });
 }
@@ -272,13 +273,13 @@ function aggregateByGranularity(
   if (granularity === "daily") {
     return dailyVolumes;
   }
-  
+
   const aggregated: Map<string, number> = new Map();
-  
+
   for (const volume of dailyVolumes) {
     const date = new Date(volume.date);
     let key: string;
-    
+
     if (granularity === "weekly") {
       const startOfWeek = new Date(date);
       startOfWeek.setDate(date.getDate() - date.getDay());
@@ -286,11 +287,11 @@ function aggregateByGranularity(
     } else {
       key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
     }
-    
+
     const current = aggregated.get(key) || 0;
     aggregated.set(key, current + volume.volumeUsd);
   }
-  
+
   return Array.from(aggregated.entries())
     .map(([date, volumeUsd]) => ({ date, volumeUsd }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -302,7 +303,7 @@ export function aggregateVolumes(
 ): AggregatedVolumeResult {
   const days = getDaysForPeriod(period);
   const granularity = getGranularityForPeriod(period);
-  
+
   let filteredData = volumeData;
   if (days !== null) {
     const cutoffDate = new Date();
@@ -310,9 +311,9 @@ export function aggregateVolumes(
     const cutoffStr = cutoffDate.toISOString().split('T')[0]!;
     filteredData = volumeData.filter(v => v.date >= cutoffStr);
   }
-  
+
   const aggregatedData = aggregateByGranularity(filteredData, granularity);
-  
+
   let cumulativeVolume = 0;
   const dataPoints: AggregatedDataPoint[] = aggregatedData.map(point => {
     cumulativeVolume += point.volumeUsd;
@@ -322,11 +323,11 @@ export function aggregateVolumes(
       cumulativeVolume,
     };
   });
-  
-  const totalVolume = dataPoints.length > 0 
+
+  const totalVolume = dataPoints.length > 0
     ? (dataPoints[dataPoints.length - 1]?.cumulativeVolume ?? 0)
     : 0;
-  
+
   return {
     totalVolume,
     dataPoints,

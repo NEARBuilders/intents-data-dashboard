@@ -1,4 +1,9 @@
-import { oc } from "every-plugin/orpc";
+import {
+  Asset,
+  LiquidityDepth,
+  Rate
+} from "@data-provider/shared-contract";
+import { oc, type InferContractRouterInputs } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 
 export const ProviderIdentifierEnum = z.enum([
@@ -24,50 +29,17 @@ export const IsoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
-export const Asset = z.object({
-  blockchain: z.string(),
-  assetId: z.string(),
-  symbol: z.string(),
-  decimals: z.number().int().min(0),
-  contractAddress: z.string().optional(),
-  iconUrl: z.string().url().optional(),
-});
-export type AssetType = z.infer<typeof Asset>;
-
 export const ProviderInfo = z.object({
   id: ProviderIdentifierEnum,
   label: z.string().describe("Human-friendly display name, e.g., 'NEAR Intents'"),
   category: CategoryEnum,
-  logoUrl: z.string().url().optional().describe("URL for the provider's logo"),
+  logoUrl: z.string().optional().describe("URL for the provider's logo"),
   supportedData: z
     .array(DataTypeEnum)
     .describe("List of data types this provider supports."),
 });
 export type ProviderInfoType = z.infer<typeof ProviderInfo>;
 
-export const Rate = z.object({
-  source: Asset,
-  destination: Asset,
-  amountIn: z.string(),
-  amountOut: z.string(),
-  effectiveRate: z.number(),
-  totalFeesUsd: z.number().nullable(),
-  quotedAt: z.iso.datetime(),
-});
-export type RateType = z.infer<typeof Rate>;
-
-export const LiquidityDepthPoint = z.object({
-  maxAmountIn: z.string(),
-  slippageBps: z.number(),
-});
-export type LiquidityDepthPointType = z.infer<typeof LiquidityDepthPoint>;
-
-export const LiquidityDepth = z.object({
-  route: z.object({ source: Asset, destination: Asset }),
-  thresholds: z.array(LiquidityDepthPoint),
-  measuredAt: z.iso.datetime(),
-});
-export type LiquidityDepthType = z.infer<typeof LiquidityDepth>;
 
 export const DailyVolume = z.object({
   date: IsoDate,
@@ -108,10 +80,29 @@ export type AggregatedVolumeDataType = z.infer<typeof AggregatedVolumeData>;
 export const TimePeriodEnum = z.enum(["7d", "30d", "90d", "all"]);
 export type TimePeriod = z.infer<typeof TimePeriodEnum>;
 
-export const RateData = createProviderDataSchema(Rate);
+export const EnrichedRate = Rate.extend({
+  amountInUsd: z.number().optional().describe("USD value of input amount"),
+  amountOutUsd: z.number().optional().describe("USD value of output amount"),
+  totalFeesUsd: z.number().optional().describe("Estimated total fees in USD"),
+});
+export type EnrichedRateType = z.infer<typeof EnrichedRate>;
+
+export const RateData = createProviderDataSchema(EnrichedRate);
 export type RateDataType = z.infer<typeof RateData>;
 
-export const LiquidityData = createProviderDataSchema(LiquidityDepth);
+export const EnrichedLiquidityThreshold = z.object({
+  maxAmountIn: z.string().describe("Maximum input amount in smallest units"),
+  maxAmountInUsd: z.number().optional().describe("USD value of maximum input amount"),
+  slippageBps: z.number().describe("Slippage in basis points"),
+});
+export type EnrichedLiquidityThresholdType = z.infer<typeof EnrichedLiquidityThreshold>;
+
+export const EnrichedLiquidityDepth = LiquidityDepth.extend({
+  thresholds: z.array(EnrichedLiquidityThreshold),
+});
+export type EnrichedLiquidityDepthType = z.infer<typeof EnrichedLiquidityDepth>;
+
+export const LiquidityData = createProviderDataSchema(EnrichedLiquidityDepth);
 export type LiquidityDataType = z.infer<typeof LiquidityData>;
 
 export const ListedAssetsData = createProviderDataSchema(Asset);
@@ -154,7 +145,7 @@ export const contract = oc.router({
     )
     .output(
       z.object({
-        status: z.literal("sync_initiated"),
+        status: z.literal("started"),
         timestamp: z.iso.datetime(),
       })
     )
@@ -277,16 +268,16 @@ export const contract = oc.router({
       method: "POST",
       path: "/rates",
       summary: "Rates",
-      description: "Get quoted exchange rates for specified routes and notional amounts across providers.",
+      description: "Get quoted exchange rates for a specific route with a specific amount across providers.",
     })
     .input(
       z.object({
-        routes: z
-          .array(z.object({ source: Asset, destination: Asset }))
-          .describe("Array of routes to quote."),
-        notionals: z
-          .array(z.string())
-          .describe("Array of input amounts (as strings to preserve precision)."),
+        route: z
+          .object({ source: Asset, destination: Asset })
+          .describe("Route to quote."),
+        amount: z
+          .string()
+          .describe("Input amount (as string to preserve precision)."),
         providers: z
           .array(ProviderIdentifierEnum)
           .optional()
@@ -309,13 +300,13 @@ export const contract = oc.router({
       method: "POST",
       path: "/liquidity",
       summary: "Liquidity",
-      description: "Retrieve liquidity depth information for specified routes, showing slippage at different order sizes.",
+      description: "Retrieve liquidity depth information for a specific route, showing slippage at different order sizes.",
     })
     .input(
       z.object({
-        routes: z
-          .array(z.object({ source: Asset, destination: Asset }))
-          .describe("Array of routes to check liquidity for."),
+        route: z
+          .object({ source: Asset, destination: Asset })
+          .describe("Route to check liquidity for."),
         providers: z
           .array(ProviderIdentifierEnum)
           .optional()
@@ -334,3 +325,5 @@ export const contract = oc.router({
       },
     }),
 });
+
+export type ContractInputs = InferContractRouterInputs<typeof contract>;

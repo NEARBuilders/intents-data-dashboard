@@ -1,5 +1,19 @@
 import { createHttpClient, createRateLimiter, type HttpClient } from '@data-provider/plugin-utils';
 import type { QuoteRequest, QuoteResponse, TokenResponse } from '@defuse-protocol/one-click-sdk-typescript';
+import { z } from 'every-plugin/zod';
+
+export const IntentsAsset = z.object({
+  blockchain: z.string(),            // NEAR Intents blockchain enum
+  intentsAssetId: z.string(),       // 1Click / NEAR Intents provider-specific asset ID
+  symbol: z.string(),              // Token symbol
+  decimals: z.number(),            // Token decimals
+  contractAddress: z.string().optional(), // Contract address
+  price: z.number().optional(),           // USD price (from 1Click)
+  priceUpdatedAt: z.string().optional(),  // Price timestamp
+});
+
+export type IntentsAssetType = z.infer<typeof IntentsAsset>;
+
 
 /**
  * DefiLlama DEX Volume Summary Response for NEAR Intents
@@ -64,7 +78,7 @@ export interface OneClickTokensResponse {
  * HTTP client that wraps both 1Click and Explorer APIs.
  * Handles all HTTP communication with retry logic, rate limiting, and error handling.
  */
-export class ProviderApiClient {
+export class IntentsClient {
   private readonly oneClickHttp: HttpClient;
   private readonly explorerHttp: HttpClient;
   private readonly llamaHttp: HttpClient;

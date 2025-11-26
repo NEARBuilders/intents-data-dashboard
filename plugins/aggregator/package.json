@@ -9,7 +9,18 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@data-provider/asset-enrichment": "workspace:*",
+    "@data-provider/across": "workspace:*",
+    "@data-provider/axelar": "workspace:*",
+    "@data-provider/cbridge": "workspace:*",
+    "@data-provider/cctp": "workspace:*",
+    "@data-provider/debridge": "workspace:*",
+    "@data-provider/layerzero": "workspace:*",
+    "@data-provider/lifi": "workspace:*",
+    "@data-provider/near-intents": "workspace:*",
+    "@data-provider/shared-contract": "workspace:*",
     "@data-provider/template": "workspace:*",
+    "@data-provider/wormhole": "workspace:*",
     "@effect/language-service": "^0.41.1",
     "@module-federation/node": "^2.7.17",
     "@rspack/cli": "^1.5.2",
@@ -34,6 +45,7 @@
   "dependencies": {
     "@defuse-protocol/crosschain-assetid": "^1.0.2",
     "@duneanalytics/client-sdk": "^0.3.4",
+    "@orpc/client": "^1.11.3",
     "ioredis": "^5.8.2"
   }
 }

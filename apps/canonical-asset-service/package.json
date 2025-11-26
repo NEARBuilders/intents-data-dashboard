@@ -1,0 +1,28 @@
+{
+  "name": "canonical-asset-service",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run src/index.ts",
+    "build": "tsc --noEmit",
+    "start": "bun run src/index.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@orpc/client": "^1.11.3",
+    "@orpc/openapi": "^1.10.3",
+    "@orpc/server": "^1.10.0",
+    "@orpc/zod": "^1.10.3",
+    "@t3-oss/env-core": "^0.13.8",
+    "cron": "^4.3.4",
+    "dotenv": "^17.2.3",
+    "hono": "^4.10.4",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@data-provider/api": "workspace:*",
+    "@data-provider/asset-enrichment": "workspace:*",
+    "@types/bun": "^1.3.1",
+    "typescript": "^5.9.0"
+  }
+}

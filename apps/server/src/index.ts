@@ -11,7 +11,15 @@ import { createContext, createRouter, initializePlugins } from '@data-provider/a
 import { serverEnv } from './env'
 
 const plugins = await initializePlugins({
-  secrets: { REDIS_URL: serverEnv.REDIS_URL, DUNE_API_KEY: serverEnv.DUNE_API_KEY, NEAR_INTENTS_API_KEY: serverEnv.NEAR_INTENTS_API_KEY, COINMARKETCAP_API_KEY: serverEnv.COINMARKETCAP_API_KEY },
+  secrets: {
+    REDIS_URL: serverEnv.REDIS_URL,
+    
+    DUNE_API_KEY: serverEnv.DUNE_API_KEY,
+    NEAR_INTENTS_API_KEY: serverEnv.NEAR_INTENTS_API_KEY,
+
+    DATABASE_URL: serverEnv.DATABASE_URL,
+    DATABASE_AUTH_TOKEN: serverEnv.DATABASE_AUTH_TOKEN
+  },
   isDevelopment: serverEnv.NODE_ENV !== 'production'
 });
 

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@data-provider/api": "workspace:*",
+    "@libsql/client": "^0.15.15",
     "@orpc/openapi": "^1.10.3",
     "@orpc/server": "^1.10.0",
     "@orpc/zod": "^1.10.3",

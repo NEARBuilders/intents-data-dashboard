@@ -5,12 +5,12 @@
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "type": "module",
-  "dependencies": {
-    "@wormhole-foundation/sdk": "^3.11.0",
-    "@data-provider/plugin-utils": "workspace:*"
-  },
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@data-provider/plugin-utils": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.3"
   },
   "devDependencies": {
     "@data-provider/shared-contract": "workspace:*",
@@ -31,10 +31,8 @@
     "build": "rspack build",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
     "dev": "rspack serve",
-    "test": "vitest run; vitest run --config vitest.integration.config.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
     "coverage": "vitest run --coverage"
   }
 }

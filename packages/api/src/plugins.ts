@@ -1,30 +1,31 @@
 import { createPluginRuntime } from "every-plugin";
+import type AggregatorPlugin from "@data-provider/aggregator";
 
-// TODO: central in repository
-const PLUGIN_URLS = {
-  production: {
-    "@data-provider/aggregator": "https://elliot-braem-628-data-provider-aggregator-data-pr-4344b1f9d-ze.zephyrcloud.app/remoteEntry.js",
-  },
-  development: {
-    "@data-provider/aggregator": "http://localhost:3014/remoteEntry.js",
+declare module "every-plugin" {
+  interface RegisteredPlugins {
+    "@data-provider/aggregator": typeof AggregatorPlugin;
   }
+}
+
+const PLUGIN_URLS = {
+  "@data-provider/aggregator": "https://elliot-braem-935-data-provider-aggregator-data-pr-124dc64bd-ze.zephyrcloud.app/remoteEntry.js",
 } as const;
 
 export async function initializePlugins(config: {
-  secrets: { REDIS_URL: string, DUNE_API_KEY: string, NEAR_INTENTS_API_KEY: string, COINMARKETCAP_API_KEY: string },
-  isDevelopment?: boolean,
-  registry?: typeof PLUGIN_URLS
+  secrets: {
+    REDIS_URL: string,
+    DUNE_API_KEY: string,
+    NEAR_INTENTS_API_KEY: string,
+    ASSET_ENRICHMENT_URL: string,
+  },
 }) {
-  const urls = (config.registry || PLUGIN_URLS)[config.isDevelopment ? 'development' : 'production'];
-
   const runtime = createPluginRuntime({
     registry: {
-      "@data-provider/aggregator": { remoteUrl: urls["@data-provider/aggregator"] },
+      "@data-provider/aggregator": { remoteUrl: PLUGIN_URLS["@data-provider/aggregator"] },
     },
     secrets: config.secrets,
   });
 
-  // @ts-ignore 
   const aggregator = await runtime.usePlugin("@data-provider/aggregator", {
     variables: {},
     secrets: config.secrets,

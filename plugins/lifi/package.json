@@ -1,7 +1,7 @@
 {
   "name": "@data-provider/lifi",
-  "version": "0.0.2",
-  "description": "Li.Fi bridge data adapter for NEAR Intents",
+  "version": "0.0.1",
+  "description": "Template plugin for every-plugin framework",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "type": "module",
@@ -9,7 +9,9 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@data-provider/plugin-utils": "workspace:*"
+    "@data-provider/plugin-utils": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.3",
+    "decimal.js": "^10.6.0"
   },
   "devDependencies": {
     "@data-provider/shared-contract": "workspace:*",
@@ -30,10 +32,8 @@
     "build": "rspack build",
     "type-check": "tsc -p tsconfig.build.json --noEmit",
     "dev": "rspack serve",
-    "test": "vitest run; vitest run --config vitest.integration.config.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
     "coverage": "vitest run --coverage"
   }
 }

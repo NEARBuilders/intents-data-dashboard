@@ -2,14 +2,15 @@
   "name": "@data-provider/template",
   "version": "0.0.1",
   "description": "Template plugin for every-plugin framework",
-	"main": "./dist/index.js",
-	"types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
   "type": "module",
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@data-provider/plugin-utils": "workspace:*"
+    "@data-provider/plugin-utils": "workspace:*",
+    "@defuse-protocol/crosschain-assetid": "^1.0.3"
   },
   "devDependencies": {
     "@data-provider/shared-contract": "workspace:*",

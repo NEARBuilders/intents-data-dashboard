@@ -38,12 +38,11 @@ export default {
   config: {
     // NEAR Intents data provider configuration
     variables: {
-      oneClickBaseUrl: "https://1click.chaindefuser.com",
-      explorerBaseUrl: "https://explorer.near-intents.org",
+      baseUrl: "https://1click.chaindefuser.com",
       timeout: 30000
     },
     secrets: {
-      apiKey: process.env.PLUGIN_API_KEY // Leave undefined for anonymous access
+      apiKey: process.env.NEAR_INTENTS_API_KEY // Leave undefined for anonymous access
     }
   } satisfies PluginConfigInput<typeof Plugin>
 }
