@@ -6,7 +6,7 @@ export async function aggregateRates(
   providers: Partial<Record<ProviderIdentifier, any>>,
   input: {
     routes: Array<{ source: AssetType; destination: AssetType }>;
-    notionals: string[];
+    amount: string;
     targetProviders: ProviderIdentifier[];
   },
   assetSupportIndex: Map<string, Set<ProviderIdentifier>>
@@ -37,7 +37,7 @@ export async function aggregateRates(
       try {
         const result = await client.getRates({
           routes,
-          notionals: input.notionals
+          amount: input.amount
         });
         return { providerId, rates: result.rates };
       } catch (error) {

@@ -1,7 +1,6 @@
 import { ComparisonTable } from "@/components/dashboard/comparison-table";
 import { MetricsTable } from "@/components/dashboard/metrics-table";
 import { SwapPairSelector } from "@/components/dashboard/swap-pair-selector";
-import { useAggregatorAssets } from "@/lib/aggregator/hooks";
 import { useQueryErrorResetBoundary } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -9,6 +8,13 @@ import {
 } from "@tanstack/react-router";
 import { Suspense, useEffect, useMemo } from "react";
 import { z } from "zod";
+import { useAtom } from "@effect-atom/atom-react";
+import {
+  sourceAssetAtom,
+  destAssetAtom,
+  selectedProviderAtom,
+  compareEnabledAtom,
+} from "@/store/swap";
 
 const searchSchema = z
   .object({
@@ -62,11 +68,14 @@ export const Route = createFileRoute("/_layout/swaps")({
 
 function SwapsPage() {
   const search = Route.useSearch();
-  const navigate = Route.useNavigate();
   const loaderData = Route.useLoaderData();
+  
+  const [sourceAsset] = useAtom(sourceAssetAtom);
+  const [destAsset] = useAtom(destAssetAtom);
+  const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom);
+  const [compareEnabled, setCompareEnabled] = useAtom(compareEnabledAtom);
 
   const providersData = loaderData.providers;
-  const { uniqueAssets } = useAggregatorAssets();
 
   const assetProviders = useMemo(
     () =>
@@ -77,33 +86,18 @@ function SwapsPage() {
     [providersData]
   );
 
-  const selectedProvider =
-    search.provider || (assetProviders.length > 0 ? assetProviders[0].id : "");
+  useEffect(() => {
+    const defaultProvider = search.provider || (assetProviders.length > 0 ? assetProviders[0].id : "");
+    if (defaultProvider !== selectedProvider) {
+      setSelectedProvider(defaultProvider);
+    }
+  }, [search.provider, assetProviders, selectedProvider, setSelectedProvider]);
 
-  const sourceAsset = useMemo(
-    () => uniqueAssets.find((a) => a.assetId === search.source) ?? null,
-    [uniqueAssets, search.source]
-  );
-
-  const destAsset = useMemo(
-    () => uniqueAssets.find((a) => a.assetId === search.destination) ?? null,
-    [uniqueAssets, search.destination]
-  );
-
-  const selectedRoute = useMemo(() => {
-    if (!sourceAsset || !destAsset) return null;
-
-    return {
-      source: sourceAsset,
-      destination: destAsset,
-    };
-  }, [sourceAsset, destAsset]);
-
-  const handleProviderChange = (provider: string) => {
-    navigate({
-      search: (prev) => ({ ...prev, provider }),
-    });
-  };
+  useEffect(() => {
+    if (search.source !== sourceAsset?.assetId || search.destination !== destAsset?.assetId) {
+      setCompareEnabled(false);
+    }
+  }, [search.source, search.destination, sourceAsset?.assetId, destAsset?.assetId, setCompareEnabled]);
 
   return (
     <div className="w-full h-full">
@@ -119,25 +113,18 @@ function SwapsPage() {
       </section>
 
       <Suspense fallback={<ComparisonTableSkeleton />}>
-        <ComparisonTable
-          selectedProvider={selectedProvider}
-          onProviderChange={handleProviderChange}
-          providersInfo={providersData?.providers || []}
-          selectedRoute={selectedRoute}
-        />
+        <ComparisonTable />
       </Suspense>
       
       <Suspense fallback={<SwapPairSelectorSkeleton />}>
         <SwapPairSelector />
       </Suspense>
       
-      <Suspense fallback={<MetricsTableSkeleton />}>
-        <MetricsTable
-          selectedProvider={selectedProvider}
-          providersInfo={providersData?.providers || []}
-          selectedRoute={selectedRoute}
-        />
-      </Suspense>
+      {compareEnabled && (
+        <Suspense fallback={<MetricsTableSkeleton />}>
+          <MetricsTable />
+        </Suspense>
+      )}
     </div>
   );
 }

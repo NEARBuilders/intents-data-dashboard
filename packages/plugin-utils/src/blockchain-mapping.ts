@@ -512,3 +512,38 @@ export function getChainNamespace(
     return { namespace: 'native', reference: 'coin' };
   }
 }
+
+/**
+ * Get a default recipient address for quoting on a given blockchain
+ * Returns a valid placeholder address for simulation purposes
+ */
+export function getDefaultRecipient(blockchain: string): string {
+  const normalizedSlug = blockchain.toLowerCase() as NonEvmBlockchain;
+
+  switch (normalizedSlug) {
+    case 'sol':
+      return '11111111111111111111111111111111';
+    case 'near':
+      return 'system.near';
+    case 'aptos':
+      return '0x1';
+    case 'stellar':
+      return 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+    case 'ton':
+      return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
+    case 'btc':
+      return '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';
+    case 'tron':
+      return 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
+    case 'cardano':
+      return 'addr1qxy3w7l3v5wm0lqnpvw4w4wl3w5wm0lqnpvw4w4wl3w5wm0lqnpvw4w4wl3w5wm0lqnpvw4w4wl3w5wm0lqnpvw4sqqqqq';
+    case 'xrp':
+      return 'rNFB1oxEiSLXL3KWx1A7R5dA1wGFCt4L2k';
+    case 'dot':
+    case 'cosmos':
+    case 'osmo':
+      return 'cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0dyhf';
+    default:
+      return '0x0000000000000000000000000000000000000000';
+  }
+}

@@ -43,13 +43,14 @@ export class DataAggregatorService {
   }
 
   private async enrichAsset(asset: AssetType): Promise<AssetType> {
-    if (asset.assetId) {
+    const id = asset.assetId;
+
+    if (id && id.startsWith("1cs_v1:")) {
       try {
-        const enriched = await this.assetEnrichmentClient.fromCanonicalId({ assetId: asset.assetId });
-        return enriched;
+        return await this.assetEnrichmentClient.fromCanonicalId({ assetId: id });
       } catch (error: any) {
         const errorMsg = error?.message ?? String(error);
-        console.warn(`[Aggregator] Failed to enrich asset from ID ${asset.assetId}: ${errorMsg}`);
+        console.warn(`[Aggregator] Failed to enrich asset from ID ${id}: ${errorMsg}`);
         return asset;
       }
     }
@@ -64,8 +65,7 @@ export class DataAggregatorService {
     };
 
     try {
-      const enriched = await this.assetEnrichmentClient.enrich(descriptor);
-      return enriched;
+      return await this.assetEnrichmentClient.enrich(descriptor);
     } catch (error: any) {
       const errorMsg = error?.message ?? String(error);
       console.warn(`[Aggregator] Failed to enrich asset ${asset.symbol ?? asset.assetId}: ${errorMsg}`);
@@ -256,7 +256,7 @@ export class DataAggregatorService {
       source: AssetType;
       destination: AssetType;
     }>;
-    notionals: string[];
+    amount: string;
     providers?: ProviderIdentifier[];
   }): Promise<{
     providers: ProviderIdentifier[];

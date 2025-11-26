@@ -1,4 +1,4 @@
-import { assetToCanonicalIdentity, DataProviderService as BaseDataProviderService, calculateEffectiveRate, canonicalToAsset, getChainIdFromBlockchain } from '@data-provider/plugin-utils';
+import { assetToCanonicalIdentity, DataProviderService as BaseDataProviderService, calculateEffectiveRate, canonicalToAsset, getChainIdFromBlockchain, getBlockchainFromChainId, getDefaultRecipient } from '@data-provider/plugin-utils';
 import type { AssetType } from "@data-provider/shared-contract";
 import { AcrossApiClient, AcrossAssetType } from './client';
 
@@ -120,49 +120,54 @@ export class AcrossService extends BaseDataProviderService<AcrossAssetType> {
   }
 
   /**
-   * Fetch rate quotes for route/notional combinations.
+   * Fetch rate quote for route with specific amount.
    *
-   * Uses Across suggested-fees API to get detailed fee breakdown.
+   * Uses Across /swap/approval API to get accurate output amounts including swap impact.
    * All amounts are kept in smallest units (wei) as per contract specification.
    */
   async getRates(
     route: RouteType<AcrossAssetType>,
-    notionals: string[]
+    amount: string
   ): Promise<RateType<AcrossAssetType>[]> {
     const rates: RateType<AcrossAssetType>[] = [];
 
-    for (const notional of notionals) {
-      try {
-        const fees = await this.client.fetchSuggestedFees({
-          inputToken: route.source.address,
-          outputToken: route.destination.address,
-          originChainId: route.source.chainId,
-          destinationChainId: route.destination.chainId,
-          amount: notional
-        });
+    const destinationBlockchain = getBlockchainFromChainId(route.destination.chainId);
+    if (!destinationBlockchain) {
+      console.error(`[Across] Unable to resolve blockchain for chainId ${route.destination.chainId}`);
+      return rates;
+    }
 
-        const amountInWei = BigInt(notional);
-        const relayFeeWei = BigInt(fees.totalRelayFee.total);
-        const amountOutWei = amountInWei - relayFeeWei;
+    const recipient = getDefaultRecipient(destinationBlockchain);
+    const depositor = getDefaultRecipient('eth');
 
-        const effectiveRate = calculateEffectiveRate(
-          amountInWei.toString(),
-          amountOutWei.toString(),
-          route.source.decimals,
-          route.destination.decimals
-        );
+    try {
+      const approval = await this.client.fetchApproval({
+        inputToken: route.source.address,
+        outputToken: route.destination.address,
+        originChainId: route.source.chainId,
+        destinationChainId: route.destination.chainId,
+        amount,
+        depositor,
+        recipient
+      });
 
-        rates.push({
-          source: route.source,
-          destination: route.destination,
-          amountIn: amountInWei.toString(),
-          amountOut: amountOutWei.toString(),
-          effectiveRate,
-          quotedAt: new Date().toISOString(),
-        });
-      } catch (error) {
-        console.error(`[Across] Failed to get rate for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
-      }
+      const effectiveRate = calculateEffectiveRate(
+        approval.inputAmount,
+        approval.expectedOutputAmount,
+        route.source.decimals,
+        route.destination.decimals
+      );
+
+      rates.push({
+        source: route.source,
+        destination: route.destination,
+        amountIn: approval.inputAmount,
+        amountOut: approval.expectedOutputAmount,
+        effectiveRate,
+        quotedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error(`[Across] Failed to get rate for ${route.source.symbol} -> ${route.destination.symbol}:`, error);
     }
 
     return rates;

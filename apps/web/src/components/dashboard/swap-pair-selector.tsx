@@ -1,222 +1,160 @@
+import { Input } from "@/components/ui/input";
 import {
-  useAggregatorAssets,
   useBlockchains,
+  useCanonicalAssets,
   type Network,
 } from "@/lib/aggregator/hooks";
 import { logEvent } from "@/lib/analytics";
 import { Route } from "@/routes/_layout/swaps";
-import type { Asset } from "@/types/common";
+import {
+  amountAtom,
+  compareEnabledAtom,
+  destAssetAtom,
+  selectedProviderAtom,
+  sourceAssetAtom,
+} from "@/store/swap";
+import type { ProviderIdentifier } from "@data-provider/aggregator/src/contract";
+import { useAtom } from "@effect-atom/atom-react";
 import { useEffect, useMemo, useState } from "react";
 import { AssetSelect } from "./asset-select";
 import { NetworkSelect } from "./network-select";
-
-function getBlockchainsForSymbol(assets: Asset[], symbol: string): string[] {
-  const upper = symbol.toUpperCase();
-  const chains = new Set(
-    assets
-      .filter((a) => a.symbol.toUpperCase() === upper)
-      .map((a) => a.blockchain)
-      .filter(Boolean)
-  );
-  return Array.from(chains).sort();
-}
 
 export const SwapPairSelector = () => {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
 
-  const { uniqueAssets, isLoading: assetsLoading } = useAggregatorAssets();
-  const { data: canonicalNetworks, isLoading: networksLoading } =
-    useBlockchains();
+  const [selectedProvider] = useAtom(selectedProviderAtom);
+  const [sourceAsset, setSourceAsset] = useAtom(sourceAssetAtom);
+  const [destAsset, setDestAsset] = useAtom(destAssetAtom);
+  const [amount, setAmount] = useAtom(amountAtom);
+  const [compareEnabled, setCompareEnabled] = useAtom(compareEnabledAtom);
+
+  const handleCompare = () => {
+    setCompareEnabled(true);
+  };
+
+  const providers: ProviderIdentifier[] = useMemo(() => {
+    const providerList: ProviderIdentifier[] = ["near_intents"];
+    if (selectedProvider && selectedProvider !== "near_intents") {
+      providerList.push(selectedProvider as ProviderIdentifier);
+    }
+    return providerList;
+  }, [selectedProvider]);
+
+  const {
+    byChain,
+    byId,
+    chains,
+    isLoading: assetsLoading,
+  } = useCanonicalAssets(providers);
+  const { data: allNetworks, isLoading: networksLoading } = useBlockchains();
+
+  const [selectedFromChain, setSelectedFromChain] = useState<string>("");
+  const [selectedToChain, setSelectedToChain] = useState<string>("");
+
+  const fromAssets = useMemo(() => {
+    return byChain.get(selectedFromChain) || [];
+  }, [byChain, selectedFromChain]);
+
+  const toAssets = useMemo(() => {
+    return byChain.get(selectedToChain) || [];
+  }, [byChain, selectedToChain]);
+
+  const networksForFromChain = useMemo(() => {
+    if (!allNetworks) return [];
+    return allNetworks.filter((n: Network) => chains.includes(n.blockchain));
+  }, [allNetworks, chains]);
+
+  const networksForToChain = useMemo(() => {
+    if (!allNetworks) return [];
+    return allNetworks.filter((n: Network) => chains.includes(n.blockchain));
+  }, [allNetworks, chains]);
 
   const sourceAssetId = search.source;
   const destAssetId = search.destination;
 
-  const sourceAssetFromUrl = useMemo(() => {
+  const selectedFromAsset = useMemo(() => {
     if (!sourceAssetId) return null;
-    return uniqueAssets.find((a) => a.assetId === sourceAssetId) ?? null;
-  }, [sourceAssetId, uniqueAssets]);
+    return byId.get(sourceAssetId)?.asset ?? null;
+  }, [sourceAssetId, byId]);
 
-  const destAssetFromUrl = useMemo(() => {
+  const selectedToAsset = useMemo(() => {
     if (!destAssetId) return null;
-    return uniqueAssets.find((a) => a.assetId === destAssetId) ?? null;
-  }, [destAssetId, uniqueAssets]);
-
-  const effectiveSourceAsset = useMemo(() => {
-    return sourceAssetFromUrl ?? uniqueAssets[0] ?? null;
-  }, [sourceAssetFromUrl, uniqueAssets]);
-
-  const effectiveDestAsset = useMemo(() => {
-    return destAssetFromUrl ?? uniqueAssets[1] ?? uniqueAssets[0] ?? null;
-  }, [destAssetFromUrl, uniqueAssets]);
-
-  const networksByBlockchain = useMemo(() => {
-    if (!canonicalNetworks) return new Map<string, Network>();
-    return new Map(canonicalNetworks.map((n) => [n.blockchain, n]));
-  }, [canonicalNetworks]);
-
-  const sourceNetworks = useMemo(() => {
-    if (!effectiveSourceAsset) return [];
-    const blockchains = getBlockchainsForSymbol(
-      uniqueAssets,
-      effectiveSourceAsset.symbol
-    );
-    return blockchains.map(
-      (chain) =>
-        networksByBlockchain.get(chain) ?? {
-          blockchain: chain,
-          displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
-          symbol: chain,
-        }
-    );
-  }, [uniqueAssets, effectiveSourceAsset, networksByBlockchain]);
-
-  const destNetworks = useMemo(() => {
-    if (!effectiveDestAsset) return [];
-    const blockchains = getBlockchainsForSymbol(
-      uniqueAssets,
-      effectiveDestAsset.symbol
-    );
-    return blockchains.map(
-      (chain) =>
-        networksByBlockchain.get(chain) ?? {
-          blockchain: chain,
-          displayName: chain.charAt(0).toUpperCase() + chain.slice(1),
-          symbol: chain,
-        }
-    );
-  }, [uniqueAssets, effectiveDestAsset, networksByBlockchain]);
-
-  const [selectedSourceNetwork, setSelectedSourceNetwork] = useState<string>(
-    effectiveSourceAsset?.blockchain || ""
-  );
-  const [selectedDestNetwork, setSelectedDestNetwork] = useState<string>(
-    effectiveDestAsset?.blockchain || ""
-  );
+    return byId.get(destAssetId)?.asset ?? null;
+  }, [destAssetId, byId]);
 
   useEffect(() => {
-    if (effectiveSourceAsset?.blockchain) {
-      setSelectedSourceNetwork(effectiveSourceAsset.blockchain);
+    if (selectedFromAsset) {
+      setSelectedFromChain(selectedFromAsset.blockchain);
+    } else if (!selectedFromChain && chains.length > 0) {
+      const defaultChain = chains.find((c) => c === "eth") || chains[0];
+      setSelectedFromChain(defaultChain);
     }
-  }, [effectiveSourceAsset?.blockchain]);
+  }, [selectedFromAsset, selectedFromChain, chains]);
 
   useEffect(() => {
-    if (effectiveDestAsset?.blockchain) {
-      setSelectedDestNetwork(effectiveDestAsset.blockchain);
+    if (selectedToAsset) {
+      setSelectedToChain(selectedToAsset.blockchain);
+    } else if (!selectedToChain && chains.length > 0) {
+      const defaultChain =
+        chains.find((c) => c === "arbitrum") || chains[1] || chains[0];
+      setSelectedToChain(defaultChain);
     }
-  }, [effectiveDestAsset?.blockchain]);
+  }, [selectedToAsset, selectedToChain, chains]);
 
-  const sourceAssets = useMemo(() => {
-    if (!selectedSourceNetwork) return uniqueAssets;
-    return uniqueAssets.filter((a) => a.blockchain === selectedSourceNetwork);
-  }, [uniqueAssets, selectedSourceNetwork]);
+  useEffect(() => {
+    setSourceAsset(selectedFromAsset);
+  }, [selectedFromAsset, setSourceAsset]);
 
-  const destAssets = useMemo(() => {
-    if (!selectedDestNetwork) return uniqueAssets;
-    return uniqueAssets.filter((a) => a.blockchain === selectedDestNetwork);
-  }, [uniqueAssets, selectedDestNetwork]);
+  useEffect(() => {
+    setDestAsset(selectedToAsset);
+  }, [selectedToAsset, setDestAsset]);
 
-  const handleSourceNetworkChange = (blockchain: string) => {
-    setSelectedSourceNetwork(blockchain);
-
-    if (
-      effectiveSourceAsset &&
-      effectiveSourceAsset.blockchain !== blockchain
-    ) {
-      const assetOnNewNetwork = uniqueAssets.find(
-        (a) =>
-          a.symbol === effectiveSourceAsset.symbol &&
-          a.blockchain === blockchain
-      );
-      if (assetOnNewNetwork) {
-        navigate({
-          search: (prev) => ({ ...prev, source: assetOnNewNetwork.assetId }),
-        });
-      } else {
-        navigate({
-          search: (prev) => ({ ...prev, source: undefined }),
-        });
-      }
-    }
+  const handleFromChainChange = (blockchain: string) => {
+    setSelectedFromChain(blockchain);
+    navigate({
+      search: (prev) => ({ ...prev, source: undefined }),
+    });
   };
 
-  const handleDestNetworkChange = (blockchain: string) => {
-    setSelectedDestNetwork(blockchain);
-
-    if (effectiveDestAsset && effectiveDestAsset.blockchain !== blockchain) {
-      const assetOnNewNetwork = uniqueAssets.find(
-        (a) =>
-          a.symbol === effectiveDestAsset.symbol && a.blockchain === blockchain
-      );
-      if (assetOnNewNetwork) {
-        navigate({
-          search: (prev) => ({
-            ...prev,
-            destination: assetOnNewNetwork.assetId,
-          }),
-        });
-      } else {
-        navigate({
-          search: (prev) => ({ ...prev, destination: undefined }),
-        });
-      }
-    }
+  const handleToChainChange = (blockchain: string) => {
+    setSelectedToChain(blockchain);
+    navigate({
+      search: (prev) => ({ ...prev, destination: undefined }),
+    });
   };
 
-  const handleSourceAssetChange = (assetId: string) => {
-    if (!assetId || assetId.trim() === "") return;
-    const asset = uniqueAssets.find((a: Asset) => a.assetId === assetId);
-    if (asset) {
+  const handleFromAssetChange = (assetId: string) => {
+    const uiAsset = fromAssets.find((a) => a.asset.assetId === assetId);
+    if (uiAsset) {
       navigate({
-        search: (prev) => ({ ...prev, source: asset.assetId }),
+        search: (prev) => ({ ...prev, source: assetId }),
       });
-      if (asset && effectiveDestAsset) {
+      if (selectedToAsset) {
         logEvent({
           type: "route_selected",
-          source: asset,
-          destination: effectiveDestAsset,
+          source: uiAsset.asset,
+          destination: selectedToAsset,
         });
       }
     }
   };
 
-  const handleDestAssetChange = (assetId: string) => {
-    if (!assetId || assetId.trim() === "") return;
-    const asset = uniqueAssets.find((a: Asset) => a.assetId === assetId);
-    if (asset) {
+  const handleToAssetChange = (assetId: string) => {
+    const uiAsset = toAssets.find((a) => a.asset.assetId === assetId);
+    if (uiAsset) {
       navigate({
-        search: (prev) => ({ ...prev, destination: asset.assetId }),
+        search: (prev) => ({ ...prev, destination: assetId }),
       });
-      if (effectiveSourceAsset && asset) {
+      if (selectedFromAsset) {
         logEvent({
           type: "route_selected",
-          source: effectiveSourceAsset,
-          destination: asset,
+          source: selectedFromAsset,
+          destination: uiAsset.asset,
         });
       }
     }
   };
-
-  useEffect(() => {
-    if (!search.source && effectiveSourceAsset && !assetsLoading) {
-      navigate({
-        search: (prev) => ({ ...prev, source: effectiveSourceAsset.assetId }),
-        replace: true,
-      });
-    }
-  }, [search.source, effectiveSourceAsset, assetsLoading, navigate]);
-
-  useEffect(() => {
-    if (!search.destination && effectiveDestAsset && !assetsLoading) {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          destination: effectiveDestAsset.assetId,
-        }),
-        replace: true,
-      });
-    }
-  }, [search.destination, effectiveDestAsset, assetsLoading, navigate]);
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px] mb-8">
@@ -224,28 +162,46 @@ export const SwapPairSelector = () => {
         Compare a cross-chain swap route between the selected platform and NEAR
         Intents.
       </p>
+
+      <div className="max-w-md mx-auto mb-6">
+        <label className="block text-sm font-medium text-gray-400 mb-2">
+          Amount
+        </label>
+        <Input
+          type="number"
+          min={0}
+          step="any"
+          placeholder="Enter amount"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value) || 0)}
+          className="w-full bg-[#1a1a1a] border-[#343434] text-white placeholder:text-gray-500 text-lg h-12"
+        />
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-end">
         <div className="flex flex-col items-end gap-3">
           <div className="text-xs text-gray-400 uppercase tracking-wider">
             SWAP FROM
           </div>
+
           <NetworkSelect
             label=""
-            value={selectedSourceNetwork}
-            onChange={handleSourceNetworkChange}
-            networks={sourceNetworks}
-            disabled={sourceNetworks.length === 0}
+            value={selectedFromChain}
+            onChange={handleFromChainChange}
+            networks={networksForFromChain}
+            disabled={networksLoading}
+            loading={networksLoading}
           />
 
           <AssetSelect
             label=""
-            value={effectiveSourceAsset?.assetId}
-            onChange={handleSourceAssetChange}
-            assets={sourceAssets}
-            networkBlockchain={selectedSourceNetwork}
+            value={selectedFromAsset?.assetId}
+            onChange={handleFromAssetChange}
+            assets={fromAssets.map((ua) => ua.asset)}
+            networkBlockchain=""
             direction="source"
             loading={assetsLoading}
-            disabled={sourceAssets.length === 0}
+            disabled={!selectedFromChain || fromAssets.length === 0}
           />
         </div>
 
@@ -271,25 +227,42 @@ export const SwapPairSelector = () => {
           <div className="text-xs text-gray-400 uppercase tracking-wider">
             SWAP TO
           </div>
+
           <NetworkSelect
             label=""
-            value={selectedDestNetwork}
-            onChange={handleDestNetworkChange}
-            networks={destNetworks}
-            disabled={destNetworks.length === 0}
+            value={selectedToChain}
+            onChange={handleToChainChange}
+            networks={networksForToChain}
+            disabled={networksLoading}
+            loading={networksLoading}
           />
 
           <AssetSelect
             label=""
-            value={effectiveDestAsset?.assetId}
-            onChange={handleDestAssetChange}
-            assets={destAssets}
-            networkBlockchain={selectedDestNetwork}
+            value={selectedToAsset?.assetId}
+            onChange={handleToAssetChange}
+            assets={toAssets.map((ua) => ua.asset)}
+            networkBlockchain=""
             direction="destination"
             loading={assetsLoading}
-            disabled={destAssets.length === 0}
+            disabled={!selectedToChain || toAssets.length === 0}
           />
         </div>
+      </div>
+
+      <div className="flex justify-center mt-8">
+        <button
+          onClick={handleCompare}
+          disabled={
+            !selectedFromAsset ||
+            !selectedToAsset ||
+            compareEnabled ||
+            amount <= 0
+          }
+          className="px-8 py-3 bg-[#0e0e0e] border border-[#343434] hover:bg-[#1a1a1a] disabled:bg-[#0a0a0a] disabled:border-[#2a2a2a] disabled:cursor-not-allowed text-white font-medium rounded-lg text-base transition-all duration-200"
+        >
+          {compareEnabled ? "Comparing..." : "Compare Routes"}
+        </button>
       </div>
     </div>
   );

@@ -99,7 +99,7 @@ export function createProviderRouter<TProviderAsset>(
         return { rates: [] };
       }
 
-      const providerRates = await service.getRates(context.route, input.notionals);
+      const providerRates = await service.getRates(context.route, input.amount);
 
       const convertRate = (rate: typeof providerRates[0]) =>
         Effect.all([
@@ -112,7 +112,6 @@ export function createProviderRouter<TProviderAsset>(
             amountIn: rate.amountIn,
             amountOut: rate.amountOut,
             effectiveRate: rate.effectiveRate,
-            totalFeesUsd: rate.totalFeesUsd,
             quotedAt: rate.quotedAt
           })),
           Effect.tapError(err =>

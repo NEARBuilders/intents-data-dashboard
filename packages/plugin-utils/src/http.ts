@@ -63,11 +63,25 @@ export class HttpClient {
 
         // Don't retry 4xx errors (except 429 rate limit)
         if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          throw new AbortError(`HTTP ${response.status}`);
+          let errorBody = '';
+          try {
+            const text = await response.text();
+            errorBody = text.slice(0, 500);
+          } catch (e) {
+            errorBody = response.statusText;
+          }
+          throw new AbortError(`HTTP ${response.status}: ${errorBody}`);
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          let errorBody = '';
+          try {
+            const text = await response.text();
+            errorBody = text.slice(0, 500);
+          } catch (e) {
+            errorBody = response.statusText;
+          }
+          throw new Error(`HTTP ${response.status}: ${errorBody}`);
         }
 
         return response.json() as T;

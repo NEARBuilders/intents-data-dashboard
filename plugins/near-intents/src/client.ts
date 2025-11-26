@@ -4,7 +4,7 @@ import { z } from 'every-plugin/zod';
 
 export const IntentsAsset = z.object({
   blockchain: z.string(),            // NEAR Intents blockchain enum
-  assetId: z.string(),              // Full NEP-141 style assetId
+  intentsAssetId: z.string(),       // 1Click / NEAR Intents provider-specific asset ID
   symbol: z.string(),              // Token symbol
   decimals: z.number(),            // Token decimals
   contractAddress: z.string().optional(), // Contract address

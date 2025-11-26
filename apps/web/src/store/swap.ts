@@ -1,6 +1,6 @@
 import { Atom } from "@effect-atom/atom-react"
 import type { Asset } from "@/types/common"
-import type { Network } from "@/components/dashboard/network-select"
+import type { Network } from "@/lib/aggregator/hooks"
 
 export interface CoinListItem {
   id: string
@@ -14,6 +14,10 @@ export const destNetworkIdAtom = Atom.make<string | undefined>(undefined)
 
 export const sourceAssetAtom = Atom.make<Asset | null>(null)
 export const destAssetAtom = Atom.make<Asset | null>(null)
+
+export const amountAtom = Atom.make<number>(100)
+export const selectedProviderAtom = Atom.make<string>("")
+export const compareEnabledAtom = Atom.make<boolean>(false)
 
 export const getDefaultSourceNetwork = (networks?: Network[]): string | undefined => {
   if (!networks || networks.length === 0) return undefined

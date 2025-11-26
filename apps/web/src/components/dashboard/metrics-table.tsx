@@ -1,14 +1,20 @@
+import { useRouteQuotes, useVolumes } from "@/hooks/use-route-metrics";
+import {
+  destAssetAtom,
+  selectedProviderAtom,
+  sourceAssetAtom
+} from "@/store/swap";
+import {
+  formatCurrency,
+  formatPercentage,
+  formatVolume,
+} from "@/utils/comparison";
+import { useAtom } from "@effect-atom/atom-react";
 import { useMemo } from "react";
-import type { Route, ProviderInfo } from "@/types/common";
-import { useRates, useLiquidity, useVolumes } from "@/hooks/use-route-metrics";
-import { formatVolume, formatCurrency, formatPercentage } from "@/utils/comparison";
-import { VersusComparisonTable, type MetricRow } from "./versus-comparison-table";
-
-interface MetricsTableProps {
-  selectedProvider: string;
-  providersInfo: ProviderInfo[];
-  selectedRoute: Route | null;
-}
+import {
+  VersusComparisonTable,
+  type MetricRow,
+} from "./versus-comparison-table";
 
 const handleShare = () => {
   const url = window.location.href;
@@ -26,35 +32,32 @@ const handleShare = () => {
   }
 };
 
-export const MetricsTable = ({
-  selectedProvider,
-  providersInfo,
-  selectedRoute,
-}: MetricsTableProps) => {
-  const { data: ratesData, isLoading: ratesLoading } = useRates(
-    selectedRoute,
-    ["near_intents", selectedProvider],
-    !!selectedProvider
-  );
+export const MetricsTable = () => {
+  const [sourceAsset] = useAtom(sourceAssetAtom);
+  const [destAsset] = useAtom(destAssetAtom);
+  const [selectedProvider] = useAtom(selectedProviderAtom);
 
-  const { data: liquidityData, isLoading: liquidityLoading } = useLiquidity(
-    selectedRoute,
-    ["near_intents", selectedProvider],
-    !!selectedProvider
-  );
+  const { quotes, loading: quotesLoading } = useRouteQuotes();
+  const { data: volumeData } = useVolumes("all");
 
-  const { data: volumeData, isLoading: volumeLoading } = useVolumes(
-    selectedRoute,
-    ["near_intents", selectedProvider],
-    "all",
-    !!selectedProvider
-  );
+  const selectedRoute = useMemo(() => {
+    if (!sourceAsset || !destAsset) return null;
+    return { source: sourceAsset, destination: destAsset };
+  }, [sourceAsset, destAsset]);
 
-  const nearIntentsRate = ratesData?.data?.near_intents?.[0];
-  const selectedProviderRate = ratesData?.data?.[selectedProvider]?.[0];
+  const nearIntentsQuote = useMemo(() => {
+    return quotes.find((q) => q.provider === "near_intents");
+  }, [quotes]);
 
-  const nearIntentsLiquidity = liquidityData?.data?.near_intents?.[0];
-  const selectedProviderLiquidity = liquidityData?.data?.[selectedProvider]?.[0];
+  const selectedProviderQuote = useMemo(() => {
+    return quotes.find((q) => q.provider === selectedProvider);
+  }, [quotes, selectedProvider]);
+
+  const nearIntentsRate = nearIntentsQuote?.rate;
+  const selectedProviderRate = selectedProviderQuote?.rate;
+
+  const nearIntentsLiquidity = nearIntentsQuote?.liquidity;
+  const selectedProviderLiquidity = selectedProviderQuote?.liquidity;
 
   const nearIntentsFee = useMemo(() => {
     return nearIntentsRate?.totalFeesUsd ?? null;
@@ -70,7 +73,10 @@ export const MetricsTable = ({
     return {
       total: data.totalVolume || 0,
       latest: data.dataPoints?.[data.dataPoints.length - 1]?.volumeUsd || 0,
-      thirtyDay: data.dataPoints?.slice(-30).reduce((sum, dp) => sum + (dp.volumeUsd || 0), 0) || 0,
+      thirtyDay:
+        data.dataPoints
+          ?.slice(-30)
+          .reduce((sum, dp) => sum + (dp.volumeUsd || 0), 0) || 0,
     };
   }, [volumeData]);
 
@@ -80,23 +86,30 @@ export const MetricsTable = ({
     return {
       total: data.totalVolume || 0,
       latest: data.dataPoints?.[data.dataPoints.length - 1]?.volumeUsd || 0,
-      thirtyDay: data.dataPoints?.slice(-30).reduce((sum, dp) => sum + (dp.volumeUsd || 0), 0) || 0,
+      thirtyDay:
+        data.dataPoints
+          ?.slice(-30)
+          .reduce((sum, dp) => sum + (dp.volumeUsd || 0), 0) || 0,
     };
   }, [volumeData, selectedProvider]);
 
-  const selectedProviderInfo = useMemo(() => {
-    return providersInfo.find((p) => p.id === selectedProvider);
-  }, [providersInfo, selectedProvider]);
-
-  const nearIntentsInfo = useMemo(() => {
-    return providersInfo.find((p) => p.id === "near_intents");
-  }, [providersInfo]);
-
-  const getIndicator = (leftVal: number | null | undefined, rightVal: number | null | undefined, lowerIsBetter: boolean): "up" | "down" | undefined => {
-    if (leftVal === null || leftVal === undefined || rightVal === null || rightVal === undefined) return undefined;
+  const getIndicator = (
+    leftVal: number | null | undefined,
+    rightVal: number | null | undefined,
+    lowerIsBetter: boolean
+  ): "up" | "down" | undefined => {
+    if (
+      leftVal === null ||
+      leftVal === undefined ||
+      rightVal === null ||
+      rightVal === undefined
+    )
+      return undefined;
     if (leftVal === rightVal) return undefined;
-    
-    const leftIsBetter = lowerIsBetter ? leftVal < rightVal : leftVal > rightVal;
+
+    const leftIsBetter = lowerIsBetter
+      ? leftVal < rightVal
+      : leftVal > rightVal;
     return leftIsBetter ? "up" : "down";
   };
 
@@ -104,7 +117,8 @@ export const MetricsTable = ({
     const nearCost = nearIntentsFee ?? undefined;
     const competitorCost = providerFee ?? undefined;
     const nearLiq = nearIntentsLiquidity?.thresholds?.[0]?.slippageBps ?? null;
-    const competitorLiq = selectedProviderLiquidity?.thresholds?.[0]?.slippageBps ?? null;
+    const competitorLiq =
+      selectedProviderLiquidity?.thresholds?.[0]?.slippageBps ?? null;
 
     return [
       {
@@ -132,22 +146,46 @@ export const MetricsTable = ({
         label: "Total Volume",
         leftValue: formatVolume(nearIntentsVolume.total),
         rightValue: formatVolume(selectedProviderVolume.total),
-        leftIndicator: getIndicator(nearIntentsVolume.total, selectedProviderVolume.total, false),
-        rightIndicator: getIndicator(selectedProviderVolume.total, nearIntentsVolume.total, false),
+        leftIndicator: getIndicator(
+          nearIntentsVolume.total,
+          selectedProviderVolume.total,
+          false
+        ),
+        rightIndicator: getIndicator(
+          selectedProviderVolume.total,
+          nearIntentsVolume.total,
+          false
+        ),
       },
       {
         label: "30D Volume",
         leftValue: formatVolume(nearIntentsVolume.thirtyDay),
         rightValue: formatVolume(selectedProviderVolume.thirtyDay),
-        leftIndicator: getIndicator(nearIntentsVolume.thirtyDay, selectedProviderVolume.thirtyDay, false),
-        rightIndicator: getIndicator(selectedProviderVolume.thirtyDay, nearIntentsVolume.thirtyDay, false),
+        leftIndicator: getIndicator(
+          nearIntentsVolume.thirtyDay,
+          selectedProviderVolume.thirtyDay,
+          false
+        ),
+        rightIndicator: getIndicator(
+          selectedProviderVolume.thirtyDay,
+          nearIntentsVolume.thirtyDay,
+          false
+        ),
       },
       {
         label: "1D Volume",
         leftValue: formatVolume(nearIntentsVolume.latest),
         rightValue: formatVolume(selectedProviderVolume.latest),
-        leftIndicator: getIndicator(nearIntentsVolume.latest, selectedProviderVolume.latest, false),
-        rightIndicator: getIndicator(selectedProviderVolume.latest, nearIntentsVolume.latest, false),
+        leftIndicator: getIndicator(
+          nearIntentsVolume.latest,
+          selectedProviderVolume.latest,
+          false
+        ),
+        rightIndicator: getIndicator(
+          selectedProviderVolume.latest,
+          nearIntentsVolume.latest,
+          false
+        ),
       },
     ];
   }, [
@@ -159,9 +197,7 @@ export const MetricsTable = ({
     selectedProviderVolume,
   ]);
 
-  const loading = ratesLoading || liquidityLoading || volumeLoading;
-
-  if (loading && !selectedRoute) {
+  if (quotesLoading && !selectedRoute) {
     return null;
   }
 
@@ -170,14 +206,6 @@ export const MetricsTable = ({
       <div className="relative max-w-[1440px] mx-auto px-4 md:px-8 lg:px-[135px]">
         <div className="max-w-[900px] mx-auto">
           <VersusComparisonTable
-            leftProvider={{
-              name: nearIntentsInfo?.label || "NEAR Intents",
-              icon: "/images/provider-icons/near_intents.png",
-            }}
-            rightProvider={{
-              name: selectedProviderInfo?.label || "Provider",
-              icon: undefined,
-            }}
             metrics={swapMetrics}
             showProviderSelector={false}
           />

@@ -5,8 +5,8 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     id: "across",
     label: "Across",
     category: "Intent-based Bridge",
-    logoUrl: "https://3563890891-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2Fo33kX1T6RRp4inOcEH1d%2Fuploads%2FvmOkOcLgbiXv7hVNSlNT%2FAcross%20Logomark%20Aqua%20Circle.svg?alt=media&token=b63972b2-174f-4ee8-9a58-08fb8792cd17",
-    supportedData: ["volumes", "assets"],
+    logoUrl: "/images/provider-icons/across.png",
+    supportedData: ["volumes", "assets", "rates", "liquidity"],
   },
   {
     id: "axelar",
@@ -96,7 +96,7 @@ export const PROVIDERS_LIST: ProviderInfoType[] = [
     label: "NEAR Intents",
     category: "Intent-based Bridge",
     logoUrl: "/images/provider-icons/near_intents.png",
-    supportedData: ["volumes", "assets"],
+    supportedData: ["volumes", "assets", "rates", "liquidity"],
   },
   {
     id: "oneinch",

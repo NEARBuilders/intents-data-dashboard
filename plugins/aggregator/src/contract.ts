@@ -256,16 +256,16 @@ export const contract = oc.router({
       method: "POST",
       path: "/rates",
       summary: "Rates",
-      description: "Get quoted exchange rates for specified routes and notional amounts across providers.",
+      description: "Get quoted exchange rates for specified routes with a specific amount across providers.",
     })
     .input(
       z.object({
         routes: z
           .array(z.object({ source: Asset, destination: Asset }))
           .describe("Array of routes to quote."),
-        notionals: z
-          .array(z.string())
-          .describe("Array of input amounts (as strings to preserve precision)."),
+        amount: z
+          .string()
+          .describe("Input amount (as string to preserve precision)."),
         providers: z
           .array(ProviderIdentifierEnum)
           .optional()

@@ -89,6 +89,22 @@ export interface AcrossLimitsResponse {
 }
 
 /**
+ * Swap approval response from Across API
+ */
+export interface AcrossApprovalResponse {
+  inputAmount: string;
+  expectedOutputAmount: string;
+  minOutputAmount: string;
+  expectedFillTime: number;
+  fees: {
+    total: {
+      amount: string;
+      pct: string;
+    };
+  };
+}
+
+/**
  * DefiLlama Bridge Stats Response
  */
 export interface DefiLlamaBridgeResponse {
@@ -172,6 +188,33 @@ export class AcrossApiClient {
         outputToken: params.outputToken,
         originChainId: params.originChainId,
         destinationChainId: params.destinationChainId,
+      }
+    });
+  }
+
+  /**
+   * Fetch swap approval from Across API.
+   * Returns executable transaction data with expected output amounts.
+   */
+  async fetchApproval(params: {
+    inputToken: string;
+    outputToken: string;
+    originChainId: number;
+    destinationChainId: number;
+    amount: string;
+    depositor: string;
+    recipient: string;
+  }): Promise<AcrossApprovalResponse> {
+    return this.http.get<AcrossApprovalResponse>('/swap/approval', {
+      params: {
+        tradeType: 'exactInput',
+        inputToken: params.inputToken,
+        outputToken: params.outputToken,
+        originChainId: params.originChainId,
+        destinationChainId: params.destinationChainId,
+        amount: params.amount,
+        depositor: params.depositor,
+        recipient: params.recipient,
       }
     });
   }

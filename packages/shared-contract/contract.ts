@@ -103,7 +103,7 @@ export const contract = oc.router({
     .route({ method: 'POST', path: '/rates' })
     .input(z.object({
       route: Route,
-      notionals: z.array(z.string()),
+      amount: z.string(),
     }))
     .output(z.object({ rates: z.array(Rate) })),
 

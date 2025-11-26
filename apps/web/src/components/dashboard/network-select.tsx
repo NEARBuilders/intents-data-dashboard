@@ -22,11 +22,11 @@ const PINNED_BLOCKCHAIN_SLUGS: string[] = [
   "btc",
   "near",
   "sol",
-  "arb",
-  "op",
+  "arbitrum",
+  "optimism",
   "zcash",
   "base",
-  "pol",
+  "polygon",
   "bsc",
   "avax",
   "ftm",
@@ -39,6 +39,7 @@ interface NetworkSelectProps {
   onChange: (blockchain: string) => void;
   networks?: Network[];
   disabled?: boolean;
+  loading?: boolean;
 }
 
 export const NetworkSelect = ({
@@ -47,6 +48,7 @@ export const NetworkSelect = ({
   onChange,
   networks,
   disabled,
+  loading,
 }: NetworkSelectProps) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -104,21 +106,32 @@ export const NetworkSelect = ({
             )}
           >
             <div className="flex items-center gap-2">
-              <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
-                {selectedNetwork?.iconUrl ? (
-                  <img 
-                    src={selectedNetwork.iconUrl} 
-                    alt={selectedNetwork.displayName}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="h-full w-full bg-[#202027]" />
-                )}
-              </div>
-              <span className="text-[12px] leading-[15px] tracking-[-0.03em] font-medium text-white/90 truncate">
-                {selectedNetwork ? selectedNetwork.displayName : "Select blockchain"}
-              </span>
+              {loading ? (
+                <>
+                  <div className="h-5 w-5 rounded-full bg-[#202027] animate-pulse" />
+                  <span className="text-[12px] leading-[15px] tracking-[-0.03em] font-medium text-white/50 truncate">
+                    Loading...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
+                    {selectedNetwork?.iconUrl ? (
+                      <img 
+                        src={selectedNetwork.iconUrl} 
+                        alt={selectedNetwork.displayName}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-[#202027]" />
+                    )}
+                  </div>
+                  <span className="text-[12px] leading-[15px] tracking-[-0.03em] font-medium text-white/90 truncate">
+                    {selectedNetwork ? selectedNetwork.displayName : "Select blockchain"}
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5 bg-[#3A3A3A] rounded-[2px] px-1 py-1">

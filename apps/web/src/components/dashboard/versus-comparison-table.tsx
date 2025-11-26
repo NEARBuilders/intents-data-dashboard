@@ -6,6 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAtom } from "@effect-atom/atom-react";
+import { selectedProviderAtom, compareEnabledAtom } from "@/store/swap";
+import { useProviders } from "@/lib/aggregator/hooks";
+import { useMemo } from "react";
 
 export interface MetricRow {
   label: string;
@@ -16,20 +20,9 @@ export interface MetricRow {
 }
 
 interface VersusComparisonTableProps {
-  leftProvider: {
-    name: string;
-    icon?: string;
-  };
-  rightProvider: {
-    name: string;
-    icon?: string;
-  };
   metrics: MetricRow[];
   className?: string;
   showProviderSelector?: boolean;
-  providerOptions?: Array<{ value: string; label: string }>;
-  selectedProvider?: string;
-  onProviderChange?: (provider: string) => void;
 }
 
 function formatValue(value: string | number | null | undefined): string {
@@ -46,15 +39,38 @@ function IndicatorIcon({ type }: { type?: "up" | "down" }) {
 }
 
 export const VersusComparisonTable = ({
-  leftProvider,
-  rightProvider,
   metrics,
   className = "",
   showProviderSelector = false,
-  providerOptions = [],
-  selectedProvider,
-  onProviderChange,
 }: VersusComparisonTableProps) => {
+  const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom);
+  const [, setCompareEnabled] = useAtom(compareEnabledAtom);
+  const { data: providersData } = useProviders();
+
+  const handleProviderChange = (provider: string) => {
+    setSelectedProvider(provider);
+    setCompareEnabled(false);
+  };
+
+  const providersInfo = providersData?.providers || [];
+
+  const nearIntentsInfo = useMemo(() => {
+    return providersInfo.find((p: any) => p.id === "near_intents");
+  }, [providersInfo]);
+
+  const providerOptions = useMemo(
+    () =>
+      providersInfo
+        .filter(
+          (p) => p.id !== "near_intents" && p.supportedData?.includes("assets")
+        )
+        .map((p) => ({ value: p.id, label: p.label, logoUrl: p.logoUrl })),
+    [providersInfo]
+  );
+
+  const selectedProviderInfo = useMemo(() => {
+    return providersInfo.find((p: any) => p.id === selectedProvider);
+  }, [providersInfo, selectedProvider]);
   return (
     <Card
       className={`bg-[#0e0e0e] border-[#343434] rounded-[14px] overflow-hidden max-w-[900px] mx-auto ${className}`}
@@ -63,10 +79,10 @@ export const VersusComparisonTable = ({
         <div className="border-b border-[#343434]">
           <div className="grid grid-cols-[1fr_auto_1fr] gap-4 px-6 py-4">
             <div className="flex items-center gap-3 justify-end">
-              {leftProvider.icon && (
+              {nearIntentsInfo?.logoUrl && (
                 <img
-                  src={leftProvider.icon}
-                  alt={leftProvider.name}
+                  src={nearIntentsInfo.logoUrl}
+                  alt={nearIntentsInfo.label}
                   className="h-10 md:h-12 lg:h-14 object-cover"
                 />
               )}
@@ -79,8 +95,8 @@ export const VersusComparisonTable = ({
             </div>
 
             <div className="flex items-center gap-3 justify-start">
-              {showProviderSelector ? (
-                <Select value={selectedProvider} onValueChange={onProviderChange}>
+              {showProviderSelector || !selectedProviderInfo ? (
+                <Select value={selectedProvider} onValueChange={handleProviderChange}>
                   <SelectTrigger className="w-[200px] lg:w-[240px] h-[42px] bg-[#242424] border-[#343434] rounded-[5px] text-lg tracking-[-0.54px] text-white hover:bg-[#2a2a2a] focus:ring-1 focus:ring-[#343434]">
                     <SelectValue />
                   </SelectTrigger>
@@ -89,24 +105,38 @@ export const VersusComparisonTable = ({
                       <SelectItem
                         key={option.value}
                         value={option.value}
-                        className="text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white"
+                        className="text-white hover:bg-[#343434] hover:text-white focus:bg-[#343434] focus:text-white cursor-pointer"
                       >
-                        {option.label}
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-5 w-5 rounded-full bg-gradient-to-b from-[#2b2b31] to-[#111118] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-1 ring-black/70 overflow-hidden flex-shrink-0">
+                            {option.logoUrl ? (
+                              <img
+                                src={option.logoUrl}
+                                alt={option.label}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="h-full w-full bg-[#202027]" />
+                            )}
+                          </div>
+                          <span className="text-md">{option.label}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
                 <>
-                  {rightProvider.icon && (
+                  {selectedProviderInfo?.logoUrl && (
                     <img
-                      src={rightProvider.icon}
-                      alt={rightProvider.name}
-                      className="h-10 md:h-12 lg:h-14 object-cover"
+                      src={selectedProviderInfo.logoUrl}
+                      alt={selectedProviderInfo.label}
+                      className="h-8 md:h-10 lg:h-12 object-cover"
                     />
                   )}
-                  <span className="font-medium text-white text-lg tracking-[-0.54px]">
-                    {rightProvider.name}
+                  <span className="font-bold text-white text-xl tracking-[-0.54px]">
+                    {selectedProviderInfo?.label}
                   </span>
                 </>
               )}

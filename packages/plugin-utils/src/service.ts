@@ -40,12 +40,12 @@ export abstract class DataProviderService<TAsset = AssetType> {
   abstract getListedAssets(): Promise<TAsset[]>;
 
   /**
-   * Get rate quotes for route/notional combinations.
+   * Get rate quote for route with specific amount.
    * The asset format in route depends on the TAsset generic parameter.
    */
   abstract getRates(
     route: RouteType<TAsset>,
-    notionals: string[]
+    amount: string
   ): Promise<RateType<TAsset>[]>;
 
   /**

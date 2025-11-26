@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useListedAssets } from "@/hooks/use-listed-assets";
+import { useListedAssets } from "@/lib/aggregator/hooks";
 import { buildSymbolGroups } from "@/lib/symbol-groups";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
