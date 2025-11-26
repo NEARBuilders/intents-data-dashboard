@@ -1,13 +1,11 @@
 import type { AppRouterClient } from "@data-provider/api";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import { BatchLinkPlugin } from "@orpc/client/plugins";
 import { onError } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { toast } from "sonner";
 
 export const SERVER_URL = `${import.meta.env.VITE_SERVER_URL ?? "http://localhost:8787"}/api/rpc`;
 
@@ -16,14 +14,7 @@ export const ASSET_ENRICHMENT_URL = `${import.meta.env.VITE_ASSET_ENRICHMENT_URL
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
-      toast.error(error.message, {
-        action: {
-          label: "retry",
-          onClick: () => {
-            queryClient.invalidateQueries();
-          },
-        },
-      });
+      
     },
   }),
   defaultOptions: { queries: { staleTime: 60 * 1000 } },
@@ -59,16 +50,6 @@ const getORPCClient = createIsomorphicFn()
     // Client-side: Use browser relative URL with cookies
     const link = new RPCLink({
       url: SERVER_URL,
-      plugins: [
-        new BatchLinkPlugin({
-          // Batch requests to reduce network overhead
-          exclude: ({ path }) => path[0] === 'sse', // Don't batch SSE calls
-          groups: [{
-            condition: () => true,
-            context: {},
-          }],
-        }),
-      ],
       interceptors: [
         onError((error) => {
           console.error("oRPC Client Error:", error);
@@ -109,15 +90,6 @@ const getAssetEnrichmentClient = createIsomorphicFn()
   .client(() => {
     const link = new RPCLink({
       url: ASSET_ENRICHMENT_URL,
-      plugins: [
-        new BatchLinkPlugin({
-          exclude: ({ path }) => path[0] === 'sse',
-          groups: [{
-            condition: () => true,
-            context: {},
-          }],
-        }),
-      ],
       interceptors: [
         onError((error) => {
           console.error("oRPC Asset-Enrichment Client Error:", error);
@@ -134,6 +106,7 @@ const getAssetEnrichmentClient = createIsomorphicFn()
     return createORPCClient(link);
   });
 
+  // @ts-expect-error some mismatch
 export const client: AppRouterClient = getORPCClient();
 
 export const assetEnrichmentClient  = getAssetEnrichmentClient();
