@@ -2,7 +2,7 @@ import { client, assetEnrichmentClient } from "@/utils/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Asset } from "@/types/common";
-import type { ProviderIdentifier } from "@data-provider/aggregator/src/contract";
+import type { ProviderIdentifier } from "@data-provider/aggregator";
 
 export function useListedAssets(providers?: ProviderIdentifier[]) {
   return useQuery({

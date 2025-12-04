@@ -7,7 +7,7 @@ import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
 import { ORPCError, type ContractRouterClient } from "every-plugin/orpc";
-import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment/src/contract";
+import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment";
 import type {
   AggregatedVolumeResultType,
   DailyVolumeType,
@@ -101,11 +101,11 @@ export class DataAggregatorService {
 
       const enrichedAssets = await this.enrichAssets(assets);
 
-      if (this.redis) {
+      if (this.cache) {
         const enrichedCacheKey = `enriched-assets:${provider}`;
         try {
           await Effect.runPromise(
-            this.redis.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
+            this.cache.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
           );
           console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 30 days)`);
         } catch (error) {
@@ -133,7 +133,7 @@ export class DataAggregatorService {
   }> {
     try {
       const result = await Effect.runPromise(
-        getVolumes(this.dune, input, this.redis)
+        getVolumes(this.dune, input, this.cache)
       );
       return result;
     } catch (error) {
@@ -158,7 +158,7 @@ export class DataAggregatorService {
   }> {
     try {
       const rawVolumes = await Effect.runPromise(
-        getVolumes(this.dune, { providers: input.providers, route: input.route }, this.redis)
+        getVolumes(this.dune, { providers: input.providers, route: input.route }, this.cache)
       );
 
       const aggregatedData: Record<ProviderIdentifier, AggregatedVolumeResultType> = {} as Record<ProviderIdentifier, AggregatedVolumeResultType>;
@@ -197,11 +197,11 @@ export class DataAggregatorService {
     const successfulProviders: ProviderIdentifier[] = [];
     const providersToEnrich: ProviderIdentifier[] = [];
 
-    if (this.redis) {
+    if (this.cache) {
       for (const providerId of targetProviders) {
         const enrichedCacheKey = `enriched-assets:${providerId}`;
         try {
-          const cached = await Effect.runPromise(this.redis.get<AssetType[]>(enrichedCacheKey));
+          const cached = await Effect.runPromise(this.cache.get<AssetType[]>(enrichedCacheKey));
           if (cached) {
             canonicalData[providerId] = cached;
             successfulProviders.push(providerId);
@@ -228,11 +228,11 @@ export class DataAggregatorService {
         canonicalData[provider] = enrichedAssets;
         successfulProviders.push(provider);
 
-        if (this.redis) {
+        if (this.cache) {
           const enrichedCacheKey = `enriched-assets:${provider}`;
           try {
             await Effect.runPromise(
-              this.redis.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
+              this.cache.set<AssetType[]>(enrichedCacheKey, enrichedAssets, ENRICHED_ASSETS_CACHE_TTL)
             );
             console.log(`[Aggregator] Cached ${enrichedAssets.length} enriched assets for ${provider} (TTL: 30 days)`);
           } catch (error) {

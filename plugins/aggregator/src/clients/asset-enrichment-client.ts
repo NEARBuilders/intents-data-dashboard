@@ -1,4 +1,4 @@
-import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment/src/contract";
+import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 

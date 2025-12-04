@@ -3,6 +3,8 @@ import { Effect, Layer } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 
 import { contract } from "./contract";
+
+export { contract };
 import { CoingeckoRegistryLive } from "./registries/coingecko";
 import { IntearRegistryLive } from "./registries/intear";
 import { JupiterRegistryLive } from "./registries/jupiter";

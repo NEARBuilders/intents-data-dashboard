@@ -13,7 +13,7 @@ import {
   selectedProviderAtom,
   sourceAssetAtom,
 } from "@/store/swap";
-import type { ProviderIdentifier } from "@data-provider/aggregator/src/contract";
+import type { ProviderIdentifier } from "@data-provider/aggregator";
 import { useAtom } from "@effect-atom/atom-react";
 import { useEffect, useMemo, useState } from "react";
 import { AssetSelect } from "./asset-select";

@@ -139,7 +139,7 @@ getSnapshot()
 
 - [Across API Docs](https://docs.across.to/reference/api-reference)
 - [DefiLlama Bridge API](https://defillama.com/docs/api)
-- [Contract Specification](./src/contract.ts)
+- [Contract Specification](..ts)
 
 ## License
 

@@ -6,7 +6,7 @@ import {
 } from "@/store/swap";
 import type { Route } from "@/types/common";
 import { client } from "@/utils/orpc";
-import type { ProviderIdentifier, TimePeriod } from "@data-provider/aggregator/src/contract";
+import type { ProviderIdentifier, TimePeriod } from "@data-provider/aggregator";
 import { useAtom } from "@effect-atom/atom-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";

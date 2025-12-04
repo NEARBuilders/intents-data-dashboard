@@ -3,7 +3,7 @@ import { Effect } from "every-plugin/effect";
 import type { DailyVolumeType, ProviderIdentifier } from "../contract";
 import type { AssetType } from "@data-provider/shared-contract";
 import { ProviderIdentifierEnum } from "../contract";
-import { RedisService } from "./redis";
+import type { CacheService } from "./cache";
 
 export interface DuneVolumeRow {
   day: string;
@@ -205,13 +205,13 @@ export interface VolumeResult {
 export function getVolumes(
   duneClient: DuneClient,
   input: VolumeInput,
-  redisService?: RedisService
+  cacheService?: CacheService
 ): Effect.Effect<VolumeResult, Error> {
   return Effect.gen(function* () {
     const cacheKey = `volumes:raw:${JSON.stringify(input)}`;
 
-    if (redisService) {
-      const cached = yield* redisService.get<VolumeResult>(cacheKey);
+    if (cacheService) {
+      const cached = yield* cacheService.get<VolumeResult>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -226,8 +226,8 @@ export function getVolumes(
     const transformedData = transformDuneVolumeData(rawData as DuneVolumeRow[]);
     const filteredData = filterVolumeData(transformedData, input);
 
-    if (redisService) {
-      yield* redisService.set(cacheKey, filteredData, 86400);
+    if (cacheService) {
+      yield* cacheService.set(cacheKey, filteredData, 86400);
     }
 
     return filteredData;

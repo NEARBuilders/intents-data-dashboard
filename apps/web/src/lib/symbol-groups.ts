@@ -1,5 +1,5 @@
 import type { AssetType } from "@data-provider/shared-contract";
-import type { ListedAssetsDataType } from "@data-provider/aggregator/src/contract";
+import type { ListedAssetsDataType } from "@data-provider/aggregator";
 
 export type ProviderId = string;
 export type Blockchain = string;
