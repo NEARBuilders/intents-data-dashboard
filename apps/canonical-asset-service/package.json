@@ -16,6 +16,7 @@
     "@t3-oss/env-core": "^0.13.8",
     "cron": "^4.3.4",
     "dotenv": "^17.2.3",
+    "every-plugin": "catalog:",
     "hono": "^4.10.4",
     "zod": "^4.1.12"
   },

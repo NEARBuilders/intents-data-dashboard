@@ -37,7 +37,7 @@ app.use('/*', cors({
 const rpcHandler = new RPCHandler(router, {
   plugins: [new BatchHandlerPlugin()],
   interceptors: [
-    onError((error) => {
+    onError((error: unknown) => {
       console.error('RPC Error:', error)
     }),
   ]
@@ -61,7 +61,7 @@ const apiHandler = new OpenAPIHandler(router, {
     }),
   ],
   interceptors: [
-    onError((error) => {
+    onError((error: unknown) => {
       console.error('OpenAPI Error:', error)
     }),
   ],

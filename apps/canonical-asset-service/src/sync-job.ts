@@ -20,7 +20,7 @@ export const runOrchestratedSync = (
   console.log('[Sync Job] Step 1: Triggering asset-enrichment sync...');
   yield* Effect.tryPromise({
     try: () => canonical.client.sync(),
-    catch: (error) => new Error(`Failed to initiate asset-enrichment sync: ${error}`),
+    catch: (error: unknown) => new Error(`Failed to initiate asset-enrichment sync: ${error}`),
   });
   console.log('[Sync Job] Asset-enrichment sync initiated');
 
@@ -28,7 +28,7 @@ export const runOrchestratedSync = (
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const status = yield* Effect.tryPromise({
       try: () => canonical.client.getSyncStatus(),
-      catch: (error) => new Error(`Failed to get sync status: ${error}`),
+      catch: (error: unknown) => new Error(`Failed to get sync status: ${error}`),
     });
 
     if (status.status === 'idle') {
@@ -73,7 +73,7 @@ export const runOrchestratedSync = (
 
       return await response.json();
     },
-    catch: (error) => new Error(`Failed to trigger aggregator sync: ${error}`),
+    catch: (error: unknown) => new Error(`Failed to trigger aggregator sync: ${error}`),
   });
 
   console.log('[Sync Job] Aggregator cache rebuild initiated:', result);

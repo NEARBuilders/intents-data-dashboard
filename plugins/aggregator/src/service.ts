@@ -6,34 +6,33 @@ import type {
 import { PluginClient } from "@data-provider/shared-contract";
 import type { DuneClient } from "@duneanalytics/client-sdk";
 import { Effect } from "every-plugin/effect";
-import { ORPCError, type ContractRouterClient } from "every-plugin/orpc";
-import type { contract as AssetEnrichmentContract } from "@data-provider/asset-enrichment";
+import { ORPCError } from "every-plugin/orpc";
+import { createAssetEnrichmentClient } from "./clients/asset-enrichment-client";
 import type {
   AggregatedVolumeResultType,
   DailyVolumeType,
-  DataType,
   EnrichedRateType,
   ProviderIdentifier,
   ProviderInfoType,
-  TimePeriod,
+  TimePeriod
 } from "./contract";
-import { aggregateListedAssets, buildAssetSupportIndex } from "./services/assets";
+import { aggregateListedAssets } from "./services/assets";
+import type { CacheService } from "./services/cache";
 import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
 import { aggregateRates } from "./services/rates";
-import type { CacheService } from "./services/cache";
 import { aggregateVolumes, getVolumes } from "./services/volumes";
 
 export class DataAggregatorService {
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
   private cache?: CacheService;
-  private assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>;
+  private assetEnrichmentClient: ReturnType<typeof createAssetEnrichmentClient>;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, PluginClient>>,
-    assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>,
+    assetEnrichmentClient: ReturnType<typeof createAssetEnrichmentClient>,
     cache?: CacheService
   ) {
     this.dune = dune;
@@ -275,7 +274,7 @@ export class DataAggregatorService {
 
         const canonicalRoute = { source: enrichedSource, destination: enrichedDest };
 
-        const result = yield* Effect.tryPromise(() => 
+        const result = yield* Effect.tryPromise(() =>
           aggregateRates(this.providers, {
             route: canonicalRoute,
             amount: input.amount,
@@ -380,8 +379,8 @@ export class DataAggregatorService {
 
         const sourcePrice = yield* Effect.tryPromise({
           try: async () => {
-            const priceData = await this.assetEnrichmentClient.getPrice({ 
-              assetId: enrichedSource.assetId 
+            const priceData = await this.assetEnrichmentClient.getPrice({
+              assetId: enrichedSource.assetId
             });
             return priceData.price;
           },
@@ -389,23 +388,23 @@ export class DataAggregatorService {
         }).pipe(Effect.option);
 
         const enrichedData: Record<ProviderIdentifier, LiquidityDepthType[]> = {} as Record<ProviderIdentifier, LiquidityDepthType[]>;
-        
+
         for (const [providerId, liquidityDepths] of Object.entries(result.data)) {
           enrichedData[providerId as ProviderIdentifier] = liquidityDepths.map((depth: LiquidityDepthType) => {
             const enrichedThresholds = depth.thresholds.map(threshold => {
               let maxAmountInUsd: number | undefined;
-              
+
               if (sourcePrice._tag === 'Some' && sourcePrice.value !== null) {
                 const amountInFloat = parseFloat(threshold.maxAmountIn) / Math.pow(10, enrichedSource.decimals);
                 maxAmountInUsd = amountInFloat * sourcePrice.value;
               }
-              
+
               return {
                 ...threshold,
                 maxAmountInUsd,
               };
             });
-            
+
             return {
               ...depth,
               thresholds: enrichedThresholds,

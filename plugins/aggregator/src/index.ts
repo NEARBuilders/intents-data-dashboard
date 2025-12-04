@@ -55,7 +55,7 @@ export default createPlugin({
   shutdown: () => Effect.void,
 
   createRouter: (context, builder) => {
-    const { service, redis } = context;
+    const { service, cache } = context;
 
     return {
       getProviders: builder.getProviders.handler(async () => {
@@ -67,22 +67,22 @@ export default createPlugin({
         const cleared: string[] = [];
 
         if (!input.datasets || input.datasets.includes('volumes')) {
-          const count = await Effect.runPromise(redis.clear('volumes:*'));
+          const count = await Effect.runPromise(cache.clear('volumes:*'));
           cleared.push(`volumes (${count} keys)`);
         }
 
         if (!input.datasets || input.datasets.includes('rates')) {
-          const count = await Effect.runPromise(redis.clear('rates:*'));
+          const count = await Effect.runPromise(cache.clear('rates:*'));
           cleared.push(`rates (${count} keys)`);
         }
 
         if (!input.datasets || input.datasets.includes('liquidity')) {
-          const count = await Effect.runPromise(redis.clear('liquidity:*'));
+          const count = await Effect.runPromise(cache.clear('liquidity:*'));
           cleared.push(`liquidity (${count} keys)`);
         }
 
         if (!input.datasets || input.datasets.includes('assets')) {
-          const count = await Effect.runPromise(redis.clear('enriched-assets:*'));
+          const count = await Effect.runPromise(cache.clear('enriched-assets:*'));
           cleared.push(`enriched-assets (${count} keys)`);
         }
 
