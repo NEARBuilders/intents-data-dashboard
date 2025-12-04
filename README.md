@@ -8,7 +8,7 @@ A dashboard for all things NEAR intents, providing bridge data and analytics acr
 
 - **apps/server**: Main API aggregating data from all bridge providers via plugins
 - **apps/canonical-asset-service**: Asset management service with scheduled data synchronization
-- **apps/web**: Frontend dashboard for comparing bridge providers (Next.js/React)
+- **apps/web**: Frontend dashboard for comparing bridge providers (TanStack Start/React)
 - **apps/gateway**: Caddy reverse proxy for routing requests
 - **plugins/**: Individual data provider implementations (bridge-specific integrations)
 - **packages/**: Shared utilities and core orchestration logic
