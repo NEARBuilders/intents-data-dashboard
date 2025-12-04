@@ -1,3 +1,15 @@
+# Server
+
+Main backend service aggregating data from multiple bridge providers.
+
+## Architecture
+
+- **Framework**: Hono server running on Bun
+- **API**: Exposes both RPC (`/api/rpc`) and REST/OpenAPI (`/api`) endpoints using `@orpc`
+- **Plugins**: Initializes and orchestrates data provider plugins via `@data-provider/api`
+
+## Development
+
 ```txt
 npm install
 npm run dev

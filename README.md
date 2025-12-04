@@ -4,6 +4,26 @@ A dashboard for all things NEAR intents, providing bridge data and analytics acr
 
 **Live deployment:** [compareintents.xyz](https://compareintents.xyz)
 
+## Repository Structure
+
+- **apps/server**: Main API aggregating data from all bridge providers via plugins
+- **apps/canonical-asset-service**: Asset management service with scheduled data synchronization
+- **apps/web**: Frontend dashboard for comparing bridge providers (Next.js/React)
+- **apps/gateway**: Caddy reverse proxy for routing requests
+- **plugins/**: Individual data provider implementations (bridge-specific integrations)
+- **packages/**: Shared utilities and core orchestration logic
+
+## Plugins & Packages
+
+**Plugins** (`plugins/*`) are standalone implementations for each bridge provider (e.g., `across`, `lifi`, `wormhole`). Each plugin implements the data provider interface defined by `@data-provider/shared-contract`.
+
+**Packages** (`packages/*`) contain shared logic:
+- `packages/api`: Registers and initializes all plugins, acting as the orchestration layer between `apps/server` and individual plugins
+- `packages/plugin-utils`: Provides common utilities (HTTP client with rate limiting, decimal math) used by plugins
+- `packages/shared-contract`: Defines the contract/interface that all plugins must implement
+
+**Flow**: Plugins are developed independently in `plugins/`, registered in `packages/api/src/plugins.ts`, then consumed by `apps/server` which exposes the aggregated data through its API.
+
 ## Development
 
 ```bash
