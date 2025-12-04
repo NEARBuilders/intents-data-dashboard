@@ -15,8 +15,6 @@
     "build": "tsdown"
   },
   "devDependencies": {
-    "@data-provider/asset-enrichment": "workspace:*",
-    "@data-provider/aggregator": "workspace:*",
     "@types/node": "^24.10.0",
     "tsdown": "^0.15.5"
   },
@@ -24,12 +22,14 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@data-provider/aggregator": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "@t3-oss/env-core": "^0.13.8",
     "dotenv": "^17.2.2",
-    "every-plugin": "catalog:"
+    "every-plugin": "catalog:",
+    "zod": "catalog:"
   }
 }

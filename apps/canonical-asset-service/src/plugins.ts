@@ -12,11 +12,11 @@ export async function initializePlugins(config: {
     DATABASE_URL: string;
     DATABASE_AUTH_TOKEN?: string;
   };
-  remoteUrl: string;
+  remote: string;
 }) {
   const runtime = createPluginRuntime({
     registry: {
-      "@data-provider/asset-enrichment": { remoteUrl: config.remoteUrl },
+      "@data-provider/asset-enrichment": { remote: config.remote },
     },
     secrets: config.secrets,
   });

@@ -7,6 +7,8 @@ import { createAssetEnrichmentClient } from "./clients/asset-enrichment-client";
 import { contract } from "./contract";
 import { getPluginRuntime } from "./plugins";
 import { DataAggregatorService } from "./service";
+import type { CacheService } from "./services/cache";
+import { MemoryCache } from "./services/cache";
 import { RedisService } from "./services/redis";
 
 export default createPlugin({
@@ -27,8 +29,17 @@ export default createPlugin({
 
       const dune = new DuneClient(config.secrets.DUNE_API_KEY);
 
-      const redis = new RedisService(config.secrets.REDIS_URL);
-      yield* redis.healthCheck();
+      let cache: CacheService = new RedisService(config.secrets.REDIS_URL);
+      const healthCheckResult = yield* cache.healthCheck().pipe(
+        Effect.catchAll(() => {
+          console.warn('\n⚠️  Redis not available - using in-memory cache (data won\'t persist)');
+          console.warn('   For persistent cache, run: docker compose up -d\n');
+          cache = new MemoryCache();
+          return cache.healthCheck();
+        })
+      );
+
+      console.log(`[Cache] Using ${cache instanceof RedisService ? 'Redis' : 'in-memory'} cache - ${healthCheckResult}`);
 
       const { providers } = yield* getPluginRuntime({
         secrets: config.secrets,
@@ -36,10 +47,9 @@ export default createPlugin({
 
       const enrichAssetClient = createAssetEnrichmentClient(config.secrets.ASSET_ENRICHMENT_URL);
 
-      // @ts-expect-error some inability to type assert the enrichAssetClient
-      const service = new DataAggregatorService(dune, providers, enrichAssetClient, redis);
+      const service = new DataAggregatorService(dune, providers, enrichAssetClient, cache);
 
-      return { service, providers, redis };
+      return { service, providers, cache };
     }),
 
   shutdown: () => Effect.void,

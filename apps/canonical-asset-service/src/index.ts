@@ -20,7 +20,7 @@ const plugins = await initializePlugins({
     DATABASE_URL: serverEnv.DATABASE_URL,
     DATABASE_AUTH_TOKEN: serverEnv.DATABASE_AUTH_TOKEN,
   },
-  remoteUrl: serverEnv.ASSET_ENRICHMENT_REMOTE_ENTRY_URL
+  remote: serverEnv.ASSET_ENRICHMENT_REMOTE_ENTRY_URL
 });
 
 const router = createRouter(plugins);
@@ -136,6 +136,15 @@ if (serverEnv.SYNC_CRON_SCHEDULE) {
   console.log('[Cron] No SYNC_CRON_SCHEDULE configured, orchestrated sync will not run automatically');
   console.log('[Cron] To enable, set SYNC_CRON_SCHEDULE env var (e.g., "0 0 * * 0" for weekly on Sunday midnight UTC)');
 }
+
+console.log(`
+  Assets service running on port ${serverEnv.PORT}
+
+  Available endpoints:
+   http://localhost:${serverEnv.PORT}/        → Health check
+   http://localhost:${serverEnv.PORT}/api     → REST API (OpenAPI docs at /api/spec.ui)
+   http://localhost:${serverEnv.PORT}/api/rpc → RPC endpoint
+`)
 
 export default {
   port: serverEnv.PORT,

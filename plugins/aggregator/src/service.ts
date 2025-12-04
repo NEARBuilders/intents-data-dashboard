@@ -21,25 +21,25 @@ import { aggregateListedAssets, buildAssetSupportIndex } from "./services/assets
 import { aggregateLiquidity } from "./services/liquidity";
 import { PROVIDERS_LIST } from "./services/providers";
 import { aggregateRates } from "./services/rates";
-import { RedisService } from "./services/redis";
+import type { CacheService } from "./services/cache";
 import { aggregateVolumes, getVolumes } from "./services/volumes";
 
 export class DataAggregatorService {
   private dune: DuneClient;
   private providers: Partial<Record<ProviderIdentifier, PluginClient>>;
-  private redis?: RedisService;
+  private cache?: CacheService;
   private assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>;
 
   constructor(
     dune: DuneClient,
     providers: Partial<Record<ProviderIdentifier, PluginClient>>,
     assetEnrichmentClient: ContractRouterClient<typeof AssetEnrichmentContract>,
-    redis?: RedisService
+    cache?: CacheService
   ) {
     this.dune = dune;
     this.providers = providers;
     this.assetEnrichmentClient = assetEnrichmentClient;
-    this.redis = redis;
+    this.cache = cache;
   }
 
   private async enrichAsset(asset: AssetType): Promise<AssetType> {

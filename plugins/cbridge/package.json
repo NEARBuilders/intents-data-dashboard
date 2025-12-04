@@ -1,9 +1,13 @@
 {
   "name": "@data-provider/cbridge",
   "version": "0.0.1",
-  "description": "Template plugin for every-plugin framework",
-  "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "description": "NEAR Intents data provider plugin",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "peerDependencies": {
     "typescript": "^5.0.0"

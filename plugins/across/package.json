@@ -2,8 +2,12 @@
   "name": "@data-provider/across",
   "version": "1.0.0",
   "description": "Across Protocol data provider plugin",
-  "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "author": "0xJesus",
   "keywords": ["across", "bridge", "defi", "near-intents", "data-provider", "every-plugin"],

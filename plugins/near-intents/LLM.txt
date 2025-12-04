@@ -274,7 +274,7 @@ Add to your registry:
 ```javascript
 const registry = {
   "my-org/my-plugin": {
-    remoteUrl: "https://cdn.example.com/plugins/my-plugin/remoteEntry.js",
+    remote: "https://cdn.example.com/plugins/my-plugin/remoteEntry.js",
     version: "1.0.0"
   }
 };
@@ -352,7 +352,7 @@ Deploy to a CDN/hosting service, then register:
 const runtime = createPluginRuntime({
   registry: {
     "my-org/my-plugin": {
-      remoteUrl: "http://localhost:3014/remoteEntry.js",  // From dev server
+      remote: "http://localhost:3014/remoteEntry.js",  // From dev server
       version: "1.0.0"
     }
   }
@@ -362,7 +362,7 @@ const runtime = createPluginRuntime({
 const runtime = createPluginRuntime({
   registry: {
     "my-org/my-plugin": {
-      remoteUrl: "https://cdn.zephyr.com/v123/plugins/my-plugin/remoteEntry.js",
+      remote: "https://cdn.zephyr.com/v123/plugins/my-plugin/remoteEntry.js",
       version: "1.0.0"
     }
   }
@@ -380,7 +380,7 @@ const { client } = await runtime.usePlugin("my-org/my-plugin", {
 2. **Manual Upload** - Build then upload `dist/remoteEntry.js` to CDN
 3. **Self-hosted** - Serve from your own infrastructure
 
-Once deployed, share the `remoteUrl` so others can add to their registries.
+Once deployed, share the `remote` so others can add to their registries.
 
 ## Common Pitfalls
 

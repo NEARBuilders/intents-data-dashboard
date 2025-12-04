@@ -1,9 +1,13 @@
 {
   "name": "@data-provider/near-intents",
   "version": "0.0.1",
-  "description": "NEAR Intents data provider plugin",
-  "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "description": "Across Protocol data provider plugin",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "peerDependencies": {
     "typescript": "^5.0.0"

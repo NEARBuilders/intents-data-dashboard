@@ -1,13 +1,8 @@
-import type AggregatorPlugin from "@data-provider/aggregator";
-import { createPluginRuntime } from "every-plugin";
+import AggregatorPlugin from "@data-provider/aggregator";
+import { createPluginRuntime } from 'every-plugin';
 
-type ApiRegistry = {
-  "@data-provider/aggregator": typeof AggregatorPlugin;
-}
-
-const PLUGIN_URLS = {
-  "@data-provider/aggregator": "https://elliot-braem-937-data-provider-aggregator-data-pr-88569506e-ze.zephyrcloud.app/remoteEntry.js",
-} as const;
+// necessary for type portability
+import * as _ZodTypes from "every-plugin/zod/v4/core";
 
 export async function initializePlugins(config: {
   secrets: {
@@ -16,9 +11,9 @@ export async function initializePlugins(config: {
     NEAR_INTENTS_API_KEY: string,
   },
 }) {
-  const runtime = createPluginRuntime<ApiRegistry>({
+  const runtime = createPluginRuntime({
     registry: {
-      "@data-provider/aggregator": { remoteUrl: PLUGIN_URLS["@data-provider/aggregator"] },
+      "@data-provider/aggregator": { module: AggregatorPlugin },
     },
     secrets: config.secrets,
   });

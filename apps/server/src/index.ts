@@ -105,6 +105,15 @@ app.all('/api/*', async (c) => {
 
 app.all('*', (c) => c.text('Not Found', 404))
 
+console.log(`
+ Intents service running on port ${serverEnv.PORT}
+
+ Available endpoints:
+   http://localhost:${serverEnv.PORT}/        → Health check
+   http://localhost:${serverEnv.PORT}/api     → REST API (OpenAPI docs at /api/spec.ui)
+   http://localhost:${serverEnv.PORT}/api/rpc → RPC endpoint
+`)
+
 export default {
   port: serverEnv.PORT,
   fetch: app.fetch,

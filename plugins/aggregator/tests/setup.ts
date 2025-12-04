@@ -7,7 +7,7 @@ const TEST_CONFIG = pluginDevConfig.config;
 
 const TEST_REGISTRY = {
   [TEST_PLUGIN_ID]: {
-    remoteUrl: "http://localhost:3000/remoteEntry.js",
+    remote: "http://localhost:3000/remoteEntry.js",
     version: "1.0.0",
     description: "Integration test runtime",
   },

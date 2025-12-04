@@ -2,8 +2,12 @@
   "name": "@data-provider/asset-enrichment",
   "version": "0.0.1",
   "description": "Enrich assets and convert to and from canonical asset",
-  "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "type": "module",
   "peerDependencies": {
     "typescript": "^5.0.0"
