@@ -13,7 +13,7 @@
       "zod": "^4.1.12",
       "@orpc/openapi": "^1.10.0",
       "@orpc/zod": "^1.10.0",
-      "every-plugin": "link:every-plugin"
+      "every-plugin": "^0.6.1"
     }
   },
   "scripts": {
