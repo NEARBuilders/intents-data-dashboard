@@ -162,6 +162,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {
