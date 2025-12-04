@@ -3,9 +3,6 @@
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "ESNext",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "strict": true,
@@ -13,11 +10,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "esModuleInterop": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "esModuleInterop": true
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["*.ts"]
 }

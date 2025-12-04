@@ -3,23 +3,15 @@
   "version": "1.0.0",
   "description": "Shared contract for Data Provider plugins",
   "type": "module",
-  "main": "./index.ts",
-  "types": "./index.ts",
   "exports": {
-    ".": {
-      "types": "./index.ts",
-      "default": "./index.ts"
-    }
+    ".": "./index.ts"
   },
+  "sideEffects": false,
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@defuse-protocol/crosschain-assetid": "^1.0.3",
     "every-plugin": "catalog:"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"

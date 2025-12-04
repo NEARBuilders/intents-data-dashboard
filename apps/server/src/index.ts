@@ -110,7 +110,7 @@ console.log(`
 
  Available endpoints:
    http://localhost:${serverEnv.PORT}/        → Health check
-   http://localhost:${serverEnv.PORT}/api     → REST API (OpenAPI docs at /api/spec.ui)
+   http://localhost:${serverEnv.PORT}/api     → REST API (OpenAPI docs)
    http://localhost:${serverEnv.PORT}/api/rpc → RPC endpoint
 `)
 

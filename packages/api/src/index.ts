@@ -1,4 +1,4 @@
-import { os } from "@orpc/server";
+import { os } from "every-plugin/orpc";
 import type { Context } from "./context";
 
 export const o = os.$context<Context>();

@@ -1,34 +1,17 @@
 {
   "name": "@data-provider/api",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./src/index.ts"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "default": "./src/*.ts"
-    }
-  },
   "type": "module",
-  "scripts": {
-    "build": "tsdown"
-  },
-  "devDependencies": {
-    "@types/node": "^24.10.0",
-    "tsdown": "^0.15.5"
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
     "@data-provider/aggregator": "workspace:*",
-    "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
-    "@t3-oss/env-core": "^0.13.8",
-    "dotenv": "^17.2.2",
     "every-plugin": "catalog:",
     "zod": "catalog:"
   }
