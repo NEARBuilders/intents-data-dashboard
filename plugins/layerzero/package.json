@@ -33,7 +33,7 @@
   },
   "scripts": {
     "build": "rspack build",
-    "type-check": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "dev": "rspack serve",
     "test": "vitest run",
     "test:watch": "vitest",

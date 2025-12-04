@@ -22,7 +22,7 @@
     "dev": "turbo dev --filter='./apps/*'",
     "dev:plugins": "turbo build --filter='./packages/*' && turbo dev --filter='./plugins/*'",
     "build": "turbo build",
-    "check-types": "turbo check-types",
+    "typecheck": "turbo typecheck",
     "generate": "bun plop"
   },
   "devDependencies": {
