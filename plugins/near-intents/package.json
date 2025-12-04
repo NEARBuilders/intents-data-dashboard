@@ -13,6 +13,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@data-provider/shared-contract": "workspace:*",
     "@data-provider/plugin-utils": "workspace:*",
     "@defuse-protocol/crosschain-assetid": "^1.0.2",
     "@defuse-protocol/one-click-sdk-typescript": "^0.1.13"

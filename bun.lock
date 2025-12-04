@@ -185,6 +185,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.2",
       },
       "devDependencies": {
@@ -244,6 +245,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@libsql/client": "^0.15.15",
         "drizzle-orm": "^0.44.7",
       },
@@ -268,6 +270,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {
@@ -291,6 +294,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
         "decimal.js": "^10.6.0",
       },
@@ -315,6 +319,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {
@@ -338,6 +343,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {
@@ -361,6 +367,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {
@@ -384,6 +391,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
         "decimal.js": "^10.6.0",
       },
@@ -408,6 +416,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.2",
         "@defuse-protocol/one-click-sdk-typescript": "^0.1.13",
       },
@@ -432,6 +441,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@data-provider/plugin-utils": "workspace:*",
+        "@data-provider/shared-contract": "workspace:*",
         "@defuse-protocol/crosschain-assetid": "^1.0.3",
       },
       "devDependencies": {

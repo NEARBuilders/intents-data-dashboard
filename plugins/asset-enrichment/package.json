@@ -38,6 +38,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@data-provider/shared-contract": "workspace:*",
     "@data-provider/plugin-utils": "workspace:*",
     "@libsql/client": "^0.15.15",
     "drizzle-orm": "^0.44.7"

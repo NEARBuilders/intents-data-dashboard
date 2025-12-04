@@ -27,6 +27,7 @@
     "zephyr-rspack-plugin": "^0.1.2"
   },
   "dependencies": {
+    "@data-provider/shared-contract": "workspace:*",
     "@data-provider/plugin-utils": "workspace:*",
     "@defuse-protocol/crosschain-assetid": "^1.0.2"
   },
